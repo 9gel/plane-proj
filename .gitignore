@@ -1,0 +1,13 @@
+.venv/
+.env
+.env_plane*
+.direnv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.rumdl_cache/
+result
+plane-proj*.json
+SPRINTS.sqlite
+/plane/

@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprints</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f6f4; --surface: #fcfcfb; --surface-2: #f0efec; --border: #e2e1dc;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #85837d; --accent: #2a78d6;
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4; --c6: #008300;
+  --st-todo: #9c9a93; --st-prog: #2a78d6; --st-verify: #eb6834; --st-done: #1baf7a; --st-cancel: #cfcdc6;
+  --warn: #b26b00; --grid: #e9e8e4; --track: #ecebe7; --range: #6f6d67; --median: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --border: #33332f;
+    --text: #fff; --text-2: #c3c2b7; --muted: #8d8b84; --accent: #3987e5;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300;
+    --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #d95926; --st-done: #199e70; --st-cancel: #4a4945;
+    --warn: #e0a030; --grid: #2a2a27; --track: #2a2a27; --range: #a3a196; --median: #5598e7;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --border: #33332f;
+  --text: #fff; --text-2: #c3c2b7; --muted: #8d8b84; --accent: #3987e5;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300;
+  --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #d95926; --st-done: #199e70; --st-cancel: #4a4945;
+  --warn: #e0a030; --grid: #2a2a27; --track: #2a2a27; --range: #a3a196; --median: #5598e7;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+.muted { color: var(--muted); } .t2 { color: var(--text-2); } .small { font-size: 12px; }
+header { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); }
+.bar { max-width: 1200px; margin: 0 auto; padding: 0 16px; display: flex; align-items: center; gap: 16px; height: 52px; }
+.brand { font-weight: 650; white-space: nowrap; }
+button { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+nav { display: flex; gap: 2px; overflow-x: auto; flex: 1; }
+nav a { padding: 6px 10px; border-radius: 6px; color: var(--text-2); white-space: nowrap; }
+nav a.on { background: var(--surface-2); color: var(--text); font-weight: 600; }
+nav a:hover { text-decoration: none; background: var(--surface-2); }
+main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 60px; }
+h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 10px; } h3 { font-size: 14px; margin: 0 0 8px; }
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.g4 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+.card.link { cursor: pointer; } .card.link:hover { border-color: var(--accent); }
+.kpi .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.kpi .l { color: var(--text-2); font-size: 12.5px; }
+.pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
+.alias { font-weight: 600; color: var(--text); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .sp { flex: 1; }
+.goal { color: var(--text-2); margin: 4px 0 0; max-width: 900px; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.legend i.hollow { background: none !important; border: 1px dashed var(--muted); }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+th { font-size: 12px; color: var(--text-2); font-weight: 600; white-space: nowrap; }
+th.sort { cursor: pointer; } th.sort:hover { color: var(--text); }
+td.n, th.n { text-align: right; }
+tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surface-2); }
+.scroll { overflow-x: auto; }
+/* bars */
+.hb { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+.hb .track { flex: 1; height: 10px; position: relative; }
+.hb .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 3px 3px 0; }
+.hb .lbl { font-size: 11.5px; color: var(--text-2); white-space: nowrap; min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
+.seg { display: block; width: 100%; height: 12px; }
+.seg rect.o { fill: var(--c1); } .seg rect.a { fill: var(--c2); } .seg rect.r { fill: none; stroke: var(--muted); stroke-dasharray: 1.5 1; stroke-width: .6; }
+/* state bar with embedded numbers */
+.sbar { display: flex; align-items: center; gap: 10px; }
+.sbar .segs { flex: 1; display: flex; gap: 2px; height: 26px; position: relative; }
+.sbar .segs span { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 650; font-size: 12.5px; border-radius: 3px; min-width: 18px; }
+.sbar .segs span.light { color: #0b0b0b; }
+.sbar .tot { font-weight: 650; font-size: 18px; white-space: nowrap; }
+.sbar .start { position: absolute; top: -6px; bottom: -6px; border-left: 2px dashed var(--text); }
+.sbar .start b { position: absolute; top: -16px; left: 3px; font-size: 11px; font-weight: 600; white-space: nowrap; color: var(--text-2); }
+/* card icons */
+.cicons { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.ci { width: 14px; height: 19px; border-radius: 3px; border: 1px solid rgba(0,0,0,.18); position: relative; }
+.ci::after { content: ""; position: absolute; left: 3px; right: 3px; top: 4px; height: 2px; background: rgba(255,255,255,.65); box-shadow: 0 4px 0 rgba(255,255,255,.65); border-radius: 1px; }
+.ci.big { width: 22px; height: 30px; border-radius: 4px; }
+.ci.big::after { left: 4px; right: 4px; top: 6px; height: 3px; box-shadow: 0 6px 0 rgba(255,255,255,.65); }
+.ci.sm { width: 8px; height: 11px; border-radius: 2px; border: 0; }
+.ci.sm::after { display: none; }
+.ci.o { background: var(--c1); } .ci.a { background: var(--c2); } .ci.r { background: none; border: 1px dashed var(--muted); }
+.ci.plain { background: var(--surface-2); border-color: var(--muted); }
+.ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
+/* one big board */
+.board { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; }
+.board .colh { padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--surface-2); display: flex; gap: 6px; align-items: center; }
+.board .colh i { width: 8px; height: 8px; border-radius: 50%; }
+.board .colb { padding: 10px; min-height: 160px; }
+.board .colh + .colh, .board .colb + .colb { border-left: 1px solid var(--border); }
+.wi { background: var(--bg); border: 1px solid var(--border); border-left: 3px solid; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; font-size: 13px; }
+.wi .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: 11.5px; color: var(--text-2); }
+.flag { color: var(--warn); font-weight: 600; }
+.prose { white-space: pre-wrap; color: var(--text-2); }
+.note { border-left: 3px solid var(--warn); background: var(--surface); padding: 8px 12px; border-radius: 6px; font-size: 12.5px; color: var(--text-2); margin-bottom: 16px; }
+/* planned rows */
+.plan { display: grid; grid-template-columns: 36px minmax(260px, 2.2fr) minmax(130px, 1fr) minmax(150px, 1.2fr) minmax(150px, 1.2fr); gap: 0 16px; align-items: stretch; }
+.plan > div { padding: 12px 0; border-bottom: 1px solid var(--border); min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+.plan .hd { font-size: 12px; color: var(--text-2); font-weight: 600; padding: 6px 0; }
+.plan .pos { font-family: ui-monospace, monospace; color: var(--muted); font-size: 16px; text-align: center; }
+.plan .ttl { cursor: pointer; } .plan .ttl:hover .tt { color: var(--accent); }
+.plan .gl { color: var(--text-2); font-size: 12.5px; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 760px) { .plan { grid-template-columns: 28px 1fr; } .plan .wide { grid-column: 2; padding-top: 0; border-bottom: 0; } .plan .hd.wide { display: none; } }
+/* stats strips */
+.srow { padding: 6px 0 4px; border-bottom: 1px solid var(--border); }
+.srow .top { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.srow .val { margin-left: auto; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; text-align: right; }
+.srow svg { width: 100%; height: 22px; display: block; }
+.dist { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.dist .stack { display: flex; flex-direction: column; gap: 12px; }
+@media (max-width: 760px) { .dist { grid-template-columns: 1fr; } }
+.chart { width: 100%; height: auto; display: block; }
+.chart text { fill: var(--text-2); font-size: 11px; }
+.chart .gl { stroke: var(--grid); }
+.tip { position: fixed; pointer-events: none; z-index: 20; background: var(--text); color: var(--bg); padding: 6px 9px; border-radius: 6px; font-size: 12px; display: none; max-width: 300px; }
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+.tabs button.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+details summary { cursor: pointer; color: var(--text-2); }
+@media (max-width: 640px) { .bar { gap: 8px; } }
+</style>
+</head>
+<body>
+<header><div class="bar">
+  <span class="brand">plane-proj <span class="muted" id="projname"></span></span>
+  <nav id="nav">
+    <a href="#/">Overview</a><a href="#/current">Current</a><a href="#/planned">Planned</a>
+    <a href="#/past">Past</a><a href="#/stats">Stats</a>
+  </nav>
+  <button id="theme" title="Toggle theme">◐</button>
+</div></header>
+<main id="app"></main>
+<div class="tip" id="tip"></div>
+<script>
+// ===== data =====
+// Filled by boot() from /api/sprints; every view reads these.
+let DATA, L, ST, SNAP, PROJECT, PLANE_BOARD, POINTS, current, planned, past, byId, MEDV;
+function boot(data) {
+  DATA = data; L = data.listing; ST = L.stats || {}; SNAP = new Date(data.generated_at);
+  PROJECT = data.project.key; PLANE_BOARD = data.board_url; POINTS = data.estimates;
+  current = L.current || [];
+  planned = [...(L.planned || [])].sort((a, b) => a.position - b.position);
+  past = [...(L.past || [])].sort((a, b) => new Date(a.started) - new Date(b.started));
+  byId = Object.fromEntries([...current, ...planned, ...past].map(s => [s.sprint, s]));
+  MEDV = POINTS ? ST.velocity?.median ?? null : null; // assumed velocity for planned estimates
+  document.title = `${PROJECT} sprints`;
+  $('#projname').textContent = `${PROJECT} · ${data.project.name}`;
+}
+const cardsFor = s => DATA.cards[s.sprint] || [];
+
+// ===== helpers =====
+const $ = q => document.querySelector(q);
+const esc = v => String(v ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmtMin = m => { if (m == null) return '—'; m = Math.round(m); if (m < 60) return m + 'm';
+  const h = Math.floor(m / 60); if (h < 48) return h + 'h ' + String(m % 60).padStart(2, '0') + 'm'; return Math.floor(h / 24) + 'd ' + (h % 24) + 'h'; };
+const fmtH = h => h == null ? '—' : fmtMin(h * 60);
+const num = (v, d = 1) => v == null ? '—' : String(+(+v).toFixed(d));
+const ago = t => { const m = (SNAP - new Date(t)) / 6e4;
+  if (m < 60) return Math.round(m) + ' min ago'; if (m < 60 * 36) return Math.round(m / 60) + ' h ago'; return Math.round(m / 1440) + ' days ago'; };
+const fullDate = t => new Date(t).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+const label = s => s.alias ? `<span class="alias">${esc(s.alias)}</span> <span class="muted mono">#${s.sprint}</span>` : `<span class="alias">#${s.sprint}</span>`;
+const elapsedH = s => (SNAP - new Date(s.started)) / 36e5;
+const median = a => { const v = a.filter(x => x != null).sort((x, y) => x - y); return v[Math.floor(v.length / 2)]; };
+const TERMINAL = new Set(['Done', 'Cancelled']); // residence in a terminal state is not delivery time
+const STATES = ['Todo', 'In Progress', 'Verifying', 'Done', 'Cancelled'];
+const stC = { 'Todo': 'var(--st-todo)', 'In Progress': 'var(--st-prog)', 'Verifying': 'var(--st-verify)', 'Done': 'var(--st-done)', 'Cancelled': 'var(--st-cancel)' };
+const goto = id => `onclick="location.hash='#/sprint/${id}'"`;
+
+const tip = $('#tip');
+document.addEventListener('mousemove', e => {
+  const t = e.target.closest('[data-tip]');
+  if (!t) { tip.style.display = 'none'; return; }
+  tip.innerHTML = t.dataset.tip; tip.style.display = 'block';
+  tip.style.left = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8) + 'px'; tip.style.top = (e.clientY + 14) + 'px';
+});
+
+// Horizontal bar: linear or log; small text beside it.
+function hbar(v, max, text, color = 'var(--c1)', { log = false, lo = 0.25, tipText } = {}) {
+  let pct = 0;
+  if (v != null && v > 0) pct = log ? Math.log2(Math.max(v, lo) / lo) / Math.log2(max / lo) : v / max;
+  return `<div class="hb" ${tipText ? `data-tip="${esc(tipText)}"` : ''}><div class="track"><div class="fill" style="width:${Math.max(pct * 100, v ? 1 : 0)}%;background:${color}"></div></div><span class="lbl">${text}</span></div>`;
+}
+// One segment per point: original (start, kept), added (end > start), removed (end < start, hollow).
+function segbar(start, end, scaleMax, unit = 'pts') {
+  start = start || 0; end = end ?? start;
+  const kept = Math.min(start, end), added = Math.max(0, end - start), removed = Math.max(0, start - end);
+  let x = 0, r = '';
+  const put = (n, cls) => { for (let i = 0; i < n; i++, x++) r += `<rect class="${cls}" x="${x * 4 + .3}" y=".3" width="3.2" height="11.4" rx=".6"/>`; };
+  put(kept, 'o'); put(added, 'a'); put(removed, 'r');
+  return `<svg class="seg" viewBox="0 0 ${scaleMax * 4} 12" preserveAspectRatio="none" data-tip="${esc(`${start} → ${end} ${unit}` + (added ? ` (+${added} added)` : '') + (removed ? ` (−${removed} removed)` : ''))}">${r}</svg>`;
+}
+const segLegend = `<div class="legend"><span><i style="background:var(--c1)"></i>Original</span><span><i style="background:var(--c2)"></i>Added during sprint</span><span><i class="hollow"></i>Removed</span></div>`;
+// Past cards as card icons: original, added during the sprint, removed (hollow).
+function cardRow(start, end) {
+  start = start || 0; end = end ?? start;
+  const kept = Math.min(start, end), added = Math.max(0, end - start), removed = Math.max(0, start - end);
+  const icon = cls => `<span class="ci sm ${cls}"></span>`;
+  return `<div class="cicons" style="gap:2px" data-tip="${esc(`${start} → ${end} cards` + (added ? ` (+${added} added)` : '') + (removed ? ` (−${removed} removed)` : ''))}">${
+    icon('o').repeat(kept) + icon('a').repeat(added) + icon('r').repeat(removed)}</div>`;
+}
+const cardIcons = (colors, big) => `<div class="cicons">${colors.map(c => c === 'plain' ? `<span class="ci plain ${big ? 'big' : ''}"></span>` : `<span class="ci ${big ? 'big' : ''}" style="background:${c}"></span>`).join('')}</div>`;
+
+// Points by state with numbers inside, total outside, dashed start marker.
+function stateBar(cards, start, unit) {
+  const val = c => unit === 'pts' ? c.points : 1;
+  const tot = cards.reduce((a, c) => a + val(c), 0), scale = Math.max(tot, start);
+  const segs = STATES.map(st => [st, cards.filter(c => c.state === st).reduce((a, c) => a + val(c), 0)]).filter(x => x[1]);
+  return `<div class="sbar"><div class="segs">${segs.map(([st, n]) =>
+    `<span class="${st === 'Cancelled' ? 'light' : ''}" style="width:${n / scale * 100}%;background:${stC[st]}" data-tip="${st}: ${n} ${unit}">${n}</span>`).join('')}
+    ${tot < scale ? `<span style="flex:1;background:none;border:1px dashed var(--muted)"></span>` : ''}
+    <div class="start" style="left:calc(${start / scale * 100}% - 1px)"><b>start ${start}</b></div></div>
+    <span class="tot">${tot} <span class="muted small">${unit}</span></span></div>`;
+}
+const stateLegend = cards => `<div class="legend" style="margin-top:6px">${STATES.filter(st => cards.some(c => c.state === st)).map(st => `<span><i style="background:${stC[st]}"></i>${st}</span>`).join('')}</div>`;
+
+const niceStep = v => { const r = v / 4 || 1, e = 10 ** Math.floor(Math.log10(r)); return [1, 2, 2.5, 5, 10].map(m => m * e).find(x => x >= r); };
+// Column chart: stacked linear, or single-series log. One axis, hover per column, click opens sprint.
+function colChart({ data, stacks, w = 1100, h = 220, fmt = v => num(v), log = false, lo = 0.25, ref, refLabel, tipFn }) {
+  if (!data.length) return '<p class="muted">No sprints to chart.</p>';
+  h += 26; // room for vertical sprint numbers under the columns
+  const pad = { l: 46, r: 12, t: 12, b: 52 }, iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+  const totals = data.map(d => stacks.reduce((a, s) => a + (s.get(d) || 0), 0));
+  const top = Math.max(...totals), step = niceStep(top), max = log ? 2 ** Math.ceil(Math.log2(top)) : Math.ceil(top / step) * step;
+  const sy = v => log ? pad.t + ih - Math.log2(Math.max(v, lo) / lo) / Math.log2(max / lo) * ih : pad.t + ih - v / max * ih;
+  const ticks = log ? Array.from({ length: Math.log2(max / lo) + 1 }, (_, i) => lo * 2 ** i) : Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step);
+  const bw = iw / data.length, gap = bw > 6 ? 2 : 1;
+  let out = ticks.map(v => `<line class="gl" x1="${pad.l}" x2="${w - pad.r}" y1="${sy(v)}" y2="${sy(v)}"/><text x="${pad.l - 6}" y="${sy(v) + 4}" text-anchor="end">${fmt(v)}</text>`).join('');
+  data.forEach((d, i) => {
+    const x = pad.l + i * bw + gap / 2, bwid = Math.max(bw - gap, 1); let acc = log ? lo : 0;
+    stacks.forEach(s => { const v = s.get(d) || 0; if (!v) return;
+      const y0 = sy(acc), y1 = sy(acc + v); acc += v;
+      out += s.hollow ? `<rect x="${x + .5}" y="${y1}" width="${bwid - 1}" height="${y0 - y1}" fill="none" stroke="var(--muted)" stroke-dasharray="2 1.5"/>`
+        : `<rect x="${x}" y="${y1}" width="${bwid}" height="${Math.max(y0 - y1 - (stacks.length > 1 ? 1 : 0), .5)}" fill="${s.color}"/>`; });
+    out += `<text transform="translate(${pad.l + (i + .5) * bw + 3} ${pad.t + ih + 4}) rotate(-90)" text-anchor="end" style="font-size:${Math.min(10, bw * .8)}px">${d.sprint}</text>`;
+    out += `<rect x="${pad.l + i * bw}" y="${pad.t}" width="${bw}" height="${ih + 26}" fill="transparent" style="cursor:pointer" ${goto(d.sprint)} data-tip="${esc(tipFn(d))}"/>`;
+  });
+  if (ref != null) out += `<line x1="${pad.l}" x2="${w - pad.r}" y1="${sy(ref)}" y2="${sy(ref)}" stroke="var(--text)" stroke-dasharray="5 4"/><text x="${w - pad.r}" y="${sy(ref) - 5}" text-anchor="end">${refLabel}</text>`;
+  out += `<text x="${pad.l}" y="${h - 7}">${esc(ago(data[0].started))}</text><text x="${w - pad.r}" y="${h - 7}" text-anchor="end">${esc(ago(data[data.length - 1].started))}</text>`;
+  const leg = stacks.length > 1 ? `<div class="legend" style="margin-bottom:6px">${stacks.map(s => `<span><i ${s.hollow ? 'class="hollow"' : `style="background:${s.color}"`}></i>${s.label}</span>`).join('')}</div>` : '';
+  return leg + `<svg class="chart" viewBox="0 0 ${w} ${h}">${out}</svg>`;
+}
+const tipHead = d => `<b>${esc(d.alias || '#' + d.sprint)}</b> ${esc(d.title)}<br>`;
+
+// ===== views =====
+const V = {};
+
+V.overview = () => {
+  const last = past[past.length - 1], recent = past.slice(-24);
+  const plannedPts = planned.reduce((a, s) => a + (s.points || 0), 0);
+  return `<h1>Overview</h1><p class="muted">${esc(PROJECT)} · read ${fullDate(SNAP)}</p>
+  <div class="grid g4">
+    <div class="card kpi link" onclick="location.hash='#/current'"><div class="v">${current.length}</div><div class="l">Current sprints</div></div>
+    <div class="card kpi link" onclick="location.hash='#/planned'"><div class="v">${planned.length}</div><div class="l">Planned${POINTS ? ` · ${plannedPts} pts` : ''}${MEDV ? ` ≈ ${fmtH(plannedPts / MEDV)}` : ''}</div></div>
+    <div class="card kpi link" onclick="location.hash='#/past'"><div class="v">${past.length}</div><div class="l">Completed${POINTS ? ` · ${past.reduce((a, s) => a + (s.points_end || 0), 0)} pts` : ''}</div></div>
+    ${MEDV ? `<div class="card kpi link" onclick="location.hash='#/stats'"><div class="v">${num(MEDV, 2)}<span class="muted small"> pts/h</span></div><div class="l">Median velocity</div></div>` : ''}
+  </div>
+  <h2>In flight</h2><div class="grid g2">${current.map(s => { const cards = cardsFor(s);
+    return `<div class="card link" ${goto(s.sprint)}><div class="row">${label(s)}<span class="sp"></span><span class="pill">${fmtH(elapsedH(s))} elapsed</span></div>
+      <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${POINTS ? stateBar(cards, s.points_start, 'pts') : ''}
+      <div class="row" style="margin-top:10px">${cardIcons(cards.map(c => stC[c.state]))}<span class="sp"></span>
+      <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div></div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card"><div class="row"><h3>Up next</h3><span class="sp"></span><a href="#/planned">All ${planned.length} →</a></div>
+      ${planned.length ? '' : '<p class="muted">No planned sprints.</p>'}${planned.slice(0, 4).map(s => `<div class="row link" style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" ${goto(s.sprint)}>
+        ${label(s)}<span class="t2" style="flex:1;min-width:140px">${esc(s.title)}</span>${cardIcons(Array(s.cards).fill('plain'))}</div>`).join('')}</div>
+    ${last ? `<div class="card link" ${goto(last.sprint)}><div class="row"><h3>Last completed</h3><span class="sp"></span><span class="muted small">ended ${ago(last.ended)}</span></div>
+      <div class="row">${label(last)}<span class="t2">${esc(last.title)}</span></div>
+      ${POINTS ? `<div style="margin:8px 0">${segbar(last.points_start, last.points_end, Math.max(last.points_start, last.points_end))}</div>` : ''}
+      <div class="prose small" style="max-height:72px;overflow:hidden">${esc(last.delivered)}</div></div>` : '<div class="card"><h3>Last completed</h3><p class="muted">No completed sprints.</p></div>'}
+  </div>
+  ${MEDV && recent.length ? `<h2>Velocity, last ${recent.length} sprints <span class="muted small">(pts/h, log₂ scale)</span></h2>
+  <div class="card">${colChart({ data: recent, log: true, h: 200, fmt: v => num(v, 2), stacks: [{ label: 'pts/h', color: 'var(--c1)', get: d => d.velocity }],
+    ref: MEDV, refLabel: `median ${num(MEDV, 2)}`, tipFn: d => tipHead(d) + `${num(d.velocity, 2)} pts/h · ${d.elapsed}` })}</div>` : ''}`;
+};
+
+V.current = () => current.length ? (current.length > 1 ? `<h1>Current sprints</h1><p class="muted">${current.length} running in parallel on distinct cycles.</p>` : '') +
+  current.map(s => V.currentOne(s)).join('<hr style="border:0;border-top:2px solid var(--border);margin:40px 0">') : '<p class="muted">No sprint in progress.</p>';
+
+V.currentOne = s => {
+  const cards = cardsFor(s), t = s.timing || {}, el = elapsedH(s), vel = POINTS ? s.points_done / el : null;
+  const exec = Object.entries(t.execution_minutes || {}).sort((a, b) => b[1] - a[1]);
+  const execTot = exec.reduce((a, x) => a + x[1], 0);
+  const active = Object.values(t.active_minutes || {}).reduce((a, b) => a + b, 0);
+  const openT = Object.entries(t.open_timer_minutes || {});
+  const execColors = ['var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)', 'var(--c6)'];
+  return `<div class="row">${label(s)}<span class="pill" style="color:var(--st-prog)">● current</span><span class="sp"></span>
+    <span class="muted small">Started ${fullDate(s.started)} · ${fmtH(el)} elapsed</span></div>
+  <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
+
+  <div class="card" style="margin-top:18px">
+    ${POINTS ? `<h3>Points</h3><div style="margin-top:22px">${stateBar(cards, s.points_start, 'pts')}</div>${stateLegend(cards)}
+    <h3 style="margin-top:20px">Cards</h3>` : '<h3>Cards</h3>'}
+    <div class="row">${cardIcons(cards.map(c => stC[c.state]), true)}<span class="sp"></span><span class="tot" style="font-weight:650;font-size:18px">${cards.length} <span class="muted small">cards</span></span></div>
+    ${POINTS ? '' : stateLegend(cards)}
+    <p class="muted small" style="margin:6px 0 0">Started with ${s.cards_start} cards${POINTS ? ` · ${s.points_start} pts` : ''}. Now ${s.cards_current} cards${POINTS ? ` · ${s.points_current} pts
+      (${s.points_current - s.points_start >= 0 ? '+' : ''}${s.points_current - s.points_start} pts)` : ''}.</p>
+  </div>
+
+  <div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2><span class="sp"></span><a href="${PLANE_BOARD}" target="_blank" rel="noopener">Open in Plane ↗</a></div>
+  <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st} <span class="muted">${cards.filter(c => c.state === st).length}</span></div>`).join('')}
+    ${STATES.map(st => `<div class="colb">${cards.filter(c => c.state === st).map(c => `<div class="wi" style="border-left-color:${stC[st]}">
+      <div class="row"><a class="mono" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.ref)}</a><span class="sp"></span>${POINTS ? `<span class="pill">${c.points} pt</span>` : ''}</div>
+      <div>${esc(c.title)}</div></div>`).join('')}</div>`).join('')}</div>
+
+  <h2>Status</h2>
+  <div class="grid g4">
+    ${POINTS ? `<div class="card kpi"><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity${MEDV ? ` · median ${num(MEDV, 2)}` : ''}</div>
+      ${hbar(vel, Math.max(vel, MEDV || 0) * 1.2 || 1, 'now', 'var(--c1)')}${MEDV ? hbar(MEDV, Math.max(vel, MEDV) * 1.2, 'median', 'var(--muted)') : ''}</div>` : ''}
+    <div class="card kpi"><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events · ${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked</div></div>
+    <div class="card kpi"><div class="v">${fmtMin(active)}</div><div class="l">Active time (In Progress ${fmtMin(t.active_minutes?.['In Progress'])} · Verifying ${fmtMin(t.active_minutes?.['Verifying'])})</div></div>
+    <div class="card kpi"><div class="v">${openT.length || 'None'}</div><div class="l">Open timers ${openT.map(([k, v]) => `· ${k} ${fmtMin(v)}`).join(' ')}</div></div>
+  </div>
+  <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers · ${fmtMin(execTot)} total</h3><span class="sp"></span>
+    <span class="muted small">${t.timed_cards ?? 0} timed · ${t.final_cards ?? 0} final of ${t.observed_cards ?? 0} observed cards</span></div>
+    <div style="display:flex;height:14px;gap:2px;margin:10px 0 6px">${exec.map(([k, v], i) => `<span style="flex:${v};background:${execColors[i % 6]};border-radius:2px" data-tip="${k}: ${fmtMin(v)}"></span>`).join('')}</div>
+    <div class="legend">${exec.map(([k, v], i) => `<span><i style="background:${execColors[i % 6]}"></i>${k} ${fmtMin(v)}</span>`).join('')}</div></div>
+
+  <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>
+  <details style="margin-top:12px"><summary>Execution guidance</summary><div class="card prose" style="margin-top:8px">${esc(s.execution)}</div></details>`;
+};
+
+V.planned = () => {
+  if (!planned.length) return '<h1>Planned sprints</h1><p class="muted">No planned sprints.</p>';
+  const maxPts = Math.max(1, ...planned.map(s => s.points || 0)), maxEst = MEDV ? maxPts / MEDV : 0;
+  return `<h1>Planned sprints</h1>
+  <p class="muted">${planned.length} sprints in execution order · ${planned.reduce((a, s) => a + s.cards, 0)} cards${POINTS ? ` · ${planned.reduce((a, s) => a + s.points, 0)} pts` : ''}</p>
+  ${MEDV ? `<div class="note" style="border-left-color:var(--accent)">Estimates assume <b>${num(MEDV, 2)} pts/h</b>: the median velocity of ${past.length} completed sprints.
+    Hours = points ÷ ${num(MEDV, 2)}.</div>` : ''}
+  <div class="card"><div class="plan">
+    <div class="hd">#</div><div class="hd">Sprint and goal</div><div class="hd wide">Cards</div><div class="hd wide">${POINTS ? 'Points' : ''}</div><div class="hd wide">${MEDV ? 'Estimate' : ''}</div>
+    ${planned.map(s => { const est = MEDV ? s.points / MEDV : null;
+      return `<div class="pos">${s.position}</div>
+      <div class="ttl" ${goto(s.sprint)}><div class="row">${label(s)}<span class="tt">${esc(s.title)}</span></div><div class="gl">${esc(s.goal)}</div></div>
+      <div class="wide">${cardIcons(Array(s.cards).fill('plain'))}<div class="muted small" style="margin-top:3px">${s.cards} card${s.cards === 1 ? '' : 's'}</div></div>
+      <div class="wide">${POINTS ? `${segbar(s.points, s.points, maxPts)}<div class="muted small" style="margin-top:3px">${s.points} pts</div>` : ''}</div>
+      <div class="wide">${est != null ? hbar(est, maxEst, fmtH(est), 'var(--c3)', { tipText: `${s.points} pts ÷ ${num(MEDV, 2)} pts/h` }) : ''}</div>`; }).join('')}
+  </div></div>`;
+};
+
+V.plannedDetail = s => `<p><a href="#/planned">← Planned</a></p>
+  <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span></div>
+  <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
+  <div class="card" style="margin-top:16px"><div class="row">${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span></div>
+    ${POINTS ? `<div style="margin:12px 0 4px;max-width:${s.points * 14}px">${segbar(s.points, s.points, Math.max(1, s.points))}</div><span class="t2">${s.points} pts${MEDV ? ` · ≈ ${fmtH(s.points / MEDV)} at ${num(MEDV, 2)} pts/h` : ''}</span>` : ''}</div>
+  <h2>Execution guidance</h2><div class="card prose">${esc(s.execution) || '—'}</div>
+  <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>`;
+
+let pastSort = { k: 'ended', d: -1 }, pastQ = '';
+V.past = () => {
+  if (!past.length) return '<h1>Past sprints</h1><p class="muted">No completed sprints.</p>';
+  const maxH = Math.max(...past.map(s => s.hours || 0)), maxP = Math.max(...past.map(s => Math.max(s.points_start || 0, s.points_end || 0)));
+  const maxC = Math.max(...past.map(s => Math.max(s.cards_start || 0, s.cards_end || 0)));
+  const maxV = Math.max(...past.map(s => s.velocity || 0));
+  const rows = past.filter(s => !pastQ || `${s.title} ${s.alias || ''} ${s.sprint}`.toLowerCase().includes(pastQ))
+    .sort((a, b) => { const k = pastSort.k, x = k === 'sprint' ? a.sprint : a[k], y = k === 'sprint' ? b.sprint : b[k]; return ((x ?? -1) > (y ?? -1) ? 1 : -1) * pastSort.d; });
+  const th = (k, t, extra = '') => `<th class="sort" onclick="sortPast('${k}')">${t}${pastSort.k === k ? (pastSort.d > 0 ? ' ▲' : ' ▼') : ''}${extra}</th>`;
+  return `<h1>Past sprints</h1>
+  <div class="row" style="margin:8px 0 12px"><input id="q" placeholder="Filter by title, alias, id" value="${esc(pastQ)}"
+    style="font:inherit;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);min-width:240px"
+    oninput="pastQ=this.value.toLowerCase();render();const q=document.getElementById('q');q.focus();q.setSelectionRange(q.value.length,q.value.length)">
+    <span class="muted">${rows.length} of ${past.length}</span><span class="sp"></span>${segLegend}</div>
+  <div class="card scroll" style="padding:4px 6px"><table><thead><tr>${th('sprint', 'Sprint')}${th('title', 'Title')}${th('ended', 'Ended')}
+    ${th('hours', 'Duration', ` <span class="muted">· log₂, max ${fmtH(maxH)}</span>`)}${th('cards_end', 'Cards', ` <span class="muted">· max ${maxC}</span>`)}${POINTS ? th('points_end', 'Points', ` <span class="muted">· max ${maxP}</span>`) + th('velocity', 'Velocity', ' <span class="muted">· pts/h, log₂</span>') : ''}</tr></thead><tbody>
+  ${rows.map(s => `<tr class="link" ${goto(s.sprint)}><td style="white-space:nowrap">${label(s)}</td><td>${esc(s.title)}</td>
+    <td class="t2 small" style="white-space:nowrap" data-tip="${esc(fullDate(s.ended))}">${ago(s.ended)}</td>
+    <td style="min-width:170px">${hbar(s.hours, maxH, fmtH(s.hours), 'var(--c3)', { log: true, lo: 0.125 })}</td>
+    <td style="min-width:120px">${cardRow(s.cards_start, s.cards_end)}<div class="muted small">${s.cards_start} → ${s.cards_end} cards</div></td>
+    ${POINTS ? `<td style="min-width:200px">${segbar(s.points_start, s.points_end, maxP)}<div class="muted small">${s.points_start} → ${s.points_end} pts</div></td>
+    <td style="min-width:170px">${hbar(s.velocity, maxV, num(s.velocity, 2), 'var(--c1)', { log: true })}</td>` : ''}</tr>`).join('')}</tbody></table></div>`;
+};
+window.sortPast = k => { pastSort = { k, d: pastSort.k === k ? -pastSort.d : -1 }; render(); };
+
+V.pastDetail = s => {
+  const i = past.indexOf(s), prev = past[i - 1], next = past[i + 1], t = s.timing;
+  const res = t ? Object.entries(t.residence_minutes || {}).filter(([k]) => !TERMINAL.has(k)) : [], exec = t ? Object.entries(t.execution_minutes || {}).sort((a, b) => b[1] - a[1]) : [];
+  const mx = Math.max(1, ...res.map(x => x[1]), ...exec.map(x => x[1]));
+  return `<div class="row"><a href="#/past">← Past</a><span class="sp"></span>
+    ${prev ? `<a href="#/sprint/${prev.sprint}">‹ ${esc(prev.alias || '#' + prev.sprint)}</a>` : ''}${next ? `<a href="#/sprint/${next.sprint}">${esc(next.alias || '#' + next.sprint)} ›</a>` : ''}</div>
+  <div class="row" style="margin-top:10px">${label(s)}<span class="pill" style="color:var(--st-done)">✓ completed</span><span class="sp"></span>
+    <span class="muted small" data-tip="${esc(fullDate(s.started) + ' → ' + fullDate(s.ended))}">ended ${ago(s.ended)} · ran ${s.elapsed}</span></div>
+  <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
+  <div class="grid g4" style="margin:16px 0">
+    <div class="card kpi"><div class="v">${s.elapsed}</div><div class="l">Duration</div></div>
+    ${POINTS ? `<div class="card kpi"><div class="v">${s.points}</div><div class="l">Points start → end</div><div style="margin-top:8px">${segbar(s.points_start, s.points_end, Math.max(1, s.points_start, s.points_end))}</div></div>` : ''}
+    <div class="card kpi"><div class="v">${s.cards}</div><div class="l">Cards start → end</div></div>
+    ${POINTS ? `<div class="card kpi"><div class="v">${num(s.velocity, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity · median ${num(MEDV, 2)}</div></div>` : ''}
+  </div>
+  ${t ? `<div class="grid g2"><div class="card"><h3>State residence (card-time)</h3>${res.map(([k, v]) => `<div class="row small"><span style="width:90px" class="t2">${k}</span><div style="flex:1">${hbar(v, mx, fmtMin(v), stC[k] || 'var(--muted)')}</div></div>`).join('')}</div>
+    <div class="card"><h3>Timers · rework ${t.rework_count} on ${t.reworked_cards} cards</h3>${exec.map(([k, v]) => `<div class="row small"><span style="width:110px" class="t2">${k}</span><div style="flex:1">${hbar(v, mx, fmtMin(v), 'var(--c1)')}</div></div>`).join('') || '<span class="muted">No timers.</span>'}</div></div>`
+    : '<p class="muted">No timing snapshots for this sprint.</p>'}
+  <h2>Delivered</h2><div class="card prose">${esc(s.delivered)}</div>
+  <h2>Retrospective</h2><div class="card prose">${esc(s.retrospective) || '<span class="muted">None recorded.</span>'}</div>
+  <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>`;
+};
+
+V.sprint = id => { const s = byId[id]; if (!s) return '<p>Unknown sprint.</p>';
+  return s.status === 'planned' ? V.plannedDetail(s) : s.status === 'completed' ? V.pastDetail(s) : `<p><a href="#/current">← Current</a></p>` + V.currentOne(s); };
+
+// ----- stats -----
+// Range strip: min–max track, ±1 SD band around the average, median tick, average dot.
+function strip(name, st, fmt) {
+  if (!st) return '';
+  const lo = 0, hi = st.max || 1, X = v => 4 + (Math.min(Math.max(v, lo), hi) - lo) / (hi - lo) * 292;
+  const a = st.average, e0 = a - st.sd, e1 = a + st.sd, ln = (x1, y1, x2, y2, c, w) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${w}" vector-effect="non-scaling-stroke"/>`;
+  const svg = `<svg viewBox="0 0 300 24" preserveAspectRatio="none">
+    ${ln(4, 12, X(st.min), 12, 'var(--track)', 2)}${ln(4, 9, 4, 15, 'var(--muted)', 1)}
+    ${ln(X(st.min), 12, 296, 12, 'var(--range)', 1.5)}${ln(X(st.min), 4, X(st.min), 20, 'var(--range)', 1.5)}${ln(296, 4, 296, 20, 'var(--range)', 1.5)}
+    ${ln(X(e0), 12, X(e1), 12, 'var(--c2)', 1.2)}${e0 >= lo ? ln(X(e0), 8, X(e0), 16, 'var(--c2)', 1.2) : ''}${e1 <= hi ? ln(X(e1), 8, X(e1), 16, 'var(--c2)', 1.2) : ''}
+    ${ln(X(st.median), 0, X(st.median), 24, 'var(--median)', 2)}
+    <rect x="${X(a) - 2}" y="5" width="4" height="14" fill="var(--c2)"/></svg>`;
+  return `<div class="srow" data-tip="${esc(`<b>${name}</b><br>avg ${fmt(st.average)} · med ${fmt(st.median)}<br>min ${fmt(st.min)} · max ${fmt(st.max)} · sd ${fmt(st.sd)}`)}">
+    <div class="top"><span>${name}</span><span class="val">avg ${fmt(st.average)} ± ${fmt(st.sd)}</span></div>
+    <div style="font-size:11px;position:relative;height:15px">${atTick(X(st.median), `med <b>${fmt(st.median)}</b>`, 'color:var(--median)', true)}</div>${svg}
+    <div class="muted" style="font-size:11px;position:relative;height:15px">${atTick(X(st.min), `min ${fmt(st.min)}`, '')}<span style="position:absolute;right:0">max ${fmt(st.max)}</span></div></div>`;
+}
+// Label placed at a tick, in the SVG's 0–300 frame. Left-aligned labels start at the tick;
+// centred ones move to left-aligned near the left edge; both flip to right-aligned near the right edge.
+function atTick(x, html, style, leftAligned) {
+  const pct = x / 300 * 100;
+  const shift = pct > 82 ? '-100%' : leftAligned || pct < 12 ? '0' : '-50%';
+  return `<span style="position:absolute;left:${pct}%;transform:translateX(${shift});white-space:nowrap;${style}">${html}</span>`;
+}
+const lg = body => `<svg width="22" height="12" viewBox="0 0 22 12" style="vertical-align:-2px;margin-right:4px">${body}</svg>`;
+const stripLegend = `<div class="legend" style="margin-bottom:8px">
+  <span>${lg('<line x1="1.5" y1="6" x2="20.5" y2="6" stroke="var(--range)" stroke-width="1.5"/><line x1="1.5" y1="1" x2="1.5" y2="11" stroke="var(--range)" stroke-width="1.5"/><line x1="20.5" y1="1" x2="20.5" y2="11" stroke="var(--range)" stroke-width="1.5"/>')}min to max</span>
+  <span style="color:var(--median)">${lg('<line x1="11" y1="0" x2="11" y2="12" stroke="var(--median)" stroke-width="2"/>')}median</span>
+  <span>${lg('<line x1="2" y1="6" x2="20" y2="6" stroke="var(--c2)"/><line x1="2.5" y1="3" x2="2.5" y2="9" stroke="var(--c2)"/><line x1="19.5" y1="3" x2="19.5" y2="9" stroke="var(--c2)"/><rect x="9" y="1" width="4" height="10" fill="var(--c2)"/>')}average ± 1 SD</span></div>`;
+const statsRows = (o, fmt, order) => (order || Object.keys(o)).filter(k => o[k]).map(k => strip(k, o[k], fmt)).join('');
+const TIMERS = ['coding', 'blocking-run', 'dependency-wait', 'user-ask', 'manual-qa'];
+let statTab = 'charts';
+V.stats = () => {
+  if (!past.length) return '<h1>Stats</h1><p class="muted">No completed sprints yet.</p>';
+  const T = ST.timing, timed = past.filter(s => s.timing);
+  const minFmt = v => fmtMin(v), n2 = v => num(v, 2);
+  const cov = [[T.included_sprints, 'Included', 'var(--c1)'], [T.excluded_without_timing, 'No timing', 'var(--st-todo)'], [T.excluded_incomplete, 'Incomplete timing', 'var(--c4)']];
+  const covBar = `<div style="display:flex;height:22px;gap:2px">${cov.map(([n, l, c]) => `<span style="flex:${n};background:${c};color:#fff;font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;border-radius:3px" data-tip="${l}: ${n} sprints">${n}</span>`).join('')}</div>
+    <div class="legend" style="margin-top:6px">${cov.map(([n, l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('')}</div>`;
+  const tableRows = (title, o, fmt) => `<tr><th colspan="6" style="padding-top:16px">${title}</th></tr>` + Object.entries(o).filter(([, v]) => v).map(([k, v]) =>
+    `<tr><td>${k}</td>${['average', 'median', 'min', 'max', 'sd'].map(f => `<td class="n">${fmt(v[f])}</td>`).join('')}</tr>`).join('');
+  const one = (k, v) => ({ [k]: v });
+  if (statTab === 'table') return head() + `<div class="card scroll"><table><thead><tr><th>Metric</th><th class="n">Avg</th><th class="n">Med</th><th class="n">Min</th><th class="n">Max</th><th class="n">SD</th></tr></thead><tbody>
+    ${tableRows('Delivery', { Hours: ST.hours, 'Cards start': ST.cards_start, 'Cards end': ST.cards_end, 'Points start': ST.points_start, 'Points end': ST.points_end, 'Velocity (pts/h)': ST.velocity }, n2)}
+    ${tableRows('Rework', one('Rework count', T.rework.count), n2)}
+    ${tableRows('Totals', { Active: T.active_minutes_total, 'Time spent': T.execution_minutes_total }, minFmt)}
+    ${tableRows('Active', T.active_minutes, minFmt)}${tableRows('State residence', Object.fromEntries(Object.entries(T.residence_minutes).filter(([k]) => !TERMINAL.has(k))), minFmt)}${tableRows('Time spent', T.execution_minutes, minFmt)}</tbody></table></div>`;
+  return head() + `
+  <h2>Distributions per sprint</h2><div style="margin:-2px 0 12px">${stripLegend}</div>
+  <div class="dist"><div class="stack">
+    <div class="card"><h3>Delivery</h3><div class="strip">${strip('Hours', ST.hours, v => fmtH(v))}${strip('Cards start', ST.cards_start, n2)}${strip('Cards end', ST.cards_end, n2)}
+      ${strip('Points start', ST.points_start, n2)}${strip('Points end', ST.points_end, n2)}${strip('Velocity pts/h', ST.velocity, n2)}${strip('Rework count', T.rework.count, n2)}</div></div>
+    <div class="card"><h3>State residence</h3><div class="strip">${statsRows(T.residence_minutes, minFmt, ['Backlog', 'Todo', 'In Progress', 'Verifying'])}
+      ${strip('Active = In Progress + Verifying', T.active_minutes_total, minFmt)}</div></div>
+    </div>
+    <div class="card"><h3>Time spent by timer</h3><div class="strip">${strip('All timers', T.execution_minutes_total, minFmt)}
+      ${statsRows(T.execution_minutes, minFmt, Object.keys(T.execution_minutes).sort((a, b) => T.execution_minutes[b].average - T.execution_minutes[a].average))}</div></div>
+  </div>
+  <h2>Per sprint, oldest to newest</h2>
+  ${POINTS ? `  <div class="card"><h3>Points: original, added, removed</h3>${colChart({ data: past, stacks: [
+      { label: 'Original', color: 'var(--c1)', get: d => Math.min(d.points_start, d.points_end) },
+      { label: 'Added', color: 'var(--c2)', get: d => Math.max(0, d.points_end - d.points_start) },
+      { label: 'Removed', hollow: true, get: d => Math.max(0, d.points_start - d.points_end) }],
+    tipFn: d => tipHead(d) + `${d.points} pts · cards ${d.cards}` })}</div>
+` : ''}  <div class="card" style="margin-top:12px"><h3>Cards: original, added, removed</h3>${colChart({ data: past, stacks: [
+      { label: 'Original', color: 'var(--c1)', get: d => Math.min(d.cards_start, d.cards_end) },
+      { label: 'Added', color: 'var(--c2)', get: d => Math.max(0, d.cards_end - d.cards_start) },
+      { label: 'Removed', hollow: true, get: d => Math.max(0, d.cards_start - d.cards_end) }],
+    tipFn: d => tipHead(d) + `${d.cards} cards${POINTS ? ` · ${d.points} pts` : ''}` })}</div>
+  ${POINTS ? `  <div class="card" style="margin-top:12px"><h3>Velocity <span class="muted small">(pts/h, log₂ scale)</span></h3>${colChart({ data: past, log: true, fmt: v => num(v, 2),
+    stacks: [{ label: 'pts/h', color: 'var(--c1)', get: d => d.velocity }], ref: MEDV, refLabel: `median ${num(MEDV, 2)}`, tipFn: d => tipHead(d) + `${num(d.velocity, 2)} pts/h` })}</div>` : ''}
+  <div class="card" style="margin-top:12px"><h3>Duration <span class="muted small">(log₂ scale)</span></h3>${colChart({ data: past, log: true, lo: 0.125, fmt: v => v < 1 ? Math.round(v * 60) + 'm' : num(v, 0) + 'h',
+    stacks: [{ label: 'hours', color: 'var(--c3)', get: d => d.hours }], ref: ST.hours.median, refLabel: `median ${fmtH(ST.hours.median)}`, tipFn: d => tipHead(d) + d.elapsed })}</div>
+  <div class="card" style="margin-top:12px"><h3>Time spent by timer <span class="muted small">(${timed.length} sprints with timing)</span></h3>${colChart({ data: timed, fmt: v => num(v, 0) + 'h',
+    stacks: [...TIMERS.map((k, i) => ({ label: k, color: `var(--c${i + 1})`, get: d => (d.timing.execution_minutes[k] || 0) / 60 })),
+      { label: 'other', color: 'var(--st-todo)', get: d => Object.entries(d.timing.execution_minutes).filter(([k]) => !TIMERS.includes(k)).reduce((a, x) => a + x[1], 0) / 60 }],
+    tipFn: d => tipHead(d) + Object.entries(d.timing.execution_minutes).map(([k, v]) => `${k} ${fmtMin(v)}`).join('<br>') })}</div>
+  <div class="card" style="margin-top:12px"><h3>Active time <span class="muted small">(card-hours)</span></h3>${colChart({ data: timed, fmt: v => num(v, 0) + 'h',
+    stacks: [{ label: 'In Progress', color: 'var(--st-prog)', get: d => (d.timing.active_minutes['In Progress'] || 0) / 60 }, { label: 'Verifying', color: 'var(--st-verify)', get: d => (d.timing.active_minutes['Verifying'] || 0) / 60 }],
+    tipFn: d => tipHead(d) + `In Progress ${fmtMin(d.timing.active_minutes['In Progress'])}<br>Verifying ${fmtMin(d.timing.active_minutes['Verifying'])}` })}</div>
+  <div class="card" style="margin-top:12px"><h3>Rework events</h3>${colChart({ data: timed, h: 160, fmt: v => num(v, 0),
+    stacks: [{ label: 'rework', color: 'var(--c2)', get: d => d.timing.rework_count }], tipFn: d => tipHead(d) + `${d.timing.rework_count} rework on ${d.timing.reworked_cards} cards` })}</div>
+  <h2>Timing coverage</h2><div class="card"><h3>${past.length} completed sprints</h3>${covBar}</div>`;
+  function head() { return `<h1>Stats</h1><p class="muted">Everything from <span class="mono">plane-proj sprints stats</span>, plus per-sprint series from <span class="mono">sprints list past</span>. Click a column to open its sprint.</p>
+    <div class="tabs"><button class="${statTab === 'charts' ? 'on' : ''}" onclick="statTab='charts';render()">Charts</button><button class="${statTab === 'table' ? 'on' : ''}" onclick="statTab='table';render()">Table</button></div>`; }
+};
+
+// ===== router =====
+function render() {
+  const [, view, arg] = (location.hash || '#/').split('/');
+  const fn = { '': V.overview, current: V.current, planned: V.planned, past: V.past, stats: V.stats, sprint: () => V.sprint(+arg) }[view || ''] || V.overview;
+  $('#app').innerHTML = fn();
+  const sec = view === 'sprint' ? { current: 'current', planned: 'planned', completed: 'past' }[byId[+arg]?.status] : (view || '');
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.getAttribute('href').split('/')[1] === sec));
+}
+addEventListener('hashchange', () => { if (DATA) { render(); scrollTo(0, 0); } });
+$('#theme').onclick = () => { const r = document.documentElement;
+  const dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; };
+$('#app').innerHTML = '<p class="muted">Loading sprints…</p>';
+const getJSON = url => fetch(url, { cache: 'no-store' })
+  .then(r => r.json().then(body => { if (!r.ok) throw new Error(body.error || r.statusText); return body; }));
+// Live view: poll the register's change marker (no Plane request) and reload the
+// data when it moves. Typing in the filter box defers the redraw.
+let version = null;
+function refresh() {
+  return getJSON('api/sprints').then(data => {
+    const y = scrollY; boot(data);
+    if (document.activeElement?.id !== 'q') { render(); scrollTo(0, y); }
+  });
+}
+function poll() {
+  getJSON('api/version')
+    .then(v => { if (v.version !== version) { version = v.version; return refresh(); } })
+    .catch(e => { if (!DATA) $('#app').innerHTML = `<div class="note">Could not load sprints: ${esc(e.message)}</div>`; })
+    .finally(() => setTimeout(poll, 2000));
+}
+poll();
+</script>
+</body>
+</html>

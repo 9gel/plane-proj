@@ -1,0 +1,4 @@
+exclude = ["CLAUDE.md"]
+
+[MD013]
+reflow = true
