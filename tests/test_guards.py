@@ -13,7 +13,6 @@ import pytest
 
 from plane_proj.board import Board
 from plane_proj.guards import (
-    CrossCycleDependency,
     EstimateOnUnestimatedAssignee,
     EstimateTooLargeForCycle,
     GuardViolation,
@@ -226,15 +225,18 @@ def test_a_readback_that_disagrees_is_a_failure(board: Board, client: FakeClient
         create(board, estimate=3)
 
 
-def test_a_cycle_card_refuses_a_blocker_outside_the_cycle(board: Board, client: FakeClient):
-    inside = Card(id="inside", sequence_id=1, cycle_id="cycle-1")
-    outside = Card(id="outside", sequence_id=2)
-    client.cycles = type(client.cycles)(client.calls, "cycles", result=_one_page([inside]))
+def test_a_blocker_in_another_sprint_is_allowed(board: Board, client: FakeClient):
+    # A later sprint's card may wait on one card of an earlier sprint
+    # instead of the whole sprint.
+    inside = Card(id="inside", sequence_id=1, cycle_id="cycle-2")
+    earlier = Card(id="earlier", sequence_id=2, cycle_id="cycle-1")
+    client.work_items.relations = type(client.work_items.relations)(
+        client.calls, "relations", result={"blocked_by": [{"issue_id": "earlier"}]}
+    )
 
-    with pytest.raises(CrossCycleDependency, match="cannot complete"):
-        board.add_relation(inside, "blocked_by", [outside])
+    board.add_relation(inside, "blocked_by", [earlier])
 
-    assert client.named("relations.create") == []
+    assert client.named("relations.create")
 
 
 def test_a_blocker_inside_the_cycle_is_allowed(board: Board, client: FakeClient):

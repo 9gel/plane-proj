@@ -107,14 +107,6 @@ class EstimateTooLargeForCycle(GuardViolation):
     """
 
 
-class CrossCycleDependency(GuardViolation):
-    """A card in a cycle was blocked by a card outside it.
-
-    The blocker cannot be worked in this cycle, so the blocked card cannot
-    complete in it either, and the commitment is false the moment it is made.
-    """
-
-
 class ScaleContradiction(GuardViolation):
     """Captured board facts disagree with themselves.
 

@@ -230,6 +230,11 @@ running sprint, and planned sprints with no cycle. It reads the register for
 current and planned sprints, reads only those cycles' members, writes nothing,
 and exits 1 on findings.
 
+Dependencies may cross sprints. A card in one sprint can be `blocked_by` a
+card in another, so a later sprint waits on the one card it needs rather than
+on a whole earlier sprint. Refusing such a relation made dependencies coarser
+than the work and serialized sprints that could overlap.
+
 ### Sprint register ownership
 
 Schema v5 adds a singleton `register_binding` row. Ownership is the workspace

@@ -52,7 +52,6 @@ from plane_proj.credentials import Credentials
 from plane_proj.execution import open_timer
 from plane_proj.guards import (
     ConfigError,
-    CrossCycleDependency,
     EmptyCycle,
     EstimateOnUnestimatedAssignee,
     GuardViolation,
@@ -1334,13 +1333,11 @@ class Board:
         return str(self.client.users.get_me().id)
 
     def add_relation(self, card: Any, relation_type: str, others: Sequence[Any]) -> None:
-        """Relate a card to others, refusing a dependency the cycle cannot honour."""
+        """Relate a card to others; a blocker may sit in any sprint."""
         if relation_type not in RELATION_TYPES:
             raise ConfigError(
                 f"{relation_type!r} is not a relation. Known: {', '.join(RELATION_TYPES)}."
             )
-        if relation_type == "blocked_by":
-            self._check_cross_cycle(card, others)
         self.client.work_items.relations.create(
             self.slug,
             self.project.id,
@@ -1491,21 +1488,6 @@ class Board:
                 f"No estimate, and {self.project.key} requires one on every card whose assignee "
                 f"is on the team. A card with none counts in no total and is invisible in the "
                 f"burndown. Scale: {scale}."
-            )
-
-    def _check_cross_cycle(self, card: Any, blockers: Sequence[Any]) -> None:
-        """A card in a cycle must not be blocked by a card outside it."""
-        cycle_id = getattr(card, "cycle_id", None) or getattr(card, "cycle", None)
-        if not cycle_id:
-            return
-        inside = self.cycle_card_ids(str(cycle_id))
-        outside = [other for other in blockers if other.id not in inside]
-        if outside:
-            names = ", ".join(f"{getattr(o, 'sequence_id', o.id)}" for o in outside)
-            raise CrossCycleDependency(
-                f"{getattr(card, 'sequence_id', card.id)} is in a cycle and would be blocked by "
-                f"{names}, which are not. The blocker cannot be worked this cycle, so the "
-                f"blocked card cannot complete in it either. Admit the blocker or drop the card."
             )
 
     def _verify_blank(self, card_id: str) -> None:
