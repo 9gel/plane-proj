@@ -26,12 +26,18 @@ production code. Route technical rulings to the Tech Lead.
   permit the estimate. Never bypass a configured estimate ceiling.
 - Ask the Tech Lead which cards can proceed concurrently; the Coordinator
   launches and stops agents.
+- Pull work by card dependencies, not sprint order. Run `plane-proj sprints
+  ready` when capacity frees; a ready card in a planned sprint is a reason to
+  start that sprint in parallel under §4 rather than wait for the current one
+  to close.
+- With the Tech Lead's approval, a card MAY start against an agreed interface
+  before its blocker is Done. Keep the `blocked_by` relation; rework caused by
+  an interface change is recorded with reason `spec`.
 - Reject scope expansion. Classify discovered work under the sprint lifecycle.
 - Close a card only after the Tech Lead certifies technical acceptance.
 - Follow the allowed transitions in §3. On a Tech Lead rework verdict, record
   Verifying → In Progress with the verdict's reason and verify readback before
-  redispatch. Comments alone
-  do not record a rework round.
+  redispatch. Comments alone do not record a rework round.
 - Follow the Plane adapter's activity-timer procedure for reported coding,
   dependency-wait, service-wait, user-ask, blocking-run, and manual-QA
   boundaries. Use `user-ask` for work actually blocked on a user answer or

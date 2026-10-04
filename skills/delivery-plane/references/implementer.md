@@ -26,11 +26,15 @@ that tracker operation.
 
 ## 2. Handoff
 
-- Develop the agreed tests with the implementation.
+- Loop locally on the Tech Lead's acceptance tests and your focused tests
+  until they pass. Do not weaken or delete an acceptance test; ask the Tech
+  Lead.
+- Develop any further tests the change needs with the implementation.
 - Run project tools through the project environment, never through package
   runners such as `npx` or `uvx` that can stop on an interactive prompt.
 - Demonstrate regression guards or targeted mutation sensitivity where required.
-- Pass focused checks followed by the project's complete ordinary suite.
+- Request draft review on passing acceptance and focused tests. After draft
+  review passes, pass the project's complete ordinary suite.
 - Record the tested revision, tree state, environment, exact commands, and
   results.
 - Stop on a second deliverable, conflicting ownership, or an unresolvable

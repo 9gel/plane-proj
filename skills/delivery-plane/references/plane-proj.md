@@ -60,6 +60,13 @@ membership unchanged before closing the SQLite record. Never use `cycle archive`
 as part of sprint closure. The adapter exposes no cycle archive or delete
 command; `cycle restore` is recovery-only.
 
+`plane-proj rel add CARD blocked_by OTHER` accepts a blocker in any sprint.
+`plane-proj sprints ready` lists Todo and Backlog cards in current and planned
+sprints whose blockers are all Done or Cancelled, and the blocked ones with
+what they wait on. `plane-proj sprints critical-path` reports open work, the
+longest `blocked_by` chain, and their ratio, the speedup ceiling. Both read
+one relations request per open card.
+
 `SPRINTS.sqlite` supports multiple current sprints running in parallel on
 the same project, provided each sprint binds to a distinct Plane cycle.
 When multiple sprints are active, `sprints list` displays them under

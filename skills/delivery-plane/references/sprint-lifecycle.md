@@ -5,6 +5,12 @@
 A sprint MUST define one outcome, concrete deliverables, decidable acceptance
 criteria, explicit non-goals, and dependency order before implementation starts.
 Only delivery contributing directly to that outcome belongs in the sprint.
+Record dependency order as card-to-card `blocked_by` relations, including
+relations to cards in other sprints, so later work waits only on the cards it
+needs. After planning, run `plane-proj sprints critical-path`: open work
+divided by the critical path is the most parallel execution can achieve, and a
+low ceiling is a reason to restructure the plan, for example around an
+interface card.
 
 Agent-delivery sprints SHOULD be planned to complete in one to eight hours of
 elapsed time. Group a multi-sprint plan into roughly equal point loads where

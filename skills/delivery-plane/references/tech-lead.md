@@ -16,7 +16,19 @@ state, dispatch agents, or communicate directly with the user.
 - Approve a size-5 exception only after documenting why every plausible split
   would leave an invalid, unusable, or undeliverable intermediate system.
 - Define representative inputs, expected outputs, rejection cases, and
-  verification instruments before implementation.
+  verification instruments before implementation, and write the executable
+  acceptance tests the Implementer will loop on (see
+  [verification](verification.md#2-delivery-sequence)).
+- Give each acceptance row the cheapest execution stage that can fail it, so
+  card-level iterations take minutes and full pipeline runs happen once on the
+  merged tree.
+- Record dependencies card to card with `blocked_by` relations, across sprints
+  where needed, never sprint to sprint. When one sprint depends on another,
+  make the first card of the dependency an interface card that fixes the API,
+  schema, types, and test fixtures or mocks, so dependent cards can start
+  against it.
+- Hold a draft review before the Implementer's complete suite: reject design
+  and specification problems while they are cheap.
 - Resolve Implementer technical questions and reject scope or dependency
   inventions.
 - Review candidate changes independently for correctness, completeness, test

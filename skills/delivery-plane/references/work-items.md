@@ -59,7 +59,8 @@ card's scope. Cross-work-item design documentation belongs outside cards,
 in a location the project's own rules choose; plane-proj does not mandate
 one and never will.
 
-Dependencies belong in native tracker relations, not titles. Update superseded
+Dependencies belong in native tracker relations between cards, not titles; a
+relation MAY cross sprints. Update superseded
 descriptions in place. Do not retain obsolete alternatives or narrative recaps.
 
 ## 3. Human Decisions

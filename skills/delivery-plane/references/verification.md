@@ -8,25 +8,39 @@ Executable changes require independent code review and behavior verification.
 
 ## 2. Delivery Sequence
 
-1. The Implementer passes focused changed tests and the complete ordinary suite.
-2. The Tech Lead reviews the candidate, test design, acceptance criteria, and
-   evidence.
-3. The Tech Lead integrates accepted changes.
-4. Freeze the merged tree and environment.
-5. The Tech Lead, or a named independent verifier, runs the complete required
+Expensive gates run once, after the judgment that is most likely to reject a
+candidate. Review that rejects on design or specification grounds MUST NOT
+follow a long suite or pipeline run that it makes worthless.
+
+1. Before implementation, the Tech Lead writes executable acceptance tests for
+   the acceptance matrix rows that a test can decide. The Implementer MUST NOT
+   weaken or delete them; a change to one needs the Tech Lead's approval.
+2. The Implementer loops locally until the acceptance tests and focused
+   changed tests pass, then requests a draft review.
+3. Draft review: the Tech Lead reviews the diff, design, test design, and
+   focused evidence. A rejection here sends the work back before any complete
+   suite or full pipeline run.
+4. After draft review passes, the Implementer passes the complete ordinary
+   suite and hands off for independent verification.
+5. The Tech Lead integrates accepted changes. Several accepted cards MAY be
+   integrated before the next step, so one merged-tree run covers them.
+6. Freeze the merged tree and environment.
+7. The Tech Lead, or a named independent verifier, runs the complete required
    merged-tree gates and targeted acceptance challenges.
-6. The Tech Lead records a verdict for each card; the Coordinator closes
+8. The Tech Lead records a verdict for each card; the Coordinator closes
    accepted cards.
 
-When review requires rework, the Tech Lead sends the defect and verdict to the
-Coordinator. Before correction resumes, the Coordinator records the review
-send-back under [the rework transition rule](coordinator.md); the Tech Lead does
-not change tracker state.
+When review requires rework, the Tech Lead sends the defect, the verdict, and
+its reason (`spec`, `test-gap`, `defect`, `missed-gate`, or `environment`) to
+the Coordinator. Before correction resumes, the Coordinator records the
+send-back under [the rework transition rule](coordinator.md); the Tech Lead
+does not change tracker state.
 
-On failure, preserve the result, return the defect for correction, pass focused
-checks, then repeat the complete gate on the corrected merged tree. Evidence
-MUST identify the revision, clean-tree state, environment, commands, and actual
-results.
+On failure, preserve the result and return the defect for correction. The
+corrected candidate passes its acceptance tests and focused checks, then draft
+review, before any expensive gate runs again; the complete gate then repeats
+on the corrected merged tree. Evidence MUST identify the revision, clean-tree
+state, environment, commands, and actual results.
 
 Where an authority lists gates as a set, evidence MUST report every gate in the
 set; a missing gate is invisible when the reported ones are green. Name each
@@ -41,7 +55,11 @@ reports.
 
 Before implementation, the Tech Lead MUST record an acceptance matrix with
 columns: behavior, representative input, observable assertion, instrument,
-negative challenge, and execution stage. Where mutation testing is required,
+negative challenge, and execution stage. The execution stage MUST be the
+cheapest stage that can fail the row: a unit or focused test, a fixture-scale
+run of a pipeline on constructed inputs, or the full pipeline on the merged
+tree. Card-level loops use the cheapest stages; full runs belong to the
+merged-tree gate. Where mutation testing is required,
 distinguish production-code mutation from corrupted-input testing. Neither
 substitutes for the other. New safety findings MAY add criteria, but MUST
 include the concrete newly discovered risk; do not silently redefine the
@@ -75,3 +93,8 @@ absolute results separately rather than disabling comparison guards.
 Reuse requires the same complete affected-project tree and relevant execution
 environment, plus command, exit status, suite scope, and retained output.
 Identical log hashes alone MUST NOT establish code or environment equality.
+
+A pipeline stage's result MAY be reused across a rework when the project
+records, for that stage, content hashes of its code, configuration, and inputs,
+and every hash is unchanged. Rerun every stage whose hashes changed and every
+stage downstream of one. Without such records, rerun the complete gate.
