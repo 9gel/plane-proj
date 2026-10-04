@@ -61,6 +61,8 @@ h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 10
 .goal { color: var(--text-2); margin: 4px 0 0; max-width: 900px; }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.legend.compact { font-size: 11px; gap: 8px; }
+.legend.compact i { width: 8px; height: 8px; margin-right: 3px; }
 .legend i.hollow { background: none !important; border: 1px dashed var(--muted); }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
@@ -248,7 +250,8 @@ function stateBar(cards, start, unit) {
     <span class="tot">${tot} <span class="muted small">${unit}</span></span></div>`;
 }
 // Every state, always: the legend needs no data, so it is the same loading or loaded.
-const stateLegend = `<div class="legend">${PROGRESS.map(st => `<span><i style="background:${stC[st]}"></i>${st}</span>`).join('')}</div>`;
+const legendOf = cls => `<div class="legend ${cls}">${PROGRESS.map(st => `<span><i style="background:${stC[st]}"></i>${st}</span>`).join('')}</div>`;
+const stateLegend = legendOf('');
 
 const niceStep = v => { const r = v / 4 || 1, e = 10 ** Math.floor(Math.log10(r)); return [1, 2, 2.5, 5, 10].map(m => m * e).find(x => x >= r); };
 // Column chart: stacked linear, or single-series log. One axis, hover per column, click opens sprint.
@@ -292,7 +295,7 @@ V.overview = () => {
     ${MEDV ? `<div class="card kpi link" onclick="location.hash='#/stats'"><div class="v">${num(MEDV, 2)}<span class="muted small"> pts/h</span></div><div class="l">Median velocity</div></div>` : ''}
   </div>
   <h2>In flight</h2><div class="grid g2">${current.map(s => { const cards = cardsFor(s);
-    return `<div class="card link" ${goto(s.sprint)}><div class="row">${label(s)}<span class="pill">${fmtH(elapsedH(s))} elapsed</span><span class="sp"></span>${stateLegend}</div>
+    return `<div class="card link" ${goto(s.sprint)}><div class="row">${label(s)}<span class="pill">${fmtH(elapsedH(s))} elapsed</span><span class="sp"></span>${legendOf('compact')}</div>
       <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${PARTIAL ? `${POINTS ? skStateBar() : ''}
       <div class="row" style="margin-top:10px">${skIcons(s.cards_start)}<span class="sp"></span>${skInline('110px')}</div>` : `${POINTS ? stateBar(cards, s.points_start, 'pts') : ''}
       <div class="row" style="margin-top:10px">${cardIcons(byProgress(cards).map(c => stC[c.state]))}<span class="sp"></span>
