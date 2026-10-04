@@ -89,9 +89,8 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci::after { content: ""; position: absolute; left: 3px; right: 3px; top: 4px; height: 2px; background: rgba(255,255,255,.65); box-shadow: 0 4px 0 rgba(255,255,255,.65); border-radius: 1px; }
 .ci.big { width: 22px; height: 30px; border-radius: 4px; }
 .ci.big::after { left: 4px; right: 4px; top: 6px; height: 3px; box-shadow: 0 6px 0 rgba(255,255,255,.65); }
-.ci.sm { width: 8px; height: 11px; border-radius: 2px; border: 0; }
-.ci.sm::after { display: none; }
 .ci.o { background: var(--c1); } .ci.a { background: var(--c2); } .ci.r { background: none; border: 1px dashed var(--muted); }
+.ci.r::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 /* one big board */
@@ -205,8 +204,8 @@ const segLegend = `<div class="legend"><span><i style="background:var(--c1)"></i
 function cardRow(start, end) {
   start = start || 0; end = end ?? start;
   const kept = Math.min(start, end), added = Math.max(0, end - start), removed = Math.max(0, start - end);
-  const icon = cls => `<span class="ci sm ${cls}"></span>`;
-  return `<div class="cicons" style="gap:2px" data-tip="${esc(`${start} → ${end} cards` + (added ? ` (+${added} added)` : '') + (removed ? ` (−${removed} removed)` : ''))}">${
+  const icon = cls => `<span class="ci ${cls}"></span>`;
+  return `<div class="cicons" data-tip="${esc(`${start} → ${end} cards` + (added ? ` (+${added} added)` : '') + (removed ? ` (−${removed} removed)` : ''))}">${
     icon('o').repeat(kept) + icon('a').repeat(added) + icon('r').repeat(removed)}</div>`;
 }
 const cardIcons = (colors, big) => `<div class="cicons">${colors.map(c => c === 'plain' ? `<span class="ci plain ${big ? 'big' : ''}"></span>` : `<span class="ci ${big ? 'big' : ''}" style="background:${c}"></span>`).join('')}</div>`;
