@@ -102,6 +102,13 @@ def make_server(
             else:
                 self._send(404, "text/plain; charset=utf-8", b"Not found")
 
+        def log_request(self, code: Any = "-", size: Any = "-") -> None:
+            # The page checks /api/version every 2 s per tab; logging each
+            # successful check would bury the loads and errors that matter.
+            quiet = self.path.split("?", 1)[0] == "/api/version"
+            if not (quiet and str(code) == "200"):
+                super().log_request(code, size)
+
         def _error(self, message: str) -> None:
             self._send(500, "application/json", json.dumps({"error": message}).encode())
 

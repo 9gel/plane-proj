@@ -53,6 +53,18 @@ def test_routes_serve_page_payload_version_and_not_found(serve) -> None:
     assert missing.value.code == 404
 
 
+def test_version_checks_are_not_logged_but_loads_are(serve, capsys) -> None:
+    base = serve(lambda: {"listing": {}})
+
+    for path in ("/api/version", "/api/version", "/api/sprints"):
+        with urlopen(base + path):
+            pass
+
+    logged = capsys.readouterr().err
+    assert "GET /api/sprints" in logged
+    assert "/api/version" not in logged
+
+
 def test_a_failed_read_reports_its_rule_and_keeps_serving(serve) -> None:
     calls = []
 

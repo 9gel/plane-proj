@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
 <title>Sprints</title>
 <style>
 :root {
@@ -94,8 +95,9 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 /* one big board */
-.board { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: 560px; }
-/* A long board scrolls inside its frame; column headers stay in view. */
+.board { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: auto; height: 460px; grid-template-rows: auto 1fr; }
+/* The board has one fixed height, loading or loaded, so nothing below it
+   moves; a long board scrolls inside its frame with headers in view. */
 .board .colh { position: sticky; top: 0; z-index: 1; padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--surface-2); display: flex; gap: 6px; align-items: center; }
 .board .colh i { width: 8px; height: 8px; border-radius: 50%; }
 .board .colb { padding: 10px; min-height: 160px; }
@@ -170,8 +172,10 @@ const cardsFor = s => DATA.cards[s.sprint] || [];
 const sk = (width, height, style = '') => `<span class="sk" style="width:${width};height:${height}px;${style}"></span>`;
 const skInline = (width, height = 12) => `<span class="sk inline" style="width:${width};height:${height}px"></span>`;
 const skIcons = (n, big) => `<div class="cicons">${`<span class="ci sk${big ? ' big' : ''}"></span>`.repeat(Math.max(n || 0, 1))}</div>`;
-const skStateBar = () => `<div class="sbar"><div class="segs">${sk('100%', 26)}</div><span class="tot">${skInline('52px', 20)}</span></div>
-  <div style="margin-top:8px">${sk('45%', 12)}</div>`;
+// A placeholder text line: a real 12px line box, so its height follows the
+// font exactly like the legend or caption it stands for.
+const skLine = width => `<div class="small" style="margin-top:6px">&#8203;${skInline(width, 10)}</div>`;
+const skStateBar = legend => `<div class="sbar"><div class="segs">${sk('100%', 26)}</div><span class="tot">${skInline('52px', 20)}</span></div>${legend ? skLine('45%') : ''}`;
 // Open blockers of a card, shown only while the card itself is unfinished.
 function waitsOn(c) {
   const open = (c.blocked_by || []).filter(b => !TERMINAL.has(b.state));
@@ -288,7 +292,7 @@ V.overview = () => {
   </div>
   <h2>In flight</h2><div class="grid g2">${current.map(s => { const cards = cardsFor(s);
     return `<div class="card link" ${goto(s.sprint)}><div class="row">${label(s)}<span class="sp"></span><span class="pill">${fmtH(elapsedH(s))} elapsed</span></div>
-      <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${PARTIAL ? `${POINTS ? skStateBar() : ''}
+      <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${PARTIAL ? `${POINTS ? skStateBar(false) : ''}
       <div class="row" style="margin-top:10px">${skIcons(s.cards_start)}<span class="sp"></span>${skInline('110px')}</div>` : `${POINTS ? stateBar(cards, s.points_start, 'pts') : ''}
       <div class="row" style="margin-top:10px">${cardIcons(cards.map(c => stC[c.state]))}<span class="sp"></span>
       <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div>`}</div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div>
@@ -321,12 +325,12 @@ V.currentOne = s => {
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
 
   ${PARTIAL ? `<div class="card" style="margin-top:18px">
-    ${POINTS ? `<h3>Points</h3><div style="margin-top:22px">${skStateBar()}</div>
+    ${POINTS ? `<h3>Points</h3><div style="margin-top:22px">${skStateBar(true)}</div>
     <h3 style="margin-top:20px">Cards</h3>` : '<h3>Cards</h3>'}
     <div class="row">${skIcons(s.cards_start, true)}<span class="sp"></span>${skInline('70px', 22)}</div>
-    <div style="margin-top:8px">${sk('55%', 12)}</div>
+    ${skLine('55%')}
   </div>
-  <div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2></div>
+  <div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2><span class="sp"></span><a style="visibility:hidden">Open in Plane ↗</a></div>
   <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st}</div>`).join('')}
     ${STATES.map((st, i) => `<div class="colb">${i < 4 ? `<div class="wi" style="border-left-color:${stC[st]}">${sk('40%', 14)}<div style="margin-top:8px">${sk('85%', 14)}</div></div>` : ''}</div>`).join('')}</div>` : `<div class="card" style="margin-top:18px">
     ${POINTS ? `<h3>Points</h3><div style="margin-top:22px">${stateBar(cards, s.points_start, 'pts')}</div>${stateLegend(cards)}
