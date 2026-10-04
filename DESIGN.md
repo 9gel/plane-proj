@@ -235,6 +235,17 @@ card in another, so a later sprint waits on the one card it needs rather than
 on a whole earlier sprint. Refusing such a relation made dependencies coarser
 than the work and serialized sprints that could overlap.
 
+`sprints ready` and `sprints critical-path` read every open card in the
+current sprints (by bound cycle) and the planned sprints (by `Sprint N` cycle
+name), one relations request per open card, and the whole board's states,
+archived cards included, so a settled blocker that was archived still counts
+as settled. A blocker missing from the board keeps its card blocked. `ready`
+lists Todo and Backlog cards whose blockers are all Done or Cancelled. The
+critical path is the heaviest `blocked_by` chain among open cards, weighed in
+points (cards when estimates are off); open work divided by it is the most any
+number of agents can shorten delivery. A relation cycle is refused by the
+dependency rule because no order satisfies it.
+
 ### Sprint register ownership
 
 Schema v5 adds a singleton `register_binding` row. Ownership is the workspace

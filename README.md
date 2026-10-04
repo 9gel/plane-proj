@@ -278,6 +278,8 @@ for machine-readable output.
 | `sprints reorder ID...` | Set the order of planned sprints |
 | `sprints alias ID ALIAS` | Give a sprint a short name, such as `WEB-1` |
 | `sprints check` | Find cards that belong to no sprint |
+| `sprints ready` | List cards that can start now, in any sprint |
+| `sprints critical-path` | Show the longest dependency chain and how much parallel work can help |
 | `sprints start ID --started TIME` | Start a planned sprint |
 | `sprints close N --ended TIME --delivered TEXT` | Close a finished sprint |
 

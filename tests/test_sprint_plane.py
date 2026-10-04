@@ -270,3 +270,34 @@ def test_sprint_totals_refuse_unknown_estimates(board, client, monkeypatch, repo
         else:
             board.planned_sprint_totals({7})
     assert client.calls == []
+
+
+def test_dependency_facts_read_open_cards_blockers_and_archived_states(
+    board, client, monkeypatch
+) -> None:
+    members = {
+        "cycle-7": [Card(id="open", sequence_id=1, name="Open",
+                         state="state-todo", estimate_point="uuid-3"),
+                    Card(id="settled", sequence_id=2, state="state-done")],
+    }
+    monkeypatch.setattr(
+        client.cycles,
+        "list_work_items",
+        lambda slug, project_id, cycle_id, params=None: SimpleNamespace(
+            results=members[cycle_id], next_page_results=False,
+            next_cursor=None,
+        ),
+    )
+    archived = Card(id="old", sequence_id=9, state="state-done")
+    client.cards = [*members["cycle-7"], archived]
+    monkeypatch.setattr(
+        board, "relations",
+        lambda card_id: {"blocked_by": ["old"]},
+    )
+
+    facts = board.dependency_facts({7: "cycle-7"})
+
+    assert [card["ref"] for card in facts["cards"]] == ["DEMO-1"]
+    assert facts["cards"][0]["sprint"] == 7
+    assert facts["blocked_by"] == {"open": ["old"]}
+    assert facts["states"]["old"] == ("DEMO-9", "Done")

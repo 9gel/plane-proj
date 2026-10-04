@@ -546,6 +546,31 @@ class Board:
             for card in self._cycle_cards(cycle_id)
         ]
 
+    def dependency_facts(self, cycles: Mapping[int, str]) -> dict[str, Any]:
+        """Open cards of the given sprint cycles, with blockers and states.
+
+        One relations read per open card. Card states cover the whole
+        board, archived cards included, so a blocker settled and archived
+        long ago still reads as settled.
+        """
+        cards: list[dict[str, Any]] = []
+        blocked_by: dict[str, list[str]] = {}
+        for sprint_id, cycle_id in cycles.items():
+            for card in self.sprint_cycle_cards(cycle_id):
+                if card["state"].casefold() in {"done", "cancelled"}:
+                    continue
+                cards.append(card | {"sprint": sprint_id})
+                relations = self.relations(card["id"])
+                blocked_by[card["id"]] = relations["blocked_by"]
+        states = {
+            str(card.id): (
+                f"{self.project.key}-{getattr(card, 'sequence_id', '?')}",
+                self._state_name(getattr(card, "state", None)),
+            )
+            for card in self.cards(include_archived=True)
+        }
+        return {"cards": cards, "blocked_by": blocked_by, "states": states}
+
     def sprint_cycles(self, sprint_ids: set[int]) -> dict[int, str]:
         """Live cycle ids named `Sprint N` for each wanted N that has one."""
         found: dict[int, str] = {}

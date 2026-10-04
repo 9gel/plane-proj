@@ -1578,3 +1578,44 @@ def test_rework_cost_and_reasons_reach_reports_and_old_snapshots_stay_unknown(
     assert "Rework time" in human.output and "Rework reasons" in human.output
     shown = invoke(database, "show", "1")
     assert "Rework reason: spec" in shown.output
+
+
+def test_ready_and_critical_path_read_current_and_planned_cycles(
+    tmp_path: Path, sprint_board,
+) -> None:
+    database = tmp_path / "SPRINTS.sqlite"
+    create_register(database)
+    plan(database, 3)
+    plan(database, 4, 2)
+    assert invoke(
+        database, "start", "3", "--started", "2026-01-02T03:04:05+08:00"
+    ).exit_code == 0
+    seen: list[dict[int, str]] = []
+
+    def dependency_facts(cycles):
+        seen.append(dict(cycles))
+        cards = [
+            {"id": "a", "ref": "DEMO-1", "title": "A", "state": "Todo",
+             "points": 2, "sprint": 3},
+            {"id": "b", "ref": "DEMO-2", "title": "B", "state": "Backlog",
+             "points": 3, "sprint": 4},
+        ]
+        return {"cards": cards, "blocked_by": {"b": ["a"]},
+                "states": {"a": ("DEMO-1", "Todo"), "b": ("DEMO-2", "Backlog")}}
+
+    sprint_board.dependency_facts = dependency_facts
+
+    ready = CliRunner().invoke(
+        cli, ["--json", "sprints", "--database", str(database), "ready"]
+    )
+    assert ready.exit_code == 0, ready.output
+    payload = json.loads(ready.output)
+    assert [card["ref"] for card in payload["ready"]] == ["DEMO-1"]
+    assert payload["blocked"][0]["blocked_by"] == ["DEMO-1"]
+    # Current sprint 3 by its bound cycle, planned sprint 4 by name.
+    assert seen[0] == {3: "3", 4: "4"}
+
+    path = invoke(database, "critical-path")
+    assert path.exit_code == 0, path.output
+    assert "Critical path: 5 points" in path.output
+    assert "Speedup ceiling: 1.0x" in path.output

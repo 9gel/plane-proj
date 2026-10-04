@@ -26,6 +26,7 @@ import click
 from plane.errors import HttpError
 
 from plane_proj import board as board_module
+from plane_proj import dependencies as dependencies_module
 from plane_proj import execution as execution_module
 from plane_proj import operations as operations_module
 from plane_proj import sprint_timing
@@ -823,6 +824,82 @@ def sprints_list_past(obj: dict[str, Any], as_json: bool) -> None:
 
 
 cli.add_command(sprints, "sprint")
+
+
+def _open_sprint_cycles(obj: dict[str, Any]) -> dict[int, str]:
+    """Cycle ids of current sprints, then planned sprints in order."""
+    with sprints_module.connect_database(
+        obj["database"], writable=False
+    ) as connection:
+        found = sprints_module.fetch_sprints(connection)
+    cycles = {
+        sprint.sprint_id: sprint.cycle_id for sprint in found
+        if sprint.status == sprints_module.STATUS_CURRENT and sprint.cycle_id
+    }
+    planned = sorted(
+        (s for s in found if s.status == sprints_module.STATUS_PLANNED),
+        key=lambda sprint: sprint.position or 0,
+    )
+    named = obj["root"].board.sprint_cycles({s.sprint_id for s in planned})
+    cycles.update(
+        (sprint.sprint_id, named[sprint.sprint_id])
+        for sprint in planned if sprint.sprint_id in named
+    )
+    return cycles
+
+
+@sprints.command("ready")
+@click.pass_obj
+def sprints_ready(obj: dict[str, Any]) -> None:
+    """List waiting cards whose blockers are all settled, in any sprint."""
+    board = obj["root"].board
+    payload = dependencies_module.ready(
+        board.dependency_facts(_open_sprint_cycles(obj))
+    )
+
+    def render(data: dict[str, Any]) -> None:
+        click.echo("Ready")
+        records_table(data["ready"], [
+            ("ref", "CARD"), ("sprint", "SPRINT"), ("state", "STATE"),
+            ("points", "POINTS"), ("title", "TITLE"),
+        ])
+        click.echo("\nBlocked")
+        records_table(
+            [card | {"waiting_on": ", ".join(card["blocked_by"])}
+             for card in data["blocked"]],
+            [("ref", "CARD"), ("sprint", "SPRINT"),
+             ("waiting_on", "WAITING ON"), ("title", "TITLE")],
+        )
+
+    emit(payload, as_json=obj["root"].as_json, render=render)
+
+
+@sprints.command("critical-path")
+@click.pass_obj
+def sprints_critical_path(obj: dict[str, Any]) -> None:
+    """Show the longest dependency chain and the parallel speedup ceiling."""
+    board = obj["root"].board
+    payload = dependencies_module.critical_path(
+        board.dependency_facts(_open_sprint_cycles(obj)),
+        use_points=board.project.estimates_enabled,
+    )
+
+    def render(data: dict[str, Any]) -> None:
+        unit = data["unit"]
+        click.echo(f"Open work: {data['total']} {unit}")
+        click.echo(f"Critical path: {data['critical_path']} {unit}")
+        ceiling = data["speedup_ceiling"]
+        click.echo(
+            "Speedup ceiling: "
+            + ("—" if ceiling is None else f"{ceiling}x")
+            + " (open work ÷ critical path; more agents cannot beat it)"
+        )
+        records_table(data["chain"], [
+            ("ref", "CARD"), ("sprint", "SPRINT"), ("state", "STATE"),
+            ("points", "POINTS"), ("title", "TITLE"),
+        ])
+
+    emit(payload, as_json=obj["root"].as_json, render=render)
 
 
 @sprints.command("web")
