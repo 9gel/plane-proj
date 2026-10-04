@@ -2,9 +2,11 @@
 
 The page is one static file; `/api/sprints` returns the `sprints list --json
 --all` payload plus the facts the page draws that the listing lacks: current
-cycle cards and Plane links. `/api/version` changes whenever the register file
-does, so the page polls it and reloads the payload only then. Nothing here
-writes to the register or the board.
+cycle cards with their blockers, and Plane links. `/api/version` changes
+whenever the register file does, so the page polls it and reloads the payload
+only then. `/api/dependencies` runs the critical-path and ready reports on
+request, because they read every planned card's relations. Nothing here writes
+to the register or the board.
 """
 
 from __future__ import annotations
@@ -45,6 +47,21 @@ def build_payload(
     }
 
 
+def with_blockers(
+    cards: list[dict[str, Any]], facts: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Each card with the reference and state of every card it waits on."""
+    states = facts["states"]
+    return [
+        card | {"blocked_by": [
+            dict(zip(("ref", "state"),
+                     states.get(blocker, (blocker, "unknown")), strict=True))
+            for blocker in facts["blocked_by"].get(card["id"], [])
+        ]}
+        for card in cards
+    ]
+
+
 def page() -> str:
     return files("plane_proj").joinpath("web.html").read_text(encoding="utf-8")
 
@@ -60,10 +77,12 @@ def register_version(database: Path) -> str:
 
 
 def make_server(
-    host: str, port: int, load: Callable[[], dict[str, Any]],
-    version: Callable[[], str],
+    host: str, port: int, routes: dict[str, Callable[[], dict[str, Any]]],
 ) -> HTTPServer:
-    """A single-threaded server: board reads never run concurrently."""
+    """A single-threaded server: board reads never run concurrently.
+
+    `routes` maps each JSON path to the function that builds its body.
+    """
     html = page().encode()
 
     class Handler(BaseHTTPRequestHandler):
@@ -71,12 +90,9 @@ def make_server(
             path = self.path.split("?", 1)[0]
             if path == "/":
                 self._send(200, "text/html; charset=utf-8", html)
-            elif path == "/api/version":
-                body = json.dumps({"version": version()}).encode()
-                self._send(200, "application/json", body)
-            elif path == "/api/sprints":
+            elif path in routes:
                 try:
-                    body = json.dumps(load()).encode()
+                    body = json.dumps(routes[path]()).encode()
                 except PlaneProjError as error:
                     self._error(str(error))
                     return

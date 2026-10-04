@@ -25,7 +25,9 @@ def serve() -> Iterator:
     servers = []
 
     def start(load, version=lambda: "v1"):
-        server = web.make_server("127.0.0.1", 0, load, version)
+        routes = {"/api/sprints": load,
+                  "/api/version": lambda: {"version": version()}}
+        server = web.make_server("127.0.0.1", 0, routes)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         servers.append(server)
         return f"http://127.0.0.1:{server.server_port}"

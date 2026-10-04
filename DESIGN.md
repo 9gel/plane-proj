@@ -659,6 +659,12 @@ and two JSON routes from `web.py`:
   same `_sprint_listing` code path, plus the project key and name, the Plane
   board link, and each current cycle's cards (reference, title, state,
   points) from `Board.sprint_cycle_cards`. Every request reads afresh.
+- Each current card carries its blockers' references and states, read
+  through `Board.dependency_facts` for the current cycles only, so a refresh
+  costs one relations request per open current card.
+- `/api/dependencies` runs the `sprints ready` and `sprints critical-path`
+  reports. It reads every planned card's relations, so the page calls it only
+  when the user asks.
 - `/api/version` returns the register file's (and WAL's) modification time
   and size. The page polls it every 2 seconds and refetches `/api/sprints`
   only when it changes, so an idle page makes no Plane requests. A change made

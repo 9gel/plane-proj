@@ -157,6 +157,13 @@ function boot(data) {
   $('#projname').textContent = `${PROJECT} · ${data.project.name}`;
 }
 const cardsFor = s => DATA.cards[s.sprint] || [];
+// Open blockers of a card, shown only while the card itself is unfinished.
+function waitsOn(c) {
+  const open = (c.blocked_by || []).filter(b => !TERMINAL.has(b.state));
+  if (!open.length || TERMINAL.has(c.state)) return '';
+  return `<div class="meta"><span class="flag" data-tip="Blocked until these are Done">waits on ${open.map(b => `${esc(b.ref)} (${esc(b.state)})`).join(', ')}</span></div>`;
+}
+const reasonText = r => Object.entries(r || {}).map(([k, v]) => `${k} ${v}`).join(' · ');
 
 // ===== helpers =====
 const $ = q => document.querySelector(q);
@@ -310,13 +317,13 @@ V.currentOne = s => {
   <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st} <span class="muted">${cards.filter(c => c.state === st).length}</span></div>`).join('')}
     ${STATES.map(st => `<div class="colb">${cards.filter(c => c.state === st).map(c => `<div class="wi" style="border-left-color:${stC[st]}">
       <div class="row"><a class="mono" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.ref)}</a><span class="sp"></span>${POINTS ? `<span class="pill">${c.points} pt</span>` : ''}</div>
-      <div>${esc(c.title)}</div></div>`).join('')}</div>`).join('')}</div>
+      <div>${esc(c.title)}</div>${waitsOn(c)}</div>`).join('')}</div>`).join('')}</div>
 
   <h2>Status</h2>
   <div class="grid g4">
     ${POINTS ? `<div class="card kpi"><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity${MEDV ? ` · median ${num(MEDV, 2)}` : ''}</div>
       ${hbar(vel, Math.max(vel, MEDV || 0) * 1.2 || 1, 'now', 'var(--c1)')}${MEDV ? hbar(MEDV, Math.max(vel, MEDV) * 1.2, 'median', 'var(--muted)') : ''}</div>` : ''}
-    <div class="card kpi"><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events · ${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked</div></div>
+    <div class="card kpi"><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events · ${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}${reasonText(t.rework_reasons) ? `<br>${reasonText(t.rework_reasons)}` : ''}</div></div>
     <div class="card kpi"><div class="v">${fmtMin(active)}</div><div class="l">Active time (In Progress ${fmtMin(t.active_minutes?.['In Progress'])} · Verifying ${fmtMin(t.active_minutes?.['Verifying'])})</div></div>
     <div class="card kpi"><div class="v">${openT.length || 'None'}</div><div class="l">Open timers ${openT.map(([k, v]) => `· ${k} ${fmtMin(v)}`).join(' ')}</div></div>
   </div>
@@ -336,6 +343,7 @@ V.planned = () => {
   <p class="muted">${planned.length} sprints in execution order · ${planned.reduce((a, s) => a + s.cards, 0)} cards${POINTS ? ` · ${planned.reduce((a, s) => a + s.points, 0)} pts` : ''}</p>
   ${MEDV ? `<div class="note" style="border-left-color:var(--accent)">Estimates assume <b>${num(MEDV, 2)} pts/h</b>: the median velocity of ${past.length} completed sprints.
     Hours = points ÷ ${num(MEDV, 2)}.</div>` : ''}
+  <div class="card" id="deps" style="margin-bottom:12px">${depsView()}</div>
   <div class="card"><div class="plan">
     <div class="hd">#</div><div class="hd">Sprint and goal</div><div class="hd wide">Cards</div><div class="hd wide">${POINTS ? 'Points' : ''}</div><div class="hd wide">${MEDV ? 'Estimate' : ''}</div>
     ${planned.map(s => { const est = MEDV ? s.points / MEDV : null;
@@ -345,6 +353,32 @@ V.planned = () => {
       <div class="wide">${POINTS ? `${segbar(s.points, s.points, maxPts)}<div class="muted small" style="margin-top:3px">${s.points} pts</div>` : ''}</div>
       <div class="wide">${est != null ? hbar(est, maxEst, fmtH(est), 'var(--c3)', { tipText: `${s.points} pts ÷ ${num(MEDV, 2)} pts/h` }) : ''}</div>`; }).join('')}
   </div></div>`;
+};
+
+// The critical path reads every planned card's relations, so it runs on request.
+let DEPS = null, depsState = 'idle';
+function depsView() {
+  if (depsState === 'loading') return '<h3>Dependencies</h3><p class="muted">Reading card dependencies…</p>';
+  if (depsState === 'error') return `<h3>Dependencies</h3><p class="flag">${esc(DEPS)}</p>`;
+  if (!DEPS) return `<div class="row"><h3 style="margin:0">Dependencies</h3><span class="sp"></span>
+    <button onclick="loadDeps()">Find critical path</button></div>
+    <p class="muted small" style="margin:6px 0 0">Reads every open card's blockers in current and planned sprints.</p>`;
+  const p = DEPS.critical_path, unit = p.unit === 'points' ? 'pts' : 'cards';
+  return `<div class="row"><h3 style="margin:0">Dependencies</h3><span class="sp"></span><button onclick="loadDeps()">Refresh</button></div>
+    <div class="grid g4" style="margin:10px 0">
+      <div class="kpi"><div class="v">${p.total}<span class="muted small"> ${unit}</span></div><div class="l">Open work</div></div>
+      <div class="kpi"><div class="v">${p.critical_path}<span class="muted small"> ${unit}</span></div><div class="l">Critical path</div></div>
+      <div class="kpi"><div class="v">${p.speedup_ceiling == null ? '—' : p.speedup_ceiling + '×'}</div><div class="l">Speedup ceiling: open work ÷ critical path</div></div>
+      <div class="kpi"><div class="v">${DEPS.ready.length}</div><div class="l">Ready to start · ${DEPS.blocked.length} blocked</div></div>
+    </div>
+    <div class="small t2">Longest chain: ${p.chain.map(c => `<span class="pill">${esc(c.ref)} · #${c.sprint}</span>`).join(' → ') || '—'}</div>`;
+}
+window.loadDeps = () => {
+  depsState = 'loading'; $('#deps').innerHTML = depsView();
+  getJSON('api/dependencies')
+    .then(d => { DEPS = d; depsState = 'idle'; })
+    .catch(e => { DEPS = e.message; depsState = 'error'; })
+    .finally(() => { const el = $('#deps'); if (el) el.innerHTML = depsView(); });
 };
 
 V.plannedDetail = s => `<p><a href="#/planned">← Planned</a></p>
@@ -396,7 +430,7 @@ V.pastDetail = s => {
     ${POINTS ? `<div class="card kpi"><div class="v">${num(s.velocity, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity · median ${num(MEDV, 2)}</div></div>` : ''}
   </div>
   ${t ? `<div class="grid g2"><div class="card"><h3>State residence (card-time)</h3>${res.map(([k, v]) => `<div class="row small"><span style="width:90px" class="t2">${k}</span><div style="flex:1">${hbar(v, mx, fmtMin(v), stC[k] || 'var(--muted)')}</div></div>`).join('')}</div>
-    <div class="card"><h3>Timers · rework ${t.rework_count} on ${t.reworked_cards} cards</h3>${exec.map(([k, v]) => `<div class="row small"><span style="width:110px" class="t2">${k}</span><div style="flex:1">${hbar(v, mx, fmtMin(v), 'var(--c1)')}</div></div>`).join('') || '<span class="muted">No timers.</span>'}</div></div>`
+    <div class="card"><h3>Timers · rework ${t.rework_count} on ${t.reworked_cards} cards${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}</h3>${reasonText(t.rework_reasons) ? `<p class="small t2" style="margin:-4px 0 8px">Reasons: ${reasonText(t.rework_reasons)}</p>` : ''}${exec.map(([k, v]) => `<div class="row small"><span style="width:110px" class="t2">${k}</span><div style="flex:1">${hbar(v, mx, fmtMin(v), 'var(--c1)')}</div></div>`).join('') || '<span class="muted">No timers.</span>'}</div></div>`
     : '<p class="muted">No timing snapshots for this sprint.</p>'}
   <h2>Delivered</h2><div class="card prose">${esc(s.delivered)}</div>
   <h2>Retrospective</h2><div class="card prose">${esc(s.retrospective) || '<span class="muted">None recorded.</span>'}</div>
@@ -435,6 +469,14 @@ const stripLegend = `<div class="legend" style="margin-bottom:8px">
   <span>${lg('<line x1="1.5" y1="6" x2="20.5" y2="6" stroke="var(--range)" stroke-width="1.5"/><line x1="1.5" y1="1" x2="1.5" y2="11" stroke="var(--range)" stroke-width="1.5"/><line x1="20.5" y1="1" x2="20.5" y2="11" stroke="var(--range)" stroke-width="1.5"/>')}min to max</span>
   <span style="color:var(--median)">${lg('<line x1="11" y1="0" x2="11" y2="12" stroke="var(--median)" stroke-width="2"/>')}median</span>
   <span>${lg('<line x1="2" y1="6" x2="20" y2="6" stroke="var(--c2)"/><line x1="2.5" y1="3" x2="2.5" y2="9" stroke="var(--c2)"/><line x1="19.5" y1="3" x2="19.5" y2="9" stroke="var(--c2)"/><rect x="9" y="1" width="4" height="10" fill="var(--c2)"/>')}average ± 1 SD</span></div>`;
+// Send-backs by reason, as bars against the most common reason.
+function reasonsCard(reasons) {
+  const rows = Object.entries(reasons || {}).sort((a, b) => b[1] - a[1]);
+  if (!rows.length) return '';
+  const max = rows[0][1], total = rows.reduce((a, r) => a + r[1], 0);
+  return `<div class="card"><h3>Rework reasons · ${total} send-backs</h3>${rows.map(([k, v]) =>
+    `<div class="row small" style="margin:4px 0"><span style="width:110px" class="t2">${esc(k)}</span><div style="flex:1">${hbar(v, max, String(v), 'var(--c2)')}</div></div>`).join('')}</div>`;
+}
 const statsRows = (o, fmt, order) => (order || Object.keys(o)).filter(k => o[k]).map(k => strip(k, o[k], fmt)).join('');
 const TIMERS = ['coding', 'blocking-run', 'dependency-wait', 'user-ask', 'manual-qa'];
 let statTab = 'charts';
@@ -457,12 +499,13 @@ V.stats = () => {
   <h2>Distributions per sprint</h2><div style="margin:-2px 0 12px">${stripLegend}</div>
   <div class="dist"><div class="stack">
     <div class="card"><h3>Delivery</h3><div class="strip">${strip('Hours', ST.hours, v => fmtH(v))}${strip('Cards start', ST.cards_start, n2)}${strip('Cards end', ST.cards_end, n2)}
-      ${strip('Points start', ST.points_start, n2)}${strip('Points end', ST.points_end, n2)}${strip('Velocity pts/h', ST.velocity, n2)}${strip('Rework count', T.rework.count, n2)}</div></div>
+      ${strip('Points start', ST.points_start, n2)}${strip('Points end', ST.points_end, n2)}${strip('Velocity pts/h', ST.velocity, n2)}${strip('Rework count', T.rework.count, n2)}${strip('Rework time', T.rework.minutes, minFmt)}</div></div>
     <div class="card"><h3>State residence</h3><div class="strip">${statsRows(T.residence_minutes, minFmt, ['Backlog', 'Todo', 'In Progress', 'Verifying'])}
       ${strip('Active = In Progress + Verifying', T.active_minutes_total, minFmt)}</div></div>
     </div>
-    <div class="card"><h3>Time spent by timer</h3><div class="strip">${strip('All timers', T.execution_minutes_total, minFmt)}
+    <div class="stack"><div class="card"><h3>Time spent by timer</h3><div class="strip">${strip('All timers', T.execution_minutes_total, minFmt)}
       ${statsRows(T.execution_minutes, minFmt, Object.keys(T.execution_minutes).sort((a, b) => T.execution_minutes[b].average - T.execution_minutes[a].average))}</div></div>
+    ${reasonsCard(T.rework.reasons)}</div>
   </div>
   <h2>Per sprint, oldest to newest</h2>
   ${POINTS ? `  <div class="card"><h3>Points: original, added, removed</h3>${colChart({ data: past, stacks: [

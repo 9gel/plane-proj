@@ -918,11 +918,18 @@ def sprints_web(obj: dict[str, Any], host: str, port: int, plane_url: str) -> No
         listing = _sprint_listing(obj, include_all=True)
         board = obj["root"].board
         project = board.project
-        cards = {
-            sprint.sprint_id: board.sprint_cycle_cards(sprint.cycle_id)
+        current = {
+            sprint.sprint_id: sprint.cycle_id
             for sprint in listing["selected"]
             if sprint.status == sprints_module.STATUS_CURRENT
             and sprint.cycle_id is not None
+        }
+        facts = board.dependency_facts(current)
+        cards = {
+            sprint_id: web_module.with_blockers(
+                board.sprint_cycle_cards(cycle_id), facts
+            )
+            for sprint_id, cycle_id in current.items()
         }
         return web_module.build_payload(
             listing["payload"],
@@ -932,9 +939,22 @@ def sprints_web(obj: dict[str, Any], host: str, port: int, plane_url: str) -> No
             estimates=listing["estimates_enabled"],
         )
 
-    server = web_module.make_server(
-        host, port, load, lambda: web_module.register_version(obj["database"])
-    )
+    def dependencies() -> dict[str, Any]:
+        board = obj["root"].board
+        facts = board.dependency_facts(_open_sprint_cycles(obj))
+        return dependencies_module.ready(facts) | {
+            "critical_path": dependencies_module.critical_path(
+                facts, use_points=board.project.estimates_enabled
+            ),
+        }
+
+    server = web_module.make_server(host, port, {
+        "/api/sprints": load,
+        "/api/version": lambda: {
+            "version": web_module.register_version(obj["database"])
+        },
+        "/api/dependencies": dependencies,
+    })
     click.echo(f"Serving sprints on http://{host}:{server.server_port}/ (Ctrl+C stops)")
     try:
         server.serve_forever()

@@ -1498,6 +1498,18 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
         "id": f"card-{cycle_id}", "ref": "DEMO-1", "title": "Ship it",
         "state": "Todo", "points": 3,
     }]
+    facts_read: list[dict[int, str]] = []
+
+    def dependency_facts(cycles):
+        facts_read.append(dict(cycles))
+        return {
+            "cards": [{"id": "card-3", "ref": "DEMO-1", "title": "Ship it",
+                       "state": "Todo", "points": 3, "sprint": 3}],
+            "blocked_by": {"card-3": ["other"]},
+            "states": {"other": ("DEMO-9", "In Progress")},
+        }
+
+    sprint_board.dependency_facts = dependency_facts
     served: dict[str, object] = {}
 
     class Server:
@@ -1509,8 +1521,10 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
         def server_close(self) -> None:
             served["closed"] = True
 
-    def make_server(host, port, load, version):
-        served.update(host=host, port=port, load=load, version=version)
+    def make_server(host, port, routes):
+        served.update(host=host, port=port, load=routes["/api/sprints"],
+                      version=lambda: routes["/api/version"]()["version"],
+                      dependencies=routes["/api/dependencies"])
         return Server()
 
     monkeypatch.setattr("plane_proj.web.make_server", make_server)
@@ -1528,7 +1542,14 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
     assert payload["cards"] == {"3": [{
         "id": "card-3", "ref": "DEMO-1", "title": "Ship it", "state": "Todo",
         "points": 3, "url": board + "card-3",
+        "blocked_by": [{"ref": "DEMO-9", "state": "In Progress"}],
     }]}
+    # The page refresh reads current sprints' blockers only.
+    assert facts_read == [{3: "3"}]
+    found = served["dependencies"]()
+    assert facts_read[-1] == {3: "3", 4: "4"}
+    assert found["critical_path"]["critical_path"] == 3
+    assert [card["ref"] for card in found["blocked"]] == ["DEMO-1"]
     # The page's live check moves when the register is written.
     before = served["version"]()
     assert invoke(database, "alias", "4", "NEXT").exit_code == 0
