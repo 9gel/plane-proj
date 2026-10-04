@@ -1533,3 +1533,48 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
     before = served["version"]()
     assert invoke(database, "alias", "4", "NEXT").exit_code == 0
     assert served["version"]() != before
+
+
+def test_rework_cost_and_reasons_reach_reports_and_old_snapshots_stay_unknown(
+    tmp_path,
+):
+    database = tmp_path / "SPRINTS.sqlite"
+    create_register(database)
+    with sprints.connect_database(database, writable=True) as connection:
+        for sprint_id in (1, 2):
+            sprints.add_completed_sprint(connection, sprints.Sprint(
+                sprint_id=sprint_id, title=f"Sprint {sprint_id}",
+                status="completed", started="2026-01-01T00:00:00Z",
+                ended="2026-01-02T00:00:00Z", hours=24, cards_start=1,
+                cards_end=1, points_start=1, points_end=1, velocity=1,
+                delivered="Outcome",
+            ))
+            cost = {
+                "rework_minutes": 45,
+                "rework_execution_minutes": {"blocking-run": 30},
+                "rework_reasons": {"defect": 1, "spec": 2},
+            } if sprint_id == 1 else {}
+            sprints.record_execution_snapshot(
+                connection, sprint_id=sprint_id, work_item_id=str(sprint_id),
+                card_reference=f"DEMO-{sprint_id}",
+                captured_at="2026-01-02T00:00:00Z", is_final=True,
+                stats={"state_minutes": {"In Progress": 10},
+                       "execution_minutes": {}, "current_state": None,
+                       "open_timer": None, "rework_count": 3, **cost},
+            )
+
+    stats = invoke(database, "stats", "--json")
+    assert stats.exit_code == 0, stats.output
+    rework = json.loads(stats.output)["timing"]["rework"]
+    # Sprint 2's snapshot predates rework cost: unknown, not zero.
+    assert rework["minutes_included_sprints"] == 1
+    assert rework["minutes"]["average"] == 45
+    assert rework["reasons"] == {"defect": 1, "spec": 2}
+    listing = invoke(database, "list", "--json")
+    first = json.loads(listing.output)["past"][0]["timing"]
+    assert first["rework_minutes"] == 45
+    assert first["rework_execution_minutes"] == {"blocking-run": 30}
+    human = invoke(database, "stats")
+    assert "Rework time" in human.output and "Rework reasons" in human.output
+    shown = invoke(database, "show", "1")
+    assert "Rework reason: spec" in shown.output

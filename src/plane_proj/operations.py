@@ -26,6 +26,7 @@ from plane_proj import text as text_module
 from plane_proj.guards import GuardViolation
 
 STEP_ACTIVITY_STOPPED = "activity-stopped"
+STEP_REASON_RECORDED = "rework-reason-recorded"
 STEP_MOVED = "moved"
 STEP_COLLECTED = "collected"
 
@@ -113,14 +114,21 @@ def run_transition(
     to_state: str,
     stop_activity: bool,
     operation_id: str,
+    reason: str | None = None,
 ) -> dict[str, Any]:
-    """One resumable state transition with immediate collection."""
+    """One resumable state transition with immediate collection.
+
+    A review send-back (Verifying → In Progress) must name its reason,
+    which is posted as a visible comment before the move.
+    """
     request = {
         "card": reference,
         "from": from_state,
         "to": to_state,
         "stop_activity": stop_activity,
     }
+    if reason is not None:
+        request["reason"] = reason
     claimed = sprints_module.claim_operation(
         connection, operation_id, "transition", reference, request,
     )
@@ -129,6 +137,15 @@ def run_transition(
     steps: list[str] = claimed["steps"]
 
     # Every check before the first write.
+    sendback = execution_module.is_rework(from_state, to_state)
+    if sendback:
+        # Refuses a missing or unknown reason.
+        execution_module.rework_text(reason or "")
+    elif reason is not None:
+        raise GuardViolation(
+            "Rework reason rule: only a send-back (Verifying → In Progress) "
+            f"takes --reason; {from_state} → {to_state} is not one."
+        )
     source_id = board.project.state_id(from_state)
     target_id = board.project.state_id(to_state)
     if source_id == target_id:
@@ -188,6 +205,17 @@ def run_transition(
         )
         steps.append(STEP_ACTIVITY_STOPPED)
 
+    if sendback and STEP_REASON_RECORDED not in steps:
+        comments = board.comments(item)
+        if not execution_module.rework_recorded(comments, operation_id):
+            board.comment(item, text_module.to_html(
+                execution_module.rework_text(str(reason), operation_id)
+            ))
+        sprints_module.record_operation_step(
+            connection, operation_id, STEP_REASON_RECORDED
+        )
+        steps.append(STEP_REASON_RECORDED)
+
     if STEP_MOVED not in steps:
         board.move_state(item, to_state)
         sprints_module.record_operation_step(
@@ -209,6 +237,7 @@ def run_transition(
         "from": from_state,
         "to": to_state,
         "stopped_activity": stopped_category,
+        "reason": reason,
         "sprint_id": sprint.sprint_id,
         "collected_at": captured_at,
         "steps": list(dict.fromkeys(steps)),

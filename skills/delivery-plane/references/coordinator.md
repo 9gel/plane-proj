@@ -29,7 +29,8 @@ production code. Route technical rulings to the Tech Lead.
 - Reject scope expansion. Classify discovered work under the sprint lifecycle.
 - Close a card only after the Tech Lead certifies technical acceptance.
 - Follow the allowed transitions in §3. On a Tech Lead rework verdict, record
-  Verifying → In Progress and verify readback before redispatch. Comments alone
+  Verifying → In Progress with the verdict's reason and verify readback before
+  redispatch. Comments alone
   do not record a rework round.
 - Follow the Plane adapter's activity-timer procedure for reported coding,
   dependency-wait, service-wait, user-ask, blocking-run, and manual-QA

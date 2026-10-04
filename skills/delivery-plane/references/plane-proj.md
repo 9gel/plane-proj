@@ -146,9 +146,11 @@ subsequent waits.
   runs inspect, optional timer stop, move, readback, and collection as
   one journaled operation, and a retry with the same id resumes without
   replaying moves or timer events. On a Tech Lead rework verdict, the
-  Coordinator MUST transition Verifying → In Progress this way before
-  redispatch. The native Verifying → In Progress transition is one
-  rework; repeated feedback in the same round is not another.
+  Coordinator MUST transition Verifying → In Progress this way, with
+  `--reason` set to the verdict's cause (`spec`, `test-gap`, `defect`,
+  `missed-gate`, or `environment`), before redispatch. The native
+  Verifying → In Progress transition is one rework; repeated feedback in
+  the same round is not another.
 - After EVERY successful card state transition not made through
   `card transition`, run `plane-proj sprints collect CARD` before
   further work or reporting. This applies to admission, dispatch,

@@ -20,6 +20,9 @@ from plane_proj.guards import GuardViolation
 
 EVENT_PREFIX = "plane-proj-execution/v1 "
 EVENT_PREFIX_V2 = "plane-proj-execution/v2 "
+REWORK_PREFIX = "plane-proj-rework/v1 "
+REWORK_REASONS = ("spec", "test-gap", "defect", "missed-gate", "environment")
+ACTIVE_STATES = frozenset({"in progress", "verifying"})
 _CATEGORY = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 
 
@@ -213,6 +216,65 @@ def delayed_interval_event(
     )
 
 
+def is_rework(old_state: str, new_state: str) -> bool:
+    """A review send-back: Verifying back to In Progress."""
+    states = (old_state.casefold(), new_state.casefold())
+    return states == ("verifying", "in progress")
+
+
+def _require_reason(reason: Any) -> str:
+    if reason not in REWORK_REASONS:
+        raise GuardViolation(
+            f"Rework reason rule: a send-back names one of "
+            f"{', '.join(REWORK_REASONS)}; got {reason!r}. Reasons are what "
+            "show which change would remove the most rework."
+        )
+    return reason
+
+
+def rework_text(reason: str, operation_id: str = "") -> str:
+    """The stable visible comment recording why a card was sent back."""
+    return REWORK_PREFIX + json.dumps(
+        {"operation_id": operation_id, "reason": _require_reason(reason)},
+        separators=(",", ":"),
+    )
+
+
+def rework_recorded(comments: Iterable[Any], operation_id: str) -> bool:
+    """Whether this operation already posted its reason (a lost response)."""
+    return any(
+        payload.get("operation_id") == operation_id
+        for payload in _rework_payloads(comments)
+    )
+
+
+def _rework_reasons(comments: Iterable[Any]) -> dict[str, int]:
+    counts: dict[str, int] = defaultdict(int)
+    for payload in _rework_payloads(comments):
+        counts[_require_reason(payload.get("reason"))] += 1
+    return dict(sorted(counts.items()))
+
+
+def _rework_payloads(comments: Iterable[Any]) -> list[dict[str, Any]]:
+    payloads = []
+    for comment in comments:
+        plain = text_module.to_plain(getattr(comment, "comment_html", ""))
+        if not plain.startswith(REWORK_PREFIX):
+            continue
+        try:
+            payload = json.loads(plain.removeprefix(REWORK_PREFIX))
+        except json.JSONDecodeError as error:
+            raise GuardViolation(
+                "Rework reason rule: a rework comment contains invalid JSON."
+            ) from error
+        if not isinstance(payload, dict):
+            raise GuardViolation(
+                "Rework reason rule: a rework comment must be an object."
+            )
+        payloads.append(payload)
+    return payloads
+
+
 def _open_timer(events: Iterable[dict[str, Any]]) -> dict[str, Any] | None:
     opened: dict[str, Any] | None = None
     for event in events:
@@ -338,7 +400,27 @@ def execution_stats(
         if minutes > 0:
             states[event["new"]] += minutes
 
+    # Rework cost: active card-time, and timed work, after the first send-back.
+    first_rework = next(
+        (
+            event["when"] for event in state_events
+            if is_rework(event["old"], event["new"])
+        ),
+        None,
+    )
+    rework_minutes = 0.0
+    if first_rework is not None:
+        for index, event in enumerate(state_events):
+            if event["new"].casefold() not in ACTIVE_STATES:
+                continue
+            following = state_events[index + 1:]
+            end = following[0]["when"] if following else as_of
+            start = max(event["when"], first_rework)
+            if end > start:
+                rework_minutes += (end - start).total_seconds() / 60
+
     durations: dict[str, float] = defaultdict(float)
+    rework_durations: dict[str, float] = defaultdict(float)
     timer_events = _comment_events(comments)
     opened: dict[str, Any] | None = None
     for event in timer_events:
@@ -350,6 +432,10 @@ def execution_stats(
         if opened is None or opened["category"] != event["category"]:
             _open_timer(timer_events)
         durations[event["category"]] += (event["when"] - opened["when"]).total_seconds() / 60
+        if first_rework is not None and event["when"] > first_rework:
+            rework_durations[event["category"]] += (
+                event["when"] - max(opened["when"], first_rework)
+            ).total_seconds() / 60
         opened = None
     _open_timer(timer_events)
 
@@ -371,10 +457,14 @@ def execution_stats(
 
     return {
         "rework_count": sum(
-            event["old"].casefold() == "verifying"
-            and event["new"].casefold() == "in progress"
-            for event in state_events
+            is_rework(event["old"], event["new"]) for event in state_events
         ),
+        "rework_reasons": _rework_reasons(comments),
+        "rework_minutes": round(rework_minutes, 2),
+        "rework_execution_minutes": {
+            name: round(value, 2)
+            for name, value in sorted(rework_durations.items())
+        },
         "state_minutes": {name: round(value, 2) for name, value in sorted(states.items())},
         "execution_minutes": {
             name: round(value, 2) for name, value in sorted(durations.items())

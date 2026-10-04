@@ -515,3 +515,83 @@ def test_a_version_6_register_gains_the_journal_on_write_open(
         assert "operation_journal" in tables
     finally:
         connection.close()
+
+
+def _reasons(client: FakeClient) -> list[str]:
+    return [
+        getattr(comment, "comment_html", "") for comment in client.comments
+        if execution.REWORK_PREFIX in getattr(comment, "comment_html", "")
+    ]
+
+
+def test_a_sendback_records_its_reason_before_moving(
+    connection, board: Board, client: FakeClient, sprint_card: Card
+):
+    sprint_card.state = "state-verifying"
+
+    receipt = operations.run_transition(
+        connection, board, reference="DEMO-12",
+        from_state="Verifying", to_state="In Progress",
+        stop_activity=False, operation_id=OP, reason="defect",
+    )
+
+    assert receipt["reason"] == "defect"
+    assert len(_reasons(client)) == 1
+    assert '"reason":"defect"' in _reasons(client)[0]
+    assert sprint_card.state == "state-progress"
+
+
+@pytest.mark.parametrize(
+    ("source", "target", "reason", "message"),
+    [
+        ("Verifying", "In Progress", None, "names one of"),
+        ("Verifying", "In Progress", "typo", "names one of"),
+        ("In Progress", "Verifying", "defect", "only a send-back"),
+    ],
+)
+def test_a_missing_or_misplaced_reason_is_refused_before_any_write(
+    connection, board: Board, client: FakeClient, sprint_card: Card,
+    source: str, target: str, reason: str | None, message: str,
+):
+    sprint_card.state = board.project.state_id(source)
+
+    with pytest.raises(GuardViolation, match=f"Rework reason rule.*{message}"):
+        operations.run_transition(
+            connection, board, reference="DEMO-12",
+            from_state=source, to_state=target,
+            stop_activity=False, operation_id=OP, reason=reason,
+        )
+
+    assert _moves(client) == []
+    assert _reasons(client) == []
+    assert _snapshots(connection) == []
+
+
+def test_a_retry_after_a_lost_reason_response_writes_no_second_reason(
+    connection, board: Board, client: FakeClient, sprint_card: Card,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    sprint_card.state = "state-verifying"
+    real_comment = board.comment
+
+    def comment_then_crash(item: Any, html: str) -> Any:
+        real_comment(item, html)
+        raise ConnectionError("response lost")
+
+    monkeypatch.setattr(board, "comment", comment_then_crash)
+    with pytest.raises(ConnectionError):
+        operations.run_transition(
+            connection, board, reference="DEMO-12",
+            from_state="Verifying", to_state="In Progress",
+            stop_activity=False, operation_id=OP, reason="spec",
+        )
+    monkeypatch.setattr(board, "comment", real_comment)
+
+    operations.run_transition(
+        connection, board, reference="DEMO-12",
+        from_state="Verifying", to_state="In Progress",
+        stop_activity=False, operation_id=OP, reason="spec",
+    )
+
+    assert len(_reasons(client)) == 1
+    assert len(_moves(client)) == 1

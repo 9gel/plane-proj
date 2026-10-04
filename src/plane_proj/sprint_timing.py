@@ -51,19 +51,29 @@ def summaries(
                 "delayed_minutes",
                 "current_state_minutes",
                 "open_timer_minutes",
+                "rework_execution_minutes",
             )
         }
         timed_cards = 0
         rework_counts = []
+        # Rework cost exists only in snapshots taken since it was recorded;
+        # older ones leave it unknown rather than zero.
+        rework_costs = []
+        rework_reasons: dict[str, int] = defaultdict(int)
         for snapshot in latest.values():
             stats = snapshot["stats"]
             if "rework_count" in stats:
                 rework_counts.append(stats["rework_count"])
+            if "rework_minutes" in stats:
+                rework_costs.append(stats["rework_minutes"])
+            for reason, count in stats.get("rework_reasons", {}).items():
+                rework_reasons[reason] += count
             for name in ("state_minutes", "execution_minutes",
-                         "delayed_minutes"):
+                         "delayed_minutes", "rework_execution_minutes"):
                 for category, minutes in stats.get(name, {}).items():
                     if (
-                        name == "execution_minutes"
+                        name in {"execution_minutes",
+                                 "rework_execution_minutes"}
                         and category.casefold() in STATE_TIMER_CATEGORIES
                     ):
                         continue
@@ -104,6 +114,9 @@ def summaries(
                 if rework_counts else None
             ),
             "rework_observed_cards": len(rework_counts),
+            "rework_minutes": sum(rework_costs) if rework_costs else None,
+            "rework_cost_cards": len(rework_costs),
+            "rework_reasons": dict(sorted(rework_reasons.items())),
             "timed_cards": timed_cards,
             "final_cards": sum(snapshot["is_final"] for snapshot in latest.values()),
             "captured_from": captures[0],
@@ -152,6 +165,19 @@ def statistics(
             else None
         )
     rework_values = []
+    rework_costs = []
+    rework_reasons: dict[str, int] = defaultdict(int)
+    for sprint in found:
+        timing = timings.get(sprint.sprint_id)
+        if sprint.status != STATUS_COMPLETED or timing is None:
+            continue
+        for reason, count in timing.get("rework_reasons", {}).items():
+            rework_reasons[reason] += count
+        if (
+            timing["final_cards"] == sprint.cards_end
+            and timing.get("rework_cost_cards") == sprint.cards_end
+        ):
+            rework_costs.append(timing["rework_minutes"])
     for sprint in found:
         timing = timings.get(sprint.sprint_id)
         if (
@@ -169,6 +195,9 @@ def statistics(
             "excluded_sprints": sum(s.status == STATUS_COMPLETED for s in found)
             - len(rework_values),
             "count": metric_summary(rework_values) if rework_values else None,
+            "minutes_included_sprints": len(rework_costs),
+            "minutes": metric_summary(rework_costs) if rework_costs else None,
+            "reasons": dict(sorted(rework_reasons.items())),
         },
         "included_sprints": len(included),
         "excluded_without_timing": missing,
@@ -208,8 +237,16 @@ def fields(timing: dict[str, Any] | None) -> tuple[tuple[str, object], ...]:
         ("Cards with final snapshot", timing["final_cards"]),
         ("Reworked cards", timing["reworked_cards"]),
         ("Rework count", timing["rework_count"]),
-        ("Active total", duration(sum(timing["active_minutes"].values()))),
     ]
+    if timing.get("rework_minutes") is not None:
+        rows.append(("Rework time", duration(timing["rework_minutes"])))
+    rows.extend(
+        (f"Rework reason: {name}", count)
+        for name, count in timing.get("rework_reasons", {}).items()
+    )
+    rows.append(
+        ("Active total", duration(sum(timing["active_minutes"].values())))
+    )
     for group, label in (
         ("residence_minutes", "State"),
         ("execution_minutes", "Time spent"),
@@ -299,4 +336,18 @@ def render_statistics(payload: dict[str, Any]) -> None:
             "Rework count",
             *(f"{rework['count'][key]:.2f}" for key in ("average", "median", "min", "max", "sd")),
         )
+    if rework.get("minutes") is not None:
+        table.add_row(
+            "Rework time",
+            *(duration(rework["minutes"][key])
+              for key in ("average", "median", "min", "max", "sd")),
+        )
     console.print(table)
+    if rework.get("reasons"):
+        reasons = Table(title="Rework reasons", box=box.ROUNDED,
+                        highlight=False)
+        reasons.add_column("Reason")
+        reasons.add_column("Send-backs", justify="right")
+        for name, count in rework["reasons"].items():
+            reasons.add_row(name, str(count))
+        console.print(reasons)

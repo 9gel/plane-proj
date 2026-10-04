@@ -326,6 +326,21 @@ sprint counts; historical delivery metrics retain their original population.
 Rework is the count of native Verifying → In Progress events, as recorded by the
 Coordinator under the delivery skill's allowed-transition table.
 
+Every send-back names its reason: `card transition --from Verifying --to
+'In Progress'` requires `--reason` (`spec`, `test-gap`, `defect`,
+`missed-gate`, or `environment`) and posts it as a visible
+`plane-proj-rework/v1` comment, carrying the operation id, before the move.
+A retry finds that comment and does not post a second. `card move` and
+`card move-many` refuse a send-back, so none escapes without a reason.
+Counting reasons shows which process change would remove the most rework.
+
+Rework cost is the card's In Progress and Verifying time from its first
+send-back until settled (or until capture while still active), and the timer
+time after that instant, split by category; a timer that straddles the
+send-back counts only its later part. Snapshots taken before these fields
+existed leave the cost unknown, not zero: the rework time statistic uses
+only completed sprints whose every ending card has a final snapshot with it.
+
 Timing averages use only completed sprints with final timing observations for
 all ending cards and no open timer. Rework averages independently require a
 recorded count for every ending card. Missing old fields are unknown, not zero;

@@ -45,7 +45,7 @@ from plane_proj.credentials import (
     load_connection_target,
     load_credentials,
 )
-from plane_proj.guards import PlaneProjError
+from plane_proj.guards import GuardViolation, PlaneProjError
 from plane_proj.output import emit, records_table, table
 
 BLANK_ESTIMATE = "blank"
@@ -1141,8 +1141,21 @@ def card_new(obj: Context, title: str, description: str, is_html: bool, module_n
 def card_move(obj: Context, reference: str, state: str) -> None:
     """Move a work item to a state."""
     board = obj.board
-    board.move_state(board.find(reference), state)
+    item = board.find(reference)
+    names = {state_id: name for name, state_id in board.project.states.items()}
+    current = names.get(str(getattr(item, "state", "")), "")
+    _refuse_untracked_sendback(current, state)
+    board.move_state(item, state)
     click.echo(f"{reference} → {state}")
+
+
+def _refuse_untracked_sendback(from_state: str, to_state: str) -> None:
+    if execution_module.is_rework(from_state, to_state):
+        raise GuardViolation(
+            "Rework reason rule: a send-back (Verifying → In Progress) goes "
+            "through `card transition --from Verifying --to 'In Progress' "
+            "--reason REASON`, so its reason and telemetry are recorded."
+        )
 
 
 @card.command("move-many")
@@ -1157,6 +1170,7 @@ def card_move_many(
     to_state: str,
 ) -> None:
     """Move up to 20 cards; omit CARD references to select the whole source state."""
+    _refuse_untracked_sendback(from_state, to_state)
     board = obj.board
     moved = board.move_states(references, from_state=from_state, to_state=to_state)
     payload = {
@@ -1243,10 +1257,13 @@ def _register_database(root: Context) -> Path:
 @click.option("--operation-id",
               help="Stable id; a retry resumes incomplete steps and "
                    "never replays completed ones.")
+@click.option("--reason", type=click.Choice(execution_module.REWORK_REASONS),
+              help="Why a send-back (Verifying → In Progress) happened; "
+                   "required for that move only.")
 @click.pass_obj
 def card_transition(obj: Context, reference: str, from_state: str,
                     to_state: str, stop_activity: bool,
-                    operation_id: str | None) -> None:
+                    operation_id: str | None, reason: str | None) -> None:
     """Move a card through one journaled, resumable transition.
 
     Sequence: inspect, stop activity if requested, move with readback,
@@ -1267,6 +1284,7 @@ def card_transition(obj: Context, reference: str, from_state: str,
             to_state=to_state,
             stop_activity=stop_activity,
             operation_id=operation_id or str(uuid.uuid4()),
+            reason=reason,
         )
     emit(receipt, as_json=obj.as_json,
          render=lambda data: click.echo(
@@ -1434,6 +1452,9 @@ def card_stats(obj: Context, reference: str) -> None:
             })
         records_table(rows, [("metric", "METRIC"), ("minutes", "MINUTES")])
         click.echo(f"Rework count: {data['rework_count']}")
+        click.echo(f"Rework time: {data['rework_minutes']} minutes")
+        for name, count in data["rework_reasons"].items():
+            click.echo(f"Rework reason {name}: {count}")
         if data["open_timer"] is not None:
             click.echo(f"open timer: {data['open_timer']['category']}")
 

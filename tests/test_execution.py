@@ -181,3 +181,115 @@ def test_card_stats_reports_rework_in_human_and_json(config_path, board, client,
     human = CliRunner().invoke(cli, args)
     assert human.exit_code == 0, human.output
     assert "Rework count: 1" in human.output
+
+
+def at(when: str) -> datetime:
+    return datetime.fromisoformat(when)
+
+
+def timer(when: str, action: str, category: str) -> SimpleNamespace:
+    return comment(when, execution.event_text(action, category).removeprefix(
+        execution.EVENT_PREFIX
+    ))
+
+
+def rework_comment(when: str, reason: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=f"rework-{when}", created_at=when,
+        comment_html=f"<p>{execution.rework_text(reason)}</p>",
+        actor="worker-id",
+    )
+
+
+def test_stats_cost_rework_after_the_first_sendback_with_reasons() -> None:
+    activities = [
+        activity("2026-09-16T01:00:00Z", "Todo", "In Progress"),
+        activity("2026-09-16T02:00:00Z", "In Progress", "Verifying"),
+        activity("2026-09-16T02:30:00Z", "Verifying", "In Progress"),
+        activity("2026-09-16T03:00:00Z", "In Progress", "Verifying"),
+        activity("2026-09-16T03:20:00Z", "Verifying", "In Progress"),
+        activity("2026-09-16T03:40:00Z", "In Progress", "Verifying"),
+        activity("2026-09-16T04:00:00Z", "Verifying", "Done"),
+    ]
+    comments = [
+        timer("2026-09-16T01:05:00Z", "start", "coding"),
+        timer("2026-09-16T01:55:00Z", "stop", "coding"),
+        # Straddles the first send-back: only the part after it is rework.
+        timer("2026-09-16T02:20:00Z", "start", "blocking-run"),
+        rework_comment("2026-09-16T02:29:00Z", "defect"),
+        timer("2026-09-16T02:40:00Z", "stop", "blocking-run"),
+        rework_comment("2026-09-16T03:19:00Z", "test-gap"),
+    ]
+
+    stats = execution.execution_stats(
+        activities, comments, as_of=at("2026-09-16T05:00:00+00:00")
+    )
+
+    assert stats["rework_count"] == 2
+    assert stats["rework_reasons"] == {"defect": 1, "test-gap": 1}
+    # In Progress and Verifying from 02:30 until Done at 04:00; Done is not
+    # rework even though it lasts until the cutoff.
+    assert stats["rework_minutes"] == 90
+    assert stats["rework_execution_minutes"] == {"blocking-run": 10}
+
+
+def test_ongoing_rework_counts_until_the_cutoff() -> None:
+    activities = [
+        activity("2026-09-16T01:00:00Z", "Todo", "In Progress"),
+        activity("2026-09-16T02:00:00Z", "In Progress", "Verifying"),
+        activity("2026-09-16T02:30:00Z", "Verifying", "In Progress"),
+    ]
+
+    stats = execution.execution_stats(
+        activities, [], as_of=at("2026-09-16T03:15:00+00:00")
+    )
+
+    assert stats["rework_minutes"] == 45
+    assert stats["rework_reasons"] == {}
+
+
+def test_work_without_sendback_has_no_rework_cost() -> None:
+    activities = [
+        activity("2026-09-16T01:00:00Z", "Todo", "In Progress"),
+        activity("2026-09-16T02:00:00Z", "In Progress", "Done"),
+    ]
+
+    stats = execution.execution_stats(
+        activities, [], as_of=at("2026-09-16T03:00:00+00:00")
+    )
+
+    assert stats["rework_minutes"] == 0
+    assert stats["rework_execution_minutes"] == {}
+
+
+@pytest.mark.parametrize("reason", ["", "typo", "Defect"])
+def test_rework_reason_must_be_a_known_category(reason: str) -> None:
+    with pytest.raises(GuardViolation, match="Rework reason rule"):
+        execution.rework_text(reason)
+    corrupt = SimpleNamespace(
+        id="rework-x", created_at="2026-09-16T01:00:00Z", actor="worker-id",
+        comment_html=f'<p>{execution.REWORK_PREFIX}{{"reason":"{reason}"}}</p>',
+    )
+    with pytest.raises(GuardViolation, match="Rework reason rule"):
+        execution.execution_stats(
+            [], [corrupt], as_of=at("2026-09-16T02:00:00+00:00")
+        )
+
+
+@pytest.mark.parametrize("command", [
+    ["card", "move", "DEMO-12", "In Progress"],
+    ["card", "move-many", "DEMO-12", "--from", "Verifying",
+     "--to", "In Progress"],
+])
+def test_untracked_sendbacks_are_refused_before_any_write(
+    config_path, board, client, monkeypatch, command,
+):
+    client.cards = [Card(id="card-uuid", sequence_id=12,
+                         state="state-verifying")]
+    monkeypatch.setattr(Context, "board", property(lambda self: board))
+
+    result = CliRunner().invoke(cli, ["--conf", str(config_path), *command])
+
+    assert isinstance(result.exception, GuardViolation)
+    assert "card transition" in str(result.exception)
+    assert client.named("work_items._patch") == []
