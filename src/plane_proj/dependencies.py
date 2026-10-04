@@ -11,7 +11,9 @@ from typing import Any
 
 from plane_proj.guards import GuardViolation
 
-SETTLED = frozenset({"done", "cancelled"})
+# Plane archives only Completed or Cancelled work items, so an archived
+# blocker is settled.
+SETTLED = frozenset({"done", "cancelled", "archived"})
 WAITING = frozenset({"todo", "backlog"})
 
 

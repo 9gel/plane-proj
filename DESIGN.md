@@ -237,10 +237,12 @@ than the work and serialized sprints that could overlap.
 
 `sprints ready` and `sprints critical-path` read every open card in the
 current sprints (by bound cycle) and the planned sprints (by `Sprint N` cycle
-name), one relations request per open card, and the whole board's states,
-archived cards included, so a settled blocker that was archived still counts
-as settled. A blocker missing from the board keeps its card blocked. `ready`
-lists Todo and Backlog cards whose blockers are all Done or Cancelled. The
+name) once each, and one relations request per open card. A blocker outside
+those cycles is retrieved by id. The archived-items listing is not used
+because some servers answer it with 404 (§7c); a blocker the server no longer
+returns (404) is archived, and Plane archives only Completed or Cancelled work
+items, so it counts as settled. `ready` lists Todo and Backlog cards whose
+blockers are all settled. The
 critical path is the heaviest `blocked_by` chain among open cards, weighed in
 points (cards when estimates are off); open work divided by it is the most any
 number of agents can shorten delivery. A relation cycle is refused by the

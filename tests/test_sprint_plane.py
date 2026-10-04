@@ -5,7 +5,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from plane.errors import HttpError
 
+from plane_proj import dependencies
 from plane_proj.guards import (
     ConfigError,
     EmptyCycle,
@@ -272,7 +274,7 @@ def test_sprint_totals_refuse_unknown_estimates(board, client, monkeypatch, repo
     assert client.calls == []
 
 
-def test_dependency_facts_read_open_cards_blockers_and_archived_states(
+def test_dependency_facts_read_each_cycle_once_and_settle_archived_blockers(
     board, client, monkeypatch
 ) -> None:
     members = {
@@ -280,24 +282,37 @@ def test_dependency_facts_read_open_cards_blockers_and_archived_states(
                          state="state-todo", estimate_point="uuid-3"),
                     Card(id="settled", sequence_id=2, state="state-done")],
     }
-    monkeypatch.setattr(
-        client.cycles,
-        "list_work_items",
-        lambda slug, project_id, cycle_id, params=None: SimpleNamespace(
-            results=members[cycle_id], next_page_results=False,
-            next_cursor=None,
-        ),
-    )
-    archived = Card(id="old", sequence_id=9, state="state-done")
-    client.cards = [*members["cycle-7"], archived]
+    cycle_reads: list[str] = []
+
+    def list_work_items(slug, project_id, cycle_id, params=None):
+        cycle_reads.append(cycle_id)
+        return SimpleNamespace(results=members[cycle_id],
+                               next_page_results=False, next_cursor=None)
+
+    monkeypatch.setattr(client.cycles, "list_work_items", list_work_items)
+    elsewhere = Card(id="elsewhere", sequence_id=8, state="state-progress")
+    client.cards = [elsewhere]
     monkeypatch.setattr(
         board, "relations",
-        lambda card_id: {"blocked_by": ["old"]},
+        lambda card_id: {"blocked_by": ["settled", "elsewhere", "gone"]},
     )
+    real_retrieve = client.work_items.retrieve
+
+    def retrieve(slug, project_id, card_id):
+        if card_id == "gone":
+            raise HttpError("Page not found.", status_code=404)
+        return real_retrieve(slug, project_id, card_id)
+
+    monkeypatch.setattr(client.work_items, "retrieve", retrieve)
 
     facts = board.dependency_facts({7: "cycle-7"})
 
+    assert cycle_reads == ["cycle-7"]
     assert [card["ref"] for card in facts["cards"]] == ["DEMO-1"]
-    assert facts["cards"][0]["sprint"] == 7
-    assert facts["blocked_by"] == {"open": ["old"]}
-    assert facts["states"]["old"] == ("DEMO-9", "Done")
+    assert [card["ref"] for card in facts["members"][7]] == ["DEMO-1", "DEMO-2"]
+    assert facts["states"]["settled"] == ("DEMO-2", "Done")
+    assert facts["states"]["elsewhere"] == ("DEMO-8", "In Progress")
+    assert facts["states"]["gone"] == ("archived gone", "Archived")
+    # No archived-items listing: some servers answer it with 404.
+    assert not client.named("work_items.list_archived")
+    assert dependencies.ready(facts)["blocked"][0]["blocked_by"] == ["DEMO-8"]

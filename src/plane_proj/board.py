@@ -549,27 +549,49 @@ class Board:
     def dependency_facts(self, cycles: Mapping[int, str]) -> dict[str, Any]:
         """Open cards of the given sprint cycles, with blockers and states.
 
-        One relations read per open card. Card states cover the whole
-        board, archived cards included, so a blocker settled and archived
-        long ago still reads as settled.
+        Each cycle is read once (`members` keeps every card, settled ones
+        too) and each open card's relations once. A blocker outside these
+        cycles is retrieved by id; one the server no longer returns (404)
+        is archived, which Plane allows only for Completed or Cancelled
+        work items. The archived-items listing is not used: some servers
+        answer it with 404 (DESIGN.md §7c).
         """
+        members: dict[int, list[dict[str, Any]]] = {}
         cards: list[dict[str, Any]] = []
         blocked_by: dict[str, list[str]] = {}
         for sprint_id, cycle_id in cycles.items():
-            for card in self.sprint_cycle_cards(cycle_id):
+            members[sprint_id] = self.sprint_cycle_cards(cycle_id)
+            for card in members[sprint_id]:
                 if card["state"].casefold() in {"done", "cancelled"}:
                     continue
                 cards.append(card | {"sprint": sprint_id})
                 relations = self.relations(card["id"])
                 blocked_by[card["id"]] = relations["blocked_by"]
         states = {
-            str(card.id): (
-                f"{self.project.key}-{getattr(card, 'sequence_id', '?')}",
-                self._state_name(getattr(card, "state", None)),
-            )
-            for card in self.cards(include_archived=True)
+            card["id"]: (card["ref"], card["state"])
+            for found in members.values() for card in found
         }
-        return {"cards": cards, "blocked_by": blocked_by, "states": states}
+        outside = {
+            blocker for ids in blocked_by.values() for blocker in ids
+        } - set(states)
+        for blocker in sorted(outside):
+            states[blocker] = self._blocker_state(blocker)
+        return {"cards": cards, "blocked_by": blocked_by,
+                "states": states, "members": members}
+
+    def _blocker_state(self, card_id: str) -> tuple[str, str]:
+        try:
+            card = self.client.work_items.retrieve(
+                self.slug, self.project.id, card_id
+            )
+        except HttpError as error:
+            if error.status_code != 404:
+                raise
+            return (f"archived {card_id[:8]}", "Archived")
+        return (
+            f"{self.project.key}-{getattr(card, 'sequence_id', '?')}",
+            self._state_name(getattr(card, "state", None)),
+        )
 
     def sprint_cycles(self, sprint_ids: set[int]) -> dict[int, str]:
         """Live cycle ids named `Sprint N` for each wanted N that has one."""

@@ -926,10 +926,8 @@ def sprints_web(obj: dict[str, Any], host: str, port: int, plane_url: str) -> No
         }
         facts = board.dependency_facts(current)
         cards = {
-            sprint_id: web_module.with_blockers(
-                board.sprint_cycle_cards(cycle_id), facts
-            )
-            for sprint_id, cycle_id in current.items()
+            sprint_id: web_module.with_blockers(members, facts)
+            for sprint_id, members in facts["members"].items()
         }
         return web_module.build_payload(
             listing["payload"],

@@ -1507,6 +1507,8 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
                        "state": "Todo", "points": 3, "sprint": 3}],
             "blocked_by": {"card-3": ["other"]},
             "states": {"other": ("DEMO-9", "In Progress")},
+            "members": {sprint: sprint_board.sprint_cycle_cards(str(sprint))
+                        for sprint in cycles},
         }
 
     sprint_board.dependency_facts = dependency_facts
