@@ -137,6 +137,7 @@ details summary { cursor: pointer; color: var(--text-2); }
     <a href="#/">Overview</a><a href="#/current">Current</a><a href="#/planned">Planned</a>
     <a href="#/past">Past</a><a href="#/stats">Stats</a>
   </nav>
+  <span class="muted small" id="busy"></span>
   <button id="theme" title="Toggle theme">◐</button>
 </div></header>
 <main id="app"></main>
@@ -144,9 +145,10 @@ details summary { cursor: pointer; color: var(--text-2); }
 <script>
 // ===== data =====
 // Filled by boot() from /api/sprints; every view reads these.
-let DATA, L, ST, SNAP, PROJECT, PLANE_BOARD, POINTS, current, planned, past, byId, MEDV;
+let DATA, PARTIAL, L, ST, SNAP, PROJECT, PLANE_BOARD, POINTS, current, planned, past, byId, MEDV;
 function boot(data) {
-  DATA = data; L = data.listing; ST = L.stats || {}; SNAP = new Date(data.generated_at);
+  // A partial payload is the register alone: Plane-only facts arrive next.
+  DATA = data; PARTIAL = !!data.partial; L = data.listing; ST = L.stats || {}; SNAP = new Date(data.generated_at);
   PROJECT = data.project.key; PLANE_BOARD = data.board_url; POINTS = data.estimates;
   current = L.current || [];
   planned = [...(L.planned || [])].sort((a, b) => a.position - b.position);
@@ -154,9 +156,11 @@ function boot(data) {
   byId = Object.fromEntries([...current, ...planned, ...past].map(s => [s.sprint, s]));
   MEDV = POINTS ? ST.velocity?.median ?? null : null; // assumed velocity for planned estimates
   document.title = `${PROJECT} sprints`;
-  $('#projname').textContent = `${PROJECT} · ${data.project.name}`;
+  $('#projname').textContent = data.project.name ? `${PROJECT} · ${data.project.name}` : PROJECT;
 }
 const cardsFor = s => DATA.cards[s.sprint] || [];
+const LIVE_PENDING = '<p class="muted small">Reading the live board from Plane…</p>';
+const pending = '<span class="muted">…</span>';
 // Open blockers of a card, shown only while the card itself is unfinished.
 function waitsOn(c) {
   const open = (c.blocked_by || []).filter(b => !TERMINAL.has(b.state));
@@ -267,19 +271,19 @@ V.overview = () => {
   return `<h1>Overview</h1><p class="muted">${esc(PROJECT)} · read ${fullDate(SNAP)}</p>
   <div class="grid g4">
     <div class="card kpi link" onclick="location.hash='#/current'"><div class="v">${current.length}</div><div class="l">Current sprints</div></div>
-    <div class="card kpi link" onclick="location.hash='#/planned'"><div class="v">${planned.length}</div><div class="l">Planned${POINTS ? ` · ${plannedPts} pts` : ''}${MEDV ? ` ≈ ${fmtH(plannedPts / MEDV)}` : ''}</div></div>
+    <div class="card kpi link" onclick="location.hash='#/planned'"><div class="v">${planned.length}</div><div class="l">Planned${POINTS && !PARTIAL ? ` · ${plannedPts} pts` : ''}${MEDV && !PARTIAL ? ` ≈ ${fmtH(plannedPts / MEDV)}` : ''}</div></div>
     <div class="card kpi link" onclick="location.hash='#/past'"><div class="v">${past.length}</div><div class="l">Completed${POINTS ? ` · ${past.reduce((a, s) => a + (s.points_end || 0), 0)} pts` : ''}</div></div>
     ${MEDV ? `<div class="card kpi link" onclick="location.hash='#/stats'"><div class="v">${num(MEDV, 2)}<span class="muted small"> pts/h</span></div><div class="l">Median velocity</div></div>` : ''}
   </div>
   <h2>In flight</h2><div class="grid g2">${current.map(s => { const cards = cardsFor(s);
     return `<div class="card link" ${goto(s.sprint)}><div class="row">${label(s)}<span class="sp"></span><span class="pill">${fmtH(elapsedH(s))} elapsed</span></div>
-      <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${POINTS ? stateBar(cards, s.points_start, 'pts') : ''}
+      <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${PARTIAL ? LIVE_PENDING : `${POINTS ? stateBar(cards, s.points_start, 'pts') : ''}
       <div class="row" style="margin-top:10px">${cardIcons(cards.map(c => stC[c.state]))}<span class="sp"></span>
-      <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div></div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div>
+      <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div>`}</div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div>
   <div class="grid g2" style="margin-top:12px">
     <div class="card"><div class="row"><h3>Up next</h3><span class="sp"></span><a href="#/planned">All ${planned.length} →</a></div>
       ${planned.length ? '' : '<p class="muted">No planned sprints.</p>'}${planned.slice(0, 4).map(s => `<div class="row link" style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" ${goto(s.sprint)}>
-        ${label(s)}<span class="t2" style="flex:1;min-width:140px">${esc(s.title)}</span>${cardIcons(Array(s.cards).fill('plain'))}</div>`).join('')}</div>
+        ${label(s)}<span class="t2" style="flex:1;min-width:140px">${esc(s.title)}</span>${s.cards == null ? pending : cardIcons(Array(s.cards).fill('plain'))}</div>`).join('')}</div>
     ${last ? `<div class="card link" ${goto(last.sprint)}><div class="row"><h3>Last completed</h3><span class="sp"></span><span class="muted small">ended ${ago(last.ended)}</span></div>
       <div class="row">${label(last)}<span class="t2">${esc(last.title)}</span></div>
       ${POINTS ? `<div style="margin:8px 0">${segbar(last.points_start, last.points_end, Math.max(last.points_start, last.points_end))}</div>` : ''}
@@ -294,7 +298,7 @@ V.current = () => current.length ? (current.length > 1 ? `<h1>Current sprints</h
   current.map(s => V.currentOne(s)).join('<hr style="border:0;border-top:2px solid var(--border);margin:40px 0">') : '<p class="muted">No sprint in progress.</p>';
 
 V.currentOne = s => {
-  const cards = cardsFor(s), t = s.timing || {}, el = elapsedH(s), vel = POINTS ? s.points_done / el : null;
+  const cards = cardsFor(s), t = s.timing || {}, el = elapsedH(s), vel = POINTS && !PARTIAL ? s.points_done / el : null;
   const exec = Object.entries(t.execution_minutes || {}).sort((a, b) => b[1] - a[1]);
   const execTot = exec.reduce((a, x) => a + x[1], 0);
   const active = Object.values(t.active_minutes || {}).reduce((a, b) => a + b, 0);
@@ -304,7 +308,7 @@ V.currentOne = s => {
     <span class="muted small">Started ${fullDate(s.started)} · ${fmtH(el)} elapsed</span></div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
 
-  <div class="card" style="margin-top:18px">
+  ${PARTIAL ? `<div class="card" style="margin-top:18px">${LIVE_PENDING}</div>` : `<div class="card" style="margin-top:18px">
     ${POINTS ? `<h3>Points</h3><div style="margin-top:22px">${stateBar(cards, s.points_start, 'pts')}</div>${stateLegend(cards)}
     <h3 style="margin-top:20px">Cards</h3>` : '<h3>Cards</h3>'}
     <div class="row">${cardIcons(cards.map(c => stC[c.state]), true)}<span class="sp"></span><span class="tot" style="font-weight:650;font-size:18px">${cards.length} <span class="muted small">cards</span></span></div>
@@ -313,15 +317,15 @@ V.currentOne = s => {
       (${s.points_current - s.points_start >= 0 ? '+' : ''}${s.points_current - s.points_start} pts)` : ''}.</p>
   </div>
 
-  <div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2><span class="sp"></span><a href="${PLANE_BOARD}" target="_blank" rel="noopener">Open in Plane ↗</a></div>
+  <div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2><span class="sp"></span>${PLANE_BOARD ? `<a href="${esc(PLANE_BOARD)}" target="_blank" rel="noopener">Open in Plane ↗</a>` : ''}</div>
   <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st} <span class="muted">${cards.filter(c => c.state === st).length}</span></div>`).join('')}
     ${STATES.map(st => `<div class="colb">${cards.filter(c => c.state === st).map(c => `<div class="wi" style="border-left-color:${stC[st]}">
       <div class="row"><a class="mono" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.ref)}</a><span class="sp"></span>${POINTS ? `<span class="pill">${c.points} pt</span>` : ''}</div>
-      <div>${esc(c.title)}</div>${waitsOn(c)}</div>`).join('')}</div>`).join('')}</div>
+      <div>${esc(c.title)}</div>${waitsOn(c)}</div>`).join('')}</div>`).join('')}</div>`}
 
   <h2>Status</h2>
   <div class="grid g4">
-    ${POINTS ? `<div class="card kpi"><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity${MEDV ? ` · median ${num(MEDV, 2)}` : ''}</div>
+    ${vel != null ? `<div class="card kpi"><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity${MEDV ? ` · median ${num(MEDV, 2)}` : ''}</div>
       ${hbar(vel, Math.max(vel, MEDV || 0) * 1.2 || 1, 'now', 'var(--c1)')}${MEDV ? hbar(MEDV, Math.max(vel, MEDV) * 1.2, 'median', 'var(--muted)') : ''}</div>` : ''}
     <div class="card kpi"><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events · ${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}${reasonText(t.rework_reasons) ? `<br>${reasonText(t.rework_reasons)}` : ''}</div></div>
     <div class="card kpi"><div class="v">${fmtMin(active)}</div><div class="l">Active time (In Progress ${fmtMin(t.active_minutes?.['In Progress'])} · Verifying ${fmtMin(t.active_minutes?.['Verifying'])})</div></div>
@@ -340,17 +344,17 @@ V.planned = () => {
   if (!planned.length) return '<h1>Planned sprints</h1><p class="muted">No planned sprints.</p>';
   const maxPts = Math.max(1, ...planned.map(s => s.points || 0)), maxEst = MEDV ? maxPts / MEDV : 0;
   return `<h1>Planned sprints</h1>
-  <p class="muted">${planned.length} sprints in execution order · ${planned.reduce((a, s) => a + s.cards, 0)} cards${POINTS ? ` · ${planned.reduce((a, s) => a + s.points, 0)} pts` : ''}</p>
+  <p class="muted">${planned.length} sprints in execution order${PARTIAL ? '' : ` · ${planned.reduce((a, s) => a + s.cards, 0)} cards${POINTS ? ` · ${planned.reduce((a, s) => a + s.points, 0)} pts` : ''}`}</p>
   ${MEDV ? `<div class="note" style="border-left-color:var(--accent)">Estimates assume <b>${num(MEDV, 2)} pts/h</b>: the median velocity of ${past.length} completed sprints.
     Hours = points ÷ ${num(MEDV, 2)}.</div>` : ''}
   <div class="card" id="deps" style="margin-bottom:12px">${depsView()}</div>
   <div class="card"><div class="plan">
     <div class="hd">#</div><div class="hd">Sprint and goal</div><div class="hd wide">Cards</div><div class="hd wide">${POINTS ? 'Points' : ''}</div><div class="hd wide">${MEDV ? 'Estimate' : ''}</div>
-    ${planned.map(s => { const est = MEDV ? s.points / MEDV : null;
+    ${planned.map(s => { const est = MEDV && s.points != null ? s.points / MEDV : null;
       return `<div class="pos">${s.position}</div>
       <div class="ttl" ${goto(s.sprint)}><div class="row">${label(s)}<span class="tt">${esc(s.title)}</span></div><div class="gl">${esc(s.goal)}</div></div>
-      <div class="wide">${cardIcons(Array(s.cards).fill('plain'))}<div class="muted small" style="margin-top:3px">${s.cards} card${s.cards === 1 ? '' : 's'}</div></div>
-      <div class="wide">${POINTS ? `${segbar(s.points, s.points, maxPts)}<div class="muted small" style="margin-top:3px">${s.points} pts</div>` : ''}</div>
+      <div class="wide">${s.cards == null ? pending : `${cardIcons(Array(s.cards).fill('plain'))}<div class="muted small" style="margin-top:3px">${s.cards} card${s.cards === 1 ? '' : 's'}</div>`}</div>
+      <div class="wide">${!POINTS ? '' : s.points == null ? pending : `${segbar(s.points, s.points, maxPts)}<div class="muted small" style="margin-top:3px">${s.points} pts</div>`}</div>
       <div class="wide">${est != null ? hbar(est, maxEst, fmtH(est), 'var(--c3)', { tipText: `${s.points} pts ÷ ${num(MEDV, 2)} pts/h` }) : ''}</div>`; }).join('')}
   </div></div>`;
 };
@@ -384,7 +388,7 @@ window.loadDeps = () => {
 V.plannedDetail = s => `<p><a href="#/planned">← Planned</a></p>
   <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span></div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
-  <div class="card" style="margin-top:16px"><div class="row">${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span></div>
+  <div class="card" style="margin-top:16px"><div class="row">${s.cards == null ? LIVE_PENDING : `${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span>`}</div>
     ${POINTS ? `<div style="margin:12px 0 4px;max-width:${s.points * 14}px">${segbar(s.points, s.points, Math.max(1, s.points))}</div><span class="t2">${s.points} pts${MEDV ? ` · ≈ ${fmtH(s.points / MEDV)} at ${num(MEDV, 2)} pts/h` : ''}</span>` : ''}</div>
   <h2>Execution guidance</h2><div class="card prose">${esc(s.execution) || '—'}</div>
   <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>`;
@@ -552,18 +556,31 @@ const getJSON = url => fetch(url, { cache: 'no-store' })
   .then(r => r.json().then(body => { if (!r.ok) throw new Error(body.error || r.statusText); return body; }));
 // Live view: poll the register's change marker (no Plane request) and reload the
 // data when it moves. Typing in the filter box defers the redraw.
+// The first paint uses the register alone (milliseconds); the full payload,
+// which reads Plane, replaces it. Later refreshes keep the current view until
+// the full payload arrives, so nothing flickers back to placeholders.
 let version = null;
+const busy = text => { $('#busy').textContent = text; };
+function show(data) {
+  const y = scrollY; boot(data);
+  if (document.activeElement?.id !== 'q') { render(); scrollTo(0, y); }
+}
 function refresh() {
-  return getJSON('api/sprints').then(data => {
-    const y = scrollY; boot(data);
-    if (document.activeElement?.id !== 'q') { render(); scrollTo(0, y); }
-  });
+  busy('Updating from Plane…');
+  const first = DATA ? Promise.resolve() : getJSON('api/sprints/local').then(show);
+  return first.then(() => getJSON('api/sprints')).then(data => { show(data); busy(''); });
 }
 function poll() {
+  let wait = 2000;
   getJSON('api/version')
     .then(v => { if (v.version !== version) { version = v.version; return refresh(); } })
-    .catch(e => { if (!DATA) $('#app').innerHTML = `<div class="note">Could not load sprints: ${esc(e.message)}</div>`; })
-    .finally(() => setTimeout(poll, 2000));
+    .catch(e => {
+      // Retry later rather than every poll: a failing Plane read is slow.
+      version = null; wait = 15000;
+      if (DATA) busy(`Plane update failed: ${e.message}`);
+      else $('#app').innerHTML = `<div class="note">Could not load sprints: ${esc(e.message)}</div>`;
+    })
+    .finally(() => setTimeout(poll, wait));
 }
 poll();
 </script>

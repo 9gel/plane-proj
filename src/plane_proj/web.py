@@ -21,8 +21,6 @@ from typing import Any
 
 from plane_proj.guards import PlaneProjError
 
-DEFAULT_PLANE_URL = "https://app.plane.so"
-
 
 def board_url(plane_url: str, workspace: str, project_id: str) -> str:
     """The project's work-item list in the Plane web app."""
@@ -30,7 +28,7 @@ def board_url(plane_url: str, workspace: str, project_id: str) -> str:
 
 
 def build_payload(
-    listing: dict[str, Any], *, project: dict[str, str], board: str,
+    listing: dict[str, Any], *, project: dict[str, str], board: str | None,
     cards: dict[int, list[dict[str, Any]]], estimates: bool,
 ) -> dict[str, Any]:
     """Everything the page renders, in one JSON document."""

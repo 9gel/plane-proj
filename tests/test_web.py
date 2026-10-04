@@ -11,11 +11,12 @@ from urllib.request import urlopen
 import pytest
 
 from plane_proj import web
+from plane_proj.config import DEFAULT_WEB_URL
 from plane_proj.guards import GuardViolation
 
 
 def test_default_board_link_is_plane_cloud() -> None:
-    assert web.board_url(web.DEFAULT_PLANE_URL, "ws", "pid") == (
+    assert web.board_url(DEFAULT_WEB_URL, "ws", "pid") == (
         "https://app.plane.so/ws/projects/pid/issues/"
     )
 

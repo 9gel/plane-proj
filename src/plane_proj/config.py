@@ -7,6 +7,7 @@ import os
 from collections.abc import Mapping
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
+from urllib.parse import urlparse
 
 from plane_proj.guards import (
     ConfigError,
@@ -178,6 +179,9 @@ def _resolve(mapping: Mapping[str, str], name: str, kind: str, project_key: str)
     )
 
 
+DEFAULT_WEB_URL = "https://app.plane.so"
+
+
 @dataclass(frozen=True)
 class Config:
     """A whole config file, and the path it came from."""
@@ -189,6 +193,8 @@ class Config:
     default_project: str | None
     projects: Mapping[str, Project]
     state_file: Path | None = None
+    # The Plane web app for links; the API host is not it on Plane Cloud.
+    web_url: str = DEFAULT_WEB_URL
     document: Mapping[str, object] = field(repr=False, default_factory=dict)
 
     def project(self, key: str | None) -> Project:
@@ -234,7 +240,10 @@ def bootstrap_document(
 ) -> dict[str, object]:
     """Only inputs that cannot simply be listed from Plane."""
     return {
-        "defaults": {"workspace": slug, "project": project_key},
+        "defaults": {
+            "workspace": slug, "project": project_key,
+            "web_url": DEFAULT_WEB_URL,
+        },
         "state_file": "SPRINTS.sqlite",
         "estimate_points": dict(estimate_points),
         "rules": {
@@ -311,11 +320,20 @@ def load_config(explicit: str | Path | None = None) -> Config:
     state_file = document.get("state_file")
     if state_file is not None and (not isinstance(state_file, str) or not state_file.strip()):
         raise ConfigError(f"{path}: state_file must be a nonempty path string.")
-    if defaults.keys() - {"workspace", "project"}:
-        raise ConfigError(f"{path}: defaults accepts only workspace and project.")
+    if defaults.keys() - {"workspace", "project", "web_url"}:
+        raise ConfigError(
+            f"{path}: defaults accepts only workspace, project and web_url."
+        )
     for key, value in defaults.items():
         if not isinstance(value, str) or not value.strip():
             raise ConfigError(f"{path}: defaults.{key} must be a nonempty string.")
+    web_url = defaults.get("web_url", DEFAULT_WEB_URL).strip().rstrip("/")
+    parsed = urlparse(web_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ConfigError(
+            f"{path}: defaults.web_url must be an http or https address, "
+            f"such as {DEFAULT_WEB_URL}."
+        )
     for value, uuid in points.items():
         if not value.isdigit() or str(int(value)) != value or not isinstance(uuid, str) or not uuid:
             raise ConfigError(f"{path}: estimate_points must map nonnegative integers to UUIDs.")
@@ -345,6 +363,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
             path.parent / Path(state_file).expanduser()
             if state_file is not None else None
         ),
+        web_url=web_url,
         document=document,
     )
 

@@ -1526,10 +1526,20 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
     def make_server(host, port, routes):
         served.update(host=host, port=port, load=routes["/api/sprints"],
                       version=lambda: routes["/api/version"]()["version"],
-                      dependencies=routes["/api/dependencies"])
+                      dependencies=routes["/api/dependencies"],
+                      local=routes["/api/sprints/local"])
         return Server()
 
     monkeypatch.setattr("plane_proj.web.make_server", make_server)
+    # Configured in plane-proj.json; an explicit --plane-url wins.
+    config = tmp_path / "test-config.json"
+    document = json.loads(config.read_text(encoding="utf-8"))
+    document["defaults"]["web_url"] = "https://configured.example"
+    config.write_text(json.dumps(document), encoding="utf-8")
+    assert invoke(database, "web").exit_code == 0
+    assert served["load"]()["board_url"].startswith(
+        "https://configured.example/test/"
+    )
     result = invoke(database, "web", "--plane-url", "https://plane.example/")
 
     assert result.exit_code == 0, result.output
@@ -1546,8 +1556,25 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
         "points": 3, "url": board + "card-3",
         "blocked_by": [{"ref": "DEMO-9", "state": "In Progress"}],
     }]}
+    # The first paint reads the register alone: no Plane request at all.
+    def no_plane(*args, **kwargs):
+        raise AssertionError("the local payload must not read Plane")
+
+    names = ("planned_sprint_totals", "sprint_cycle_metrics",
+             "dependency_facts", "sprint_cycle_cards")
+    saved = {name: getattr(sprint_board, name) for name in names}
+    for name in names:
+        setattr(sprint_board, name, no_plane)
+    quick = served["local"]()
+    for name, method in saved.items():
+        setattr(sprint_board, name, method)
+    assert quick["partial"] is True and quick["cards"] == {}
+    assert quick["board_url"] is None
+    assert quick["project"]["key"] == "DEMO"
+    assert quick["listing"]["planned"][0]["cards"] is None
+    assert [s["sprint"] for s in quick["listing"]["current"]] == [3]
     # The page refresh reads current sprints' blockers only.
-    assert facts_read == [{3: "3"}]
+    assert facts_read and all(read == {3: "3"} for read in facts_read)
     found = served["dependencies"]()
     assert facts_read[-1] == {3: "3", 4: "4"}
     assert found["critical_path"]["critical_path"] == 3

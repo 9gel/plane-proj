@@ -72,7 +72,8 @@ identify.
 
 `plane/plane-proj.json` is the default config unless `--conf` or
 `PLANE_PROJ_CONFIG` names another file. It contains only `defaults.workspace`,
-`defaults.project`, `state_file`, `estimate_points`, and optional `rules`.
+`defaults.project`, `defaults.web_url`, `state_file`, `estimate_points`, and
+optional `rules`.
 Relative state paths resolve from the config file's directory. Local sprint
 reads default to `plane/SPRINTS.sqlite`, but starting a sprint requires
 `state_file` or `--database` so a board mutation cannot bind to an implicit
@@ -661,6 +662,14 @@ and two JSON routes from `web.py`:
   same `_sprint_listing` code path, plus the project key and name, the Plane
   board link, and each current cycle's cards (reference, title, state,
   points) from `Board.sprint_cycle_cards`. Every request reads afresh.
+- `/api/sprints/local` returns the same payload from the register alone,
+  marked partial, without project name, board link, cards, planned totals, or
+  live current counts. It answers in milliseconds where the full payload takes
+  seconds (measured 2026-10-05 against a live register: 0.08 s against 3.4 s,
+  most of it one request per planned cycle). The page paints it first, shows
+  "Updating from Plane…", and replaces it when the full payload arrives. Later
+  refreshes keep the current view until the full payload arrives, so the page
+  never falls back to placeholders.
 - Each current card carries its blockers' references and states, read
   through `Board.dependency_facts` for the current cycles only, so a refresh
   costs one relations request per open current card.
@@ -679,9 +688,11 @@ requests only; outbound Plane access still happens only in `board.py`. It
 never writes the register or the board, and the payload carries no
 credentials. The default bind address is loopback.
 
-Plane links default to the Plane Cloud web app, `https://app.plane.so`,
-because the API host (`PLANE_API_HOST_URL`) need not be the web host.
-`--plane-url` or `PLANE_WEB_URL` selects a self-hosted web address. The board
+Plane links use `defaults.web_url` from `plane-proj.json`, which `init` writes
+as the Plane Cloud web app, `https://app.plane.so`; a missing key means the
+same. The API host (`PLANE_API_HOST_URL`) is not used because on Plane Cloud
+it is not the web host. A self-hosted project sets its own address, and
+`--plane-url` overrides it for one run. The board
 link is `<web>/<workspace>/projects/<project id>/issues/`; a card link appends
 the work-item UUID. The card link form has not been measured against every
 Plane version.

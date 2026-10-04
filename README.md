@@ -199,9 +199,10 @@ You direct the agents; the `delivery-plane` skill tells them how to work.
 plane-proj sprints web
 ```
 
-Open <http://127.0.0.1:8765>. The dashboard updates as sprints change. With a
-self-hosted Plane, add `--plane-url https://plane.example.com` (or set
-`PLANE_WEB_URL`) so links open your server.
+Open <http://127.0.0.1:8765>. The dashboard updates as sprints change. Links
+open Plane at `defaults.web_url` in `plane/plane-proj.json`, which `init` sets
+to `https://app.plane.so`; with a self-hosted Plane, change it to your
+server's address.
 
 | Current sprint | Planned sprints |
 | --- | --- |

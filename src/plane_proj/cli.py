@@ -668,8 +668,13 @@ def _list_sprints(
 
 def _sprint_listing(
     obj: dict[str, Any], *, include_all: bool, statuses: frozenset[str] | None = None,
+    local: bool = False,
 ) -> dict[str, Any]:
-    """Build the `sprints list` payload and the facts its renderer needs."""
+    """Build the `sprints list` payload and the facts its renderer needs.
+
+    `local` reads only the register: planned card and point totals and
+    current live counts, which come from Plane, are left out.
+    """
     with sprints_module.connect_database(obj["database"], writable=False) as connection:
         found = sprints_module.fetch_sprints(connection)
         timings = sprint_timing.summaries(connection, found)
@@ -681,7 +686,7 @@ def _sprint_listing(
         sprint for sprint in selected
         if sprint.status == sprints_module.STATUS_CURRENT
     ]
-    board = obj["root"].board if planned or current else None
+    board = obj["root"].board if (planned or current) and not local else None
     planned_totals = (
         board.planned_sprint_totals({sprint.sprint_id for sprint in planned})
         if planned and board is not None else {}
@@ -696,6 +701,8 @@ def _sprint_listing(
         if sprint.status != sprints_module.STATUS_CURRENT or sprint.cycle_id is None:
             continue
         if board is None:
+            if local:
+                continue
             raise sprints_module.SprintError(
                 "current sprint requires a Plane board"
             )
@@ -907,13 +914,15 @@ def sprints_critical_path(obj: dict[str, Any]) -> None:
               help="Address to listen on.")
 @click.option("--port", default=8765, type=int, show_default=True,
               help="Port to listen on.")
-@click.option("--plane-url", envvar="PLANE_WEB_URL",
-              default=web_module.DEFAULT_PLANE_URL, show_default=True,
-              help="Plane web app base for links; self-hosted servers "
-                   "pass their own (or set PLANE_WEB_URL).")
+@click.option("--plane-url",
+              help="Plane web app address for links; overrides "
+                   "defaults.web_url in plane-proj.json.")
 @click.pass_obj
-def sprints_web(obj: dict[str, Any], host: str, port: int, plane_url: str) -> None:
+def sprints_web(
+    obj: dict[str, Any], host: str, port: int, plane_url: str | None,
+) -> None:
     """Serve a read-only web view of current, planned, and past sprints."""
+    plane_url = plane_url or obj["root"].config.web_url
     def load() -> dict[str, Any]:
         listing = _sprint_listing(obj, include_all=True)
         board = obj["root"].board
@@ -937,6 +946,15 @@ def sprints_web(obj: dict[str, Any], host: str, port: int, plane_url: str) -> No
             estimates=listing["estimates_enabled"],
         )
 
+    def load_local() -> dict[str, Any]:
+        """The register alone, in milliseconds, for the page's first paint."""
+        listing = _sprint_listing(obj, include_all=True, local=True)
+        _, _, project = obj["binding"]
+        return web_module.build_payload(
+            listing["payload"], project={"key": project, "name": ""},
+            board=None, cards={}, estimates=listing["estimates_enabled"],
+        ) | {"partial": True}
+
     def dependencies() -> dict[str, Any]:
         board = obj["root"].board
         facts = board.dependency_facts(_open_sprint_cycles(obj))
@@ -948,6 +966,7 @@ def sprints_web(obj: dict[str, Any], host: str, port: int, plane_url: str) -> No
 
     server = web_module.make_server(host, port, {
         "/api/sprints": load,
+        "/api/sprints/local": load_local,
         "/api/version": lambda: {
             "version": web_module.register_version(obj["database"])
         },

@@ -44,6 +44,8 @@ def test_server_metadata_is_rejected(tmp_path, key):
 @pytest.mark.parametrize("document", [
     {"defaults": []},
     {"defaults": {"project": ""}},
+    {"defaults": {"web_url": "plane.example.com"}},
+    {"defaults": {"web_url": "ftp://plane.example.com"}},
     {"estimate_points": {"3": "u"}},
     {"defaults": {"project": "DEMO"}, "estimate_points": {"three": "u"}},
     {"defaults": {"project": "DEMO"}, "estimate_points": {"3": "u", "5": "u"}},
@@ -51,6 +53,14 @@ def test_server_metadata_is_rejected(tmp_path, key):
 def test_malformed_config_is_refused(tmp_path, document):
     with pytest.raises(ConfigError):
         load_config(write(tmp_path, document))
+
+
+def test_web_url_defaults_to_plane_cloud_and_is_configurable(tmp_path):
+    assert load_config(write(tmp_path, {})).web_url == "https://app.plane.so"
+    configured = {"defaults": {"web_url": "https://plane.example.com/"}}
+    assert load_config(write(tmp_path, configured)).web_url == (
+        "https://plane.example.com"
+    )
 
 
 def test_the_default_project_is_used_when_none_is_given(config):

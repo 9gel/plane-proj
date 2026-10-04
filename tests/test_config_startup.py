@@ -295,7 +295,8 @@ def test_init_writes_explicit_rules(tmp_path, live_client, monkeypatch, cycles, 
     }
     assert (tmp_path / ".env_plane").stat().st_mode & 0o077 == 0
     assert json.loads((tmp_path / "plane" / "plane-proj.json").read_text(encoding="utf-8")) == {
-        "defaults": {"workspace": "w", "project": "DEMO"},
+        "defaults": {"workspace": "w", "project": "DEMO",
+                     "web_url": "https://app.plane.so"},
         "state_file": "SPRINTS.sqlite",
         "estimate_points": {"3": "u3"},
         "rules": {
