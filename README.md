@@ -212,6 +212,8 @@ server's address.
 | --- | --- |
 | ![Past sprints](docs/screenshots/past.png) | ![Statistics](docs/screenshots/stats.png) |
 
+See [all dashboard screenshots](docs/screenshots/README.md).
+
 ## Commands
 
 Run `plane-proj COMMAND --help` for options. Put `--json` before the command
