@@ -11,7 +11,7 @@
   --text: #0b0b0b; --text-2: #52514e; --muted: #85837d; --accent: #2a78d6;
   --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4; --c6: #008300;
   --st-todo: #9c9a93; --st-prog: #2a78d6; --st-verify: #eb6834; --st-done: #1baf7a; --st-cancel: #cfcdc6;
-  --warn: #b26b00; --grid: #e9e8e4; --track: #ecebe7; --range: #6f6d67; --median: #2a78d6;
+  --warn: #b26b00; --grid: #e9e8e4; --track: #ecebe7; --sk-hi: #fcfcfb; --range: #6f6d67; --median: #2a78d6;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -20,7 +20,7 @@
     --text: #fff; --text-2: #c3c2b7; --muted: #8d8b84; --accent: #3987e5;
     --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300;
     --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #d95926; --st-done: #199e70; --st-cancel: #4a4945;
-    --warn: #e0a030; --grid: #2a2a27; --track: #2a2a27; --range: #a3a196; --median: #5598e7;
+    --warn: #e0a030; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #5598e7;
   }
 }
 :root[data-theme="dark"] {
@@ -29,7 +29,7 @@
   --text: #fff; --text-2: #c3c2b7; --muted: #8d8b84; --accent: #3987e5;
   --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300;
   --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #d95926; --st-done: #199e70; --st-cancel: #4a4945;
-  --warn: #e0a030; --grid: #2a2a27; --track: #2a2a27; --range: #a3a196; --median: #5598e7;
+  --warn: #e0a030; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #5598e7;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
@@ -94,8 +94,9 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 /* one big board */
-.board { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow-x: auto; }
-.board .colh { padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--surface-2); display: flex; gap: 6px; align-items: center; }
+.board { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: auto; max-height: 560px; }
+/* A long board scrolls inside its frame; column headers stay in view. */
+.board .colh { position: sticky; top: 0; z-index: 1; padding: 10px 12px; font-size: 12.5px; font-weight: 600; color: var(--text-2); border-bottom: 1px solid var(--border); background: var(--surface-2); display: flex; gap: 6px; align-items: center; }
 .board .colh i { width: 8px; height: 8px; border-radius: 50%; }
 .board .colb { padding: 10px; min-height: 160px; }
 .board .colh + .colh, .board .colb + .colb { border-left: 1px solid var(--border); }
@@ -120,6 +121,12 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .dist { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 .dist .stack { display: flex; flex-direction: column; gap: 12px; }
 @media (max-width: 760px) { .dist { grid-template-columns: 1fr; } }
+/* skeleton placeholders: same box as the content they stand for */
+.sk { display: block; border-radius: 4px; background: linear-gradient(90deg, var(--surface-2) 30%, var(--sk-hi) 50%, var(--surface-2) 70%); background-size: 300% 100%; animation: sk 1.3s ease-in-out infinite; }
+span.sk.inline { display: inline-block; vertical-align: middle; }
+.ci.sk { border: 0; } .ci.sk::after { display: none; }
+@keyframes sk { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
 .chart { width: 100%; height: auto; display: block; }
 .chart text { fill: var(--text-2); font-size: 11px; }
 .chart .gl { stroke: var(--grid); }
@@ -159,8 +166,12 @@ function boot(data) {
   $('#projname').textContent = data.project.name ? `${PROJECT} · ${data.project.name}` : PROJECT;
 }
 const cardsFor = s => DATA.cards[s.sprint] || [];
-const LIVE_PENDING = '<p class="muted small">Reading the live board from Plane…</p>';
-const pending = '<span class="muted">…</span>';
+// Skeletons take the exact place of what the full payload fills in.
+const sk = (width, height, style = '') => `<span class="sk" style="width:${width};height:${height}px;${style}"></span>`;
+const skInline = (width, height = 12) => `<span class="sk inline" style="width:${width};height:${height}px"></span>`;
+const skIcons = (n, big) => `<div class="cicons">${`<span class="ci sk${big ? ' big' : ''}"></span>`.repeat(Math.max(n || 0, 1))}</div>`;
+const skStateBar = () => `<div class="sbar"><div class="segs">${sk('100%', 26)}</div><span class="tot">${skInline('52px', 20)}</span></div>
+  <div style="margin-top:8px">${sk('45%', 12)}</div>`;
 // Open blockers of a card, shown only while the card itself is unfinished.
 function waitsOn(c) {
   const open = (c.blocked_by || []).filter(b => !TERMINAL.has(b.state));
@@ -271,19 +282,20 @@ V.overview = () => {
   return `<h1>Overview</h1><p class="muted">${esc(PROJECT)} · read ${fullDate(SNAP)}</p>
   <div class="grid g4">
     <div class="card kpi link" onclick="location.hash='#/current'"><div class="v">${current.length}</div><div class="l">Current sprints</div></div>
-    <div class="card kpi link" onclick="location.hash='#/planned'"><div class="v">${planned.length}</div><div class="l">Planned${POINTS && !PARTIAL ? ` · ${plannedPts} pts` : ''}${MEDV && !PARTIAL ? ` ≈ ${fmtH(plannedPts / MEDV)}` : ''}</div></div>
+    <div class="card kpi link" onclick="location.hash='#/planned'"><div class="v">${planned.length}</div><div class="l">Planned${PARTIAL ? ` ${skInline('90px')}` : `${POINTS ? ` · ${plannedPts} pts` : ''}${MEDV ? ` ≈ ${fmtH(plannedPts / MEDV)}` : ''}`}</div></div>
     <div class="card kpi link" onclick="location.hash='#/past'"><div class="v">${past.length}</div><div class="l">Completed${POINTS ? ` · ${past.reduce((a, s) => a + (s.points_end || 0), 0)} pts` : ''}</div></div>
     ${MEDV ? `<div class="card kpi link" onclick="location.hash='#/stats'"><div class="v">${num(MEDV, 2)}<span class="muted small"> pts/h</span></div><div class="l">Median velocity</div></div>` : ''}
   </div>
   <h2>In flight</h2><div class="grid g2">${current.map(s => { const cards = cardsFor(s);
     return `<div class="card link" ${goto(s.sprint)}><div class="row">${label(s)}<span class="sp"></span><span class="pill">${fmtH(elapsedH(s))} elapsed</span></div>
-      <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${PARTIAL ? LIVE_PENDING : `${POINTS ? stateBar(cards, s.points_start, 'pts') : ''}
+      <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${PARTIAL ? `${POINTS ? skStateBar() : ''}
+      <div class="row" style="margin-top:10px">${skIcons(s.cards_start)}<span class="sp"></span>${skInline('110px')}</div>` : `${POINTS ? stateBar(cards, s.points_start, 'pts') : ''}
       <div class="row" style="margin-top:10px">${cardIcons(cards.map(c => stC[c.state]))}<span class="sp"></span>
       <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div>`}</div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div>
   <div class="grid g2" style="margin-top:12px">
     <div class="card"><div class="row"><h3>Up next</h3><span class="sp"></span><a href="#/planned">All ${planned.length} →</a></div>
       ${planned.length ? '' : '<p class="muted">No planned sprints.</p>'}${planned.slice(0, 4).map(s => `<div class="row link" style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" ${goto(s.sprint)}>
-        ${label(s)}<span class="t2" style="flex:1;min-width:140px">${esc(s.title)}</span>${s.cards == null ? pending : cardIcons(Array(s.cards).fill('plain'))}</div>`).join('')}</div>
+        ${label(s)}<span class="t2" style="flex:1;min-width:140px">${esc(s.title)}</span>${s.cards == null ? skIcons(4) : cardIcons(Array(s.cards).fill('plain'))}</div>`).join('')}</div>
     ${last ? `<div class="card link" ${goto(last.sprint)}><div class="row"><h3>Last completed</h3><span class="sp"></span><span class="muted small">ended ${ago(last.ended)}</span></div>
       <div class="row">${label(last)}<span class="t2">${esc(last.title)}</span></div>
       ${POINTS ? `<div style="margin:8px 0">${segbar(last.points_start, last.points_end, Math.max(last.points_start, last.points_end))}</div>` : ''}
@@ -308,7 +320,15 @@ V.currentOne = s => {
     <span class="muted small">Started ${fullDate(s.started)} · ${fmtH(el)} elapsed</span></div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
 
-  ${PARTIAL ? `<div class="card" style="margin-top:18px">${LIVE_PENDING}</div>` : `<div class="card" style="margin-top:18px">
+  ${PARTIAL ? `<div class="card" style="margin-top:18px">
+    ${POINTS ? `<h3>Points</h3><div style="margin-top:22px">${skStateBar()}</div>
+    <h3 style="margin-top:20px">Cards</h3>` : '<h3>Cards</h3>'}
+    <div class="row">${skIcons(s.cards_start, true)}<span class="sp"></span>${skInline('70px', 22)}</div>
+    <div style="margin-top:8px">${sk('55%', 12)}</div>
+  </div>
+  <div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2></div>
+  <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st}</div>`).join('')}
+    ${STATES.map((st, i) => `<div class="colb">${i < 4 ? `<div class="wi" style="border-left-color:${stC[st]}">${sk('40%', 14)}<div style="margin-top:8px">${sk('85%', 14)}</div></div>` : ''}</div>`).join('')}</div>` : `<div class="card" style="margin-top:18px">
     ${POINTS ? `<h3>Points</h3><div style="margin-top:22px">${stateBar(cards, s.points_start, 'pts')}</div>${stateLegend(cards)}
     <h3 style="margin-top:20px">Cards</h3>` : '<h3>Cards</h3>'}
     <div class="row">${cardIcons(cards.map(c => stC[c.state]), true)}<span class="sp"></span><span class="tot" style="font-weight:650;font-size:18px">${cards.length} <span class="muted small">cards</span></span></div>
@@ -325,6 +345,7 @@ V.currentOne = s => {
 
   <h2>Status</h2>
   <div class="grid g4">
+    ${PARTIAL && POINTS ? `<div class="card kpi">${sk('90px', 30)}<div style="margin-top:6px">${sk('70%', 12)}</div><div style="margin-top:10px">${sk('100%', 10)}</div><div style="margin-top:6px">${sk('80%', 10)}</div></div>` : ''}
     ${vel != null ? `<div class="card kpi"><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity${MEDV ? ` · median ${num(MEDV, 2)}` : ''}</div>
       ${hbar(vel, Math.max(vel, MEDV || 0) * 1.2 || 1, 'now', 'var(--c1)')}${MEDV ? hbar(MEDV, Math.max(vel, MEDV) * 1.2, 'median', 'var(--muted)') : ''}</div>` : ''}
     <div class="card kpi"><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events · ${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}${reasonText(t.rework_reasons) ? `<br>${reasonText(t.rework_reasons)}` : ''}</div></div>
@@ -344,7 +365,7 @@ V.planned = () => {
   if (!planned.length) return '<h1>Planned sprints</h1><p class="muted">No planned sprints.</p>';
   const maxPts = Math.max(1, ...planned.map(s => s.points || 0)), maxEst = MEDV ? maxPts / MEDV : 0;
   return `<h1>Planned sprints</h1>
-  <p class="muted">${planned.length} sprints in execution order${PARTIAL ? '' : ` · ${planned.reduce((a, s) => a + s.cards, 0)} cards${POINTS ? ` · ${planned.reduce((a, s) => a + s.points, 0)} pts` : ''}`}</p>
+  <p class="muted">${planned.length} sprints in execution order${PARTIAL ? ` ${skInline('120px')}` : ` · ${planned.reduce((a, s) => a + s.cards, 0)} cards${POINTS ? ` · ${planned.reduce((a, s) => a + s.points, 0)} pts` : ''}`}</p>
   ${MEDV ? `<div class="note" style="border-left-color:var(--accent)">Estimates assume <b>${num(MEDV, 2)} pts/h</b>: the median velocity of ${past.length} completed sprints.
     Hours = points ÷ ${num(MEDV, 2)}.</div>` : ''}
   <div class="card" id="deps" style="margin-bottom:12px">${depsView()}</div>
@@ -353,9 +374,9 @@ V.planned = () => {
     ${planned.map(s => { const est = MEDV && s.points != null ? s.points / MEDV : null;
       return `<div class="pos">${s.position}</div>
       <div class="ttl" ${goto(s.sprint)}><div class="row">${label(s)}<span class="tt">${esc(s.title)}</span></div><div class="gl">${esc(s.goal)}</div></div>
-      <div class="wide">${s.cards == null ? pending : `${cardIcons(Array(s.cards).fill('plain'))}<div class="muted small" style="margin-top:3px">${s.cards} card${s.cards === 1 ? '' : 's'}</div>`}</div>
-      <div class="wide">${!POINTS ? '' : s.points == null ? pending : `${segbar(s.points, s.points, maxPts)}<div class="muted small" style="margin-top:3px">${s.points} pts</div>`}</div>
-      <div class="wide">${est != null ? hbar(est, maxEst, fmtH(est), 'var(--c3)', { tipText: `${s.points} pts ÷ ${num(MEDV, 2)} pts/h` }) : ''}</div>`; }).join('')}
+      <div class="wide">${s.cards == null ? `${skIcons(4)}<div style="margin-top:5px">${sk('50px', 11)}</div>` : `${cardIcons(Array(s.cards).fill('plain'))}<div class="muted small" style="margin-top:3px">${s.cards} card${s.cards === 1 ? '' : 's'}</div>`}</div>
+      <div class="wide">${!POINTS ? '' : s.points == null ? `${sk('70%', 12)}<div style="margin-top:5px">${sk('40px', 11)}</div>` : `${segbar(s.points, s.points, maxPts)}<div class="muted small" style="margin-top:3px">${s.points} pts</div>`}</div>
+      <div class="wide">${est != null ? hbar(est, maxEst, fmtH(est), 'var(--c3)', { tipText: `${s.points} pts ÷ ${num(MEDV, 2)} pts/h` }) : PARTIAL && MEDV ? `<div class="hb">${sk('100%', 10, 'flex:1')}${skInline('52px', 11)}</div>` : ''}</div>`; }).join('')}
   </div></div>`;
 };
 
@@ -388,7 +409,7 @@ window.loadDeps = () => {
 V.plannedDetail = s => `<p><a href="#/planned">← Planned</a></p>
   <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span></div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
-  <div class="card" style="margin-top:16px"><div class="row">${s.cards == null ? LIVE_PENDING : `${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span>`}</div>
+  <div class="card" style="margin-top:16px"><div class="row">${s.cards == null ? skIcons(4, true) : `${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span>`}</div>
     ${POINTS ? `<div style="margin:12px 0 4px;max-width:${s.points * 14}px">${segbar(s.points, s.points, Math.max(1, s.points))}</div><span class="t2">${s.points} pts${MEDV ? ` · ≈ ${fmtH(s.points / MEDV)} at ${num(MEDV, 2)} pts/h` : ''}</span>` : ''}</div>
   <h2>Execution guidance</h2><div class="card prose">${esc(s.execution) || '—'}</div>
   <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>`;
@@ -551,7 +572,8 @@ function render() {
 addEventListener('hashchange', () => { if (DATA) { render(); scrollTo(0, 0); } });
 $('#theme').onclick = () => { const r = document.documentElement;
   const dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; };
-$('#app').innerHTML = '<p class="muted">Loading sprints…</p>';
+$('#app').innerHTML = `<div style="padding-top:4px">${sk('180px', 26)}</div><div style="margin:14px 0 18px">${sk('240px', 14)}</div>
+  <div class="grid g4">${`<div class="card kpi">${sk('60px', 30)}<div style="margin-top:8px">${sk('70%', 12)}</div></div>`.repeat(4)}</div>`;
 const getJSON = url => fetch(url, { cache: 'no-store' })
   .then(r => r.json().then(body => { if (!r.ok) throw new Error(body.error || r.statusText); return body; }));
 // Live view: poll the register's change marker (no Plane request) and reload the

@@ -666,8 +666,10 @@ and two JSON routes from `web.py`:
   marked partial, without project name, board link, cards, planned totals, or
   live current counts. It answers in milliseconds where the full payload takes
   seconds (measured 2026-10-05 against a live register: 0.08 s against 3.4 s,
-  most of it one request per planned cycle). The page paints it first, shows
-  "Updating from Plane…", and replaces it when the full payload arrives. Later
+  most of it one request per planned cycle). The page paints it first, with
+  shimmering placeholders the same size as the Plane-only elements they stand
+  for, shows "Updating from Plane…", and swaps the data into their places when
+  the full payload arrives, so the layout does not move. Later
   refreshes keep the current view until the full payload arrives, so the page
   never falls back to placeholders.
 - Each current card carries its blockers' references and states, read
