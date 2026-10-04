@@ -27,8 +27,8 @@ timing, and delivery history, in real time, as delivery happens.
 - **Mistakes get caught.** A Tech Lead agent reviews every card before it is
   accepted, and the CLI refuses unsafe board changes before they happen.
 - **You and the agent learn from each sprint.** Velocity, scope change, rework,
-  and where time went are recorded for every sprint and committed with your code,
-  so the next plan (by agents) is based on evidence.
+  and where time went are recorded for every sprint and committed with your
+  code, so the next plan (by agents) is based on evidence.
 
 `plane-proj` has three parts:
 
