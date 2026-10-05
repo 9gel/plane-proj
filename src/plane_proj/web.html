@@ -625,16 +625,16 @@ V.currentOne = s => {
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
 
   <div class="cur-top"><div class="grid quad">
+    <div class="card kpi side"><div><div class="v" data-elapsed="${esc(s.started)}">${fmtH((Date.now() - Date.parse(s.started)) / 36e5)}</div><div class="l">Elapsed</div></div>
+      <div class="clock" data-tip="Started ${esc(fullDate(s.started))}"><div class="t">${new Date(s.started).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</div>
+        <div class="d">Started - ${new Date(s.started).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</div></div></div>
     ${PARTIAL && POINTS ? `<div class="card kpi side"><div><div class="v">${skInline('90px', 24)}</div><div class="l">${skInline('60px', 12)}</div></div>
       ${sk('118px', 34)}</div>` : ''}
     ${vel != null ? `<div class="card kpi side"><div><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity</div></div>
       ${dial(vel, true, [[MEDV, 'var(--median)', 'median'], [ST.velocity?.average, 'var(--avg)', 'average']])}</div>` : ''}
+    <div class="card kpi"><div class="row" style="flex-wrap:nowrap"><div class="v">${fmtMin(active)}</div>${active ? activeSplit(t.active_minutes) : ''}</div><div class="l">Active time</div></div>
     <div class="card kpi side" data-tip="${esc(`${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}`)}"><div><div class="v">${t.rework_count || 'None'}</div><div class="l">Rework events</div></div>
       ${miniTable(Object.entries(t.rework_reasons || {}).sort((a, b) => b[1] - a[1]), String)}</div>
-    <div class="card kpi"><div class="row" style="flex-wrap:nowrap"><div class="v">${fmtMin(active)}</div>${active ? activeSplit(t.active_minutes) : ''}</div><div class="l">Active time</div></div>
-    <div class="card kpi side"><div><div class="v" data-elapsed="${esc(s.started)}">${fmtH((Date.now() - Date.parse(s.started)) / 36e5)}</div><div class="l">Elapsed</div></div>
-      <div class="clock" data-tip="Started ${esc(fullDate(s.started))}"><div class="t">${new Date(s.started).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</div>
-        <div class="d">Started - ${new Date(s.started).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</div></div></div>
   </div>
   ${summaryCard(s, cards)}</div>
   <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers</h3><span class="sp"></span>
