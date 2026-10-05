@@ -626,6 +626,45 @@ class Board:
         return {"cards": cards, "blocked_by": blocked_by,
                 "states": states, "members": members}
 
+    def sprint_readiness_cards(self, cycle_id: str) -> list[dict[str, Any]]:
+        """Live cycle cards with reference, title, state, points, and description."""
+        return [
+            {
+                "id": str(card.id),
+                "ref": f"{self.project.key}-{getattr(card, 'sequence_id', '?')}",
+                "title": str(getattr(card, "name", "") or ""),
+                "state": self._state_name(getattr(card, "state", None)),
+                "points": self._sprint_card_points(card),
+                "description_html": str(getattr(card, "description_html", "") or ""),
+            }
+            for card in self._cycle_cards(cycle_id)
+        ]
+
+    def readiness_facts(self, cycles: Mapping[int, str]) -> dict[str, Any]:
+        """Open cards of current and planned cycles with relations and delivery plans."""
+        members: dict[int, list[dict[str, Any]]] = {}
+        cards: list[dict[str, Any]] = []
+        blocked_by: dict[str, list[str]] = {}
+        for sprint_id, cycle_id in cycles.items():
+            members[sprint_id] = self.sprint_readiness_cards(cycle_id)
+            for card in members[sprint_id]:
+                if card["state"].casefold() in {"done", "cancelled"}:
+                    continue
+                cards.append(card | {"sprint": sprint_id})
+                relations = self.relations(card["id"])
+                blocked_by[card["id"]] = relations["blocked_by"]
+        states = {
+            card["id"]: (card["ref"], card["state"])
+            for found in members.values() for card in found
+        }
+        outside = {
+            blocker for ids in blocked_by.values() for blocker in ids
+        } - set(states)
+        for blocker in sorted(outside):
+            states[blocker] = self._blocker_state(blocker)
+        return {"cards": cards, "blocked_by": blocked_by,
+                "states": states, "members": members}
+
     def _blocker_state(self, card_id: str) -> tuple[str, str]:
         try:
             card = self.client.work_items.retrieve(

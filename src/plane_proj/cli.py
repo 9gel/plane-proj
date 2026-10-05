@@ -30,6 +30,7 @@ from plane_proj import delivery_plan as delivery_plan_module
 from plane_proj import dependencies as dependencies_module
 from plane_proj import execution as execution_module
 from plane_proj import operations as operations_module
+from plane_proj import readiness as readiness_module
 from plane_proj import register as register_module
 from plane_proj import scope as scope_module
 from plane_proj import sprint_timing
@@ -994,6 +995,98 @@ def sprints_critical_path(obj: dict[str, Any]) -> None:
         ])
 
     emit(payload, as_json=obj["root"].as_json, render=render)
+
+
+@sprints.command("readiness")
+@click.option("--json", "as_json", is_flag=True, help="Machine-readable output.")
+@click.pass_obj
+def sprints_readiness(obj: dict[str, Any], as_json: bool) -> None:
+    """Assess planned sprints readiness, code overlap, and dependency graph."""
+    board = obj["root"].board
+    cycles = _open_sprint_cycles(obj)
+    with sprints_module.connect_database(
+        obj["database"], writable=False
+    ) as connection:
+        sprints_list = sprints_module.fetch_sprints(connection)
+
+    current_sprints, planned_sprints, blocker_states = readiness_module.gather_sprint_facts(
+        sprints_list, board.readiness_facts(cycles)
+    )
+    completed = [s for s in sprints_list if s.status == sprints_module.STATUS_COMPLETED]
+    velocities = [s.velocity for s in completed if s.velocity is not None and s.velocity > 0]
+    payload = readiness_module.evaluate_readiness(
+        current_sprints,
+        planned_sprints,
+        blocker_states,
+        completed_velocities=velocities,
+    )
+
+    def render(data: dict[str, Any]) -> None:
+        summary = data["summary"]
+        v_label = f"{summary['velocity']:.2f} pts/h"
+        if summary.get("velocity_source") == "assumed":
+            v_label += " (assumed)"
+        else:
+            v_label += " (median)"
+        click.echo(
+            f"Planned: {summary['sprints']} sprints · {summary['cards']} cards · "
+            f"{summary['points']} pts · velocity {v_label}"
+        )
+        click.echo(
+            f"Serial: {summary['serial_hours']:.1f}h · "
+            f"Parallel: {summary['parallel_hours']:.1f}h"
+        )
+        click.echo("\nQueue")
+        records_table(
+            [
+                {
+                    "pos": str(row["position"]),
+                    "sprint": row.get("alias") or f"#{row['sprint_id']}",
+                    "title": row["title"],
+                    "state": row["state"],
+                    "points": str(row["points"]),
+                    "est": f"{row['hours']:.1f}h",
+                    "why": "; ".join(row["why"]) if row["why"] else "—",
+                }
+                for row in data["queue"]
+            ],
+            [
+                ("pos", "POS"),
+                ("sprint", "SPRINT"),
+                ("state", "STATE"),
+                ("points", "PTS"),
+                ("est", "EST"),
+                ("why", "WHY"),
+                ("title", "TITLE"),
+            ],
+        )
+        if data.get("overlap_pairs"):
+            click.echo("\nCode overlap")
+            records_table(
+                [
+                    {
+                        "sprints": f"#{pair['sprint_a']} & #{pair['sprint_b']}",
+                        "cards": f"{pair['card_a']} & {pair['card_b']}",
+                        "paths": ", ".join(pair["paths"]),
+                    }
+                    for pair in data["overlap_pairs"]
+                ],
+                [("sprints", "SPRINTS"), ("cards", "CARDS"), ("paths", "SHARED PATHS")],
+            )
+        if data.get("graph", {}).get("dependencies"):
+            click.echo("\nSprint dependencies")
+            records_table(
+                [
+                    {
+                        "edge": f"#{dep['from']} → #{dep['to']}",
+                        "reason": dep["reason"],
+                    }
+                    for dep in data["graph"]["dependencies"]
+                ],
+                [("edge", "DEPENDENCY"), ("reason", "REASON")],
+            )
+
+    emit(payload, as_json=as_json or obj["root"].as_json, render=render)
 
 
 @sprints.command("web")
