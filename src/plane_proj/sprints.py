@@ -23,7 +23,6 @@ from rich.table import Table
 from plane_proj.guards import SprintCycleBound, SprintCycleTaken
 
 SCHEMA_VERSION = 10
-TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 STATUS_PLANNED = "planned"
 STATUS_CURRENT = "current"
 STATUS_COMPLETED = "completed"
@@ -149,15 +148,23 @@ def default_database_path() -> Path:
 
 
 def parse_timestamp(value: str) -> datetime:
+    """Any ISO 8601 instant with an offset: Z, +HH:MM, fractional seconds.
+
+    Plane and live timing report fractional seconds, so readers accept
+    them; writers store whole seconds in UTC through `to_utc_timestamp`.
+    Without an offset the instant is ambiguous and is refused.
+    """
     try:
-        parsed = datetime.strptime(value, TIMESTAMP_FORMAT)
-    except ValueError as error:
+        parsed = datetime.fromisoformat(value)
+    except (TypeError, ValueError) as error:
         raise SprintError(
-            f"invalid timestamp {value!r}; expected YYYY-MM-DDTHH:MM:SS+HH:MM or "
-            "YYYY-MM-DDTHH:MM:SSZ"
+            f"invalid timestamp {value!r}; expected an ISO 8601 time with an "
+            "offset, e.g. 2026-10-05T22:23:59+00:00"
         ) from error
-    if parsed.isoformat(timespec="seconds") != value.replace("Z", "+00:00"):
-        raise SprintError(f"invalid timestamp {value!r}; expected canonical RFC 3339 seconds")
+    if parsed.tzinfo is None:
+        raise SprintError(
+            f"invalid timestamp {value!r}; add an offset such as +00:00 or Z"
+        )
     return parsed
 
 

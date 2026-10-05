@@ -815,6 +815,24 @@ def test_invalid_timestamp_and_empty_plan_are_clean_cli_errors(tmp_path: Path) -
     assert "invalid timestamp" in invalid.output
 
 
+def test_timestamps_accept_any_iso_8601_instant_and_store_utc_seconds() -> None:
+    # Plane and live timing produce fractional seconds; the register stores
+    # whole seconds in UTC whatever form a time arrives in.
+    plane = "2026-10-05T22:23:59.231514+00:00"
+    assert sprints.parse_timestamp(plane).microsecond == 231514
+    assert sprints.to_utc_timestamp(plane) == "2026-10-05T22:23:59+00:00"
+    assert sprints.to_utc_timestamp("2026-10-06T06:23:59+08:00") == (
+        "2026-10-05T22:23:59+00:00"
+    )
+    assert sprints.to_utc_timestamp("2026-10-05T22:23:59Z") == (
+        "2026-10-05T22:23:59+00:00"
+    )
+    # Without an offset an instant is ambiguous, and garbage is garbage.
+    for bad in ("2026-10-05T22:23:59", "yesterday", ""):
+        with pytest.raises(sprints.SprintError, match="invalid timestamp"):
+            sprints.parse_timestamp(bad)
+
+
 def test_start_retry_accepts_equivalent_utc_timestamp(tmp_path):
     database = tmp_path / "sprints.sqlite"
     create_register(database)
