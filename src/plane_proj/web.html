@@ -184,6 +184,13 @@ span.sk.inline { display: inline-block; vertical-align: middle; }
 /* velocity dial */
 .dial { display: block; overflow: visible; }
 .gwrap { height: 34px; margin-top: 8px; }
+.kpi.side { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kpi.side > :first-child { flex: none; }
+/* The dial shrinks in a narrow tile instead of overflowing it. */
+.kpi.side .dial { flex: 0 1 auto; min-width: 0; max-width: 60%; height: auto; }
+.kpi .v { white-space: nowrap; }
+.split { display: flex; gap: 2px; flex: 0 1 72px; min-width: 24px; height: 8px; margin-left: auto; }
+.split i { border-radius: 2px; min-width: 2px; }
 .gsm { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 12.5px; }
 /* original scope: a thin dashed line across the delivered row */
 /* timing coverage: one icon per sprint */
@@ -331,7 +338,7 @@ const heatLegend = `<div class="legend" style="margin-bottom:6px"><span><i class
 // heat up to the value. The needle has one length at every angle, like a
 // real dial, and its hub sits flat on the arch's base line.
 let dialId = 0;
-function dial(v, big) {
+function dial(v, big, marks = []) {
   const w = big ? 118 : 92, rx = w * 0.46, ry = rx * 0.55, cx = w / 2;
   const cy = ry + 4, sw = big ? 10 : 6, N = 28, at = v == null ? 0 : vT(v);
   // Fraction p is the needle's angle; the arch point is where that ray
@@ -360,12 +367,26 @@ function dial(v, big) {
   }
   g += `<path d="M${cx - hr} ${cy}A${hr} ${hr} 0 0 1 ${cx + hr} ${cy}Z"
     fill="var(--text)"/>`;
+  // Reference ticks (median, average) cross the arch at their value.
+  for (const [mv, color] of marks) {
+    if (mv == null) continue;
+    const [x0, y0] = pt(vT(mv), rx - sw / 2 - 2, ry - sw / 2 - 2);
+    const [x1, y1] = pt(vT(mv), rx + sw / 2 + 2, ry + sw / 2 + 2);
+    g += `<line x1="${x0}" y1="${y0}" x2="${x1}" y2="${y1}" stroke="${color}"
+      stroke-width="2" stroke-linecap="round"/>`;
+  }
   const tipT = `${v == null ? '—' : num(v, 2)} pts/h`
-    + `${MEDV ? ` · median ${num(MEDV, 2)}` : ''} · scale 0.25–64, log`;
+    + marks.filter(([mv]) => mv != null)
+      .map(([mv, , name]) => ` · ${name} ${num(mv, 2)}`).join('')
+    + ' · scale 0.25–64, log';
   return `<svg class="dial" width="${w}" height="${cy.toFixed(1)}"
     viewBox="0 0 ${w} ${cy.toFixed(1)}" data-tip="${esc(tipT)}" role="img"
     aria-label="${esc(tipT)}">${g}</svg>`;
 }
+// In Progress and Verifying shares of active time, as one small bar.
+const activeSplit = a => { const ip = a?.['In Progress'] || 0, vf = a?.['Verifying'] || 0;
+  return `<span class="split" data-tip="${esc(`In Progress ${fmtMin(ip)} · Verifying ${fmtMin(vf)}`)}">
+    <i style="flex:${ip};background:var(--st-prog)"></i><i style="flex:${vf};background:var(--st-verify)"></i></span>`; };
 const timerColor = k => TIMERS.includes(k) ? `var(--t${TIMERS.indexOf(k) + 1})` : 'var(--t-other)';
 // Past cards as card icons: green per delivered card, hollow per card not
 // delivered, a dashed line after the original scope.
@@ -512,18 +533,19 @@ V.currentOne = s => {
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
 
   <div class="grid g4" style="margin-top:18px">
-    ${PARTIAL && POINTS ? `<div class="card kpi"><div class="v">${skInline('90px', 24)}</div><div class="l">${skInline('70%', 12)}</div>
-      <div class="gwrap">${sk('118px', 34)}</div></div>` : ''}
-    ${vel != null ? `<div class="card kpi"><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l nowrap">Velocity${MEDV ? ` · med ${num(MEDV, 2)}` : ''}</div>
-      <div class="gwrap">${dial(vel, true)}</div></div>` : ''}
-    <div class="card kpi"><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events · ${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}${reasonText(t.rework_reasons) ? `<br>${reasonText(t.rework_reasons)}` : ''}</div></div>
-    <div class="card kpi"><div class="v">${fmtMin(active)}</div><div class="l">Active time (In Progress ${fmtMin(t.active_minutes?.['In Progress'])} · Verifying ${fmtMin(t.active_minutes?.['Verifying'])})</div></div>
+    ${PARTIAL && POINTS ? `<div class="card kpi side"><div><div class="v">${skInline('90px', 24)}</div><div class="l">${skInline('60px', 12)}</div></div>
+      ${sk('118px', 34)}</div>` : ''}
+    ${vel != null ? `<div class="card kpi side"><div><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity</div></div>
+      ${dial(vel, true, [[MEDV, 'var(--median)', 'median'], [ST.velocity?.average, 'var(--avg)', 'average']])}</div>` : ''}
+    <div class="card kpi" data-tip="${esc(`${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}${reasonText(t.rework_reasons) ? ` · ${reasonText(t.rework_reasons)}` : ''}`)}"><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events</div></div>
+    <div class="card kpi"><div class="row" style="flex-wrap:nowrap"><div class="v">${fmtMin(active)}</div>${active ? activeSplit(t.active_minutes) : ''}</div><div class="l">Active time</div></div>
     <div class="card kpi"><div class="v">${openT.length || 'None'}</div><div class="l">Open timers ${openT.map(([k, v]) => `· ${k} ${fmtMin(v)}`).join(' ')}</div></div>
   </div>
   ${summaryCard(s, cards)}
-  <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers · ${fmtMin(execTot)} total</h3><span class="sp"></span>
+  <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers</h3><span class="sp"></span>
     <span class="muted small">${t.timed_cards ?? 0} timed · ${t.final_cards ?? 0} final of ${t.observed_cards ?? 0} observed cards</span></div>
-    <div style="display:flex;height:14px;gap:2px;margin:10px 0 6px">${exec.map(([, v, tp, c]) => `<span style="flex:${v};background:${c};border-radius:2px" data-tip="${esc(tp)}"></span>`).join('')}</div>
+    <div class="row" style="flex-wrap:nowrap;margin:10px 0 6px"><div style="display:flex;height:14px;gap:2px;flex:1">${exec.map(([, v, tp, c]) => `<span style="flex:${v};background:${c};border-radius:2px" data-tip="${esc(tp)}"></span>`).join('')}</div>
+      <span class="tot" style="font-weight:650;white-space:nowrap">${fmtMin(execTot)}</span></div>
     <div class="legend">${exec.map(([k, v, , c]) => `<span><i style="background:${c}"></i>${k} ${fmtMin(v)}</span>`).join('')}</div></div>
   ${PARTIAL ? `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2><span class="sp"></span><a style="visibility:hidden">Open in Plane ↗</a></div>
   <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st}</div>`).join('')}
