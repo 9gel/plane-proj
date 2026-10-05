@@ -211,6 +211,7 @@ class FakeClient:
                     estimate_point=getattr(sent, "estimate_point", None),
                     point=getattr(sent, "point", None),
                     state=getattr(sent, "state", None) or "state-todo",
+                    description_html=getattr(sent, "description_html", "<p>body</p>"),
                 )
                 return outer.created
 

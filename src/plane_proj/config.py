@@ -41,6 +41,7 @@ class Rules:
     unestimated_assignees: tuple[str, ...] = ()
     require_independent_verdicts: bool = False
     require_transition_table: bool = False
+    require_delivery_plan: bool = False
 
     @classmethod
     def from_document(cls, document: Mapping[str, object], *, base: Rules | None = None) -> Rules:
@@ -257,6 +258,7 @@ def bootstrap_document(
             "unestimated_assignees": [],
             "require_independent_verdicts": True,
             "require_transition_table": True,
+            "require_delivery_plan": True,
         },
     }
 

@@ -12,7 +12,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from plane_proj.guards import GuardViolation
+from plane_proj.guards import DeliveryPlanRule
 
 DELIVERY_PLAN_HEADING = "Delivery plan"
 _HTML_HEADING = re.compile(
@@ -21,15 +21,6 @@ _HTML_HEADING = re.compile(
 _MD_HEADING = re.compile(
     r"(?mi)^#{1,6}\s+delivery\s+plan\b.*$"
 )
-
-
-class DeliveryPlanRule(GuardViolation):
-    """A card's delivery plan declaration is missing or invalid.
-
-    Delivery plan rule: every new card declares the repository paths it
-    touches and that its dependencies were assessed. Paths must be relative
-    to the repository root without '..' or backslashes.
-    """
 
 
 def validate_path(path: str) -> None:

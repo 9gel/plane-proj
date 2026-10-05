@@ -313,6 +313,7 @@ def test_init_writes_explicit_rules(tmp_path, live_client, monkeypatch, cycles, 
             "unestimated_assignees": [],
             "require_independent_verdicts": True,
             "require_transition_table": True,
+            "require_delivery_plan": True,
         },
     }
     assert sprints.read_binding(tmp_path / "plane" / "SPRINTS.sqlite") == (

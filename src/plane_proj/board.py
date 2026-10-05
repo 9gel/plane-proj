@@ -47,11 +47,14 @@ from plane.models.work_items import (
     WorkItemForIntakeRequest,
 )
 
+from plane_proj import delivery_plan as delivery_plan_module
+from plane_proj import text as text_module
 from plane_proj.config import PROJECT_ENV_VAR, Config, Project, Rules, project_from_facts
 from plane_proj.credentials import Credentials
 from plane_proj.execution import open_timer
 from plane_proj.guards import (
     ConfigError,
+    DeliveryPlanRule,
     EmptyCycle,
     EstimateOnUnestimatedAssignee,
     GuardViolation,
@@ -830,6 +833,18 @@ class Board:
                 f"the cycle of the current or a planned sprint; if none fits, plan a "
                 f"one-card sprint and grow its scope later."
             )
+        if rules.require_delivery_plan:
+            plan = delivery_plan_module.parse_delivery_plan(description_html)
+            if not plan.is_declared:
+                missing = []
+                if plan.touches is None:
+                    missing.append("Touches")
+                if plan.dependencies_assessed is None:
+                    missing.append("Dependencies: assessed")
+                raise DeliveryPlanRule(
+                    f"Delivery plan rule: {self.project.key} requires a complete delivery plan "
+                    f"declaration on every card. Missing: {', '.join(missing)}. Title: {title!r}."
+                )
 
         self._check_estimate(assignee_id=assignee_id, estimate=estimate,
                              blank_estimate=blank_estimate)
@@ -866,7 +881,12 @@ class Board:
             self.add_to_module(created.id, module_id)
             steps.append(f"module={module_name}")
 
-        self._verify_card(created.id, estimate=estimate, state_name=state_name)
+        self._verify_card(
+            created.id,
+            estimate=estimate,
+            state_name=state_name,
+            expected_plan=delivery_plan_module.parse_delivery_plan(description_html),
+        )
         steps.append("verified")
         return CardWrite(created.id, getattr(created, "sequence_id", None), tuple(steps))
 
@@ -1691,7 +1711,14 @@ class Board:
                 f"{', '.join(f'{k}={v!r}' for k, v in left.items())}."
             )
 
-    def _verify_card(self, card_id: str, *, estimate: int | None, state_name: str | None) -> None:
+    def _verify_card(
+        self,
+        card_id: str,
+        *,
+        estimate: int | None,
+        state_name: str | None,
+        expected_plan: delivery_plan_module.DeliveryPlan | None = None,
+    ) -> None:
         """Read the card back and confirm what was asked for is on it."""
         card = self.client.work_items.retrieve(self.slug, self.project.id, card_id)
         if estimate is not None:
@@ -1708,6 +1735,67 @@ class Board:
                     f"State {state_name!r} was accepted and the card reads back in a "
                     f"different state."
                 )
+        if expected_plan is not None and expected_plan.is_declared:
+            actual_html = getattr(card, "description_html", None) or ""
+            actual_plan = delivery_plan_module.parse_delivery_plan(actual_html)
+            if actual_plan.touches != expected_plan.touches:
+                raise ReadbackFailed(
+                    f"Delivery plan Touches was accepted and reads back as {actual_plan.touches!r} "
+                    f"instead of {expected_plan.touches!r}."
+                )
+            if actual_plan.dependencies_assessed != expected_plan.dependencies_assessed:
+                raise ReadbackFailed(
+                    f"Delivery plan Dependencies was accepted and reads back as "
+                    f"{actual_plan.dependencies_assessed!r} instead of "
+                    f"{expected_plan.dependencies_assessed!r}."
+                )
+
+    def plan_card(
+        self,
+        card: Any,
+        *,
+        touches: tuple[delivery_plan_module.TouchedPath, ...] | None = None,
+        touches_none: bool = False,
+        deps_assessed: bool | None = None,
+    ) -> delivery_plan_module.DeliveryPlan:
+        """Replace only the Delivery plan section of a card, and verify readback."""
+        existing_html = getattr(card, "description_html", None) or ""
+        existing_plan = delivery_plan_module.parse_delivery_plan(existing_html)
+
+        new_touches = (
+            () if touches_none else (touches if touches is not None else existing_plan.touches)
+        )
+        new_deps = (
+            deps_assessed if deps_assessed is not None else existing_plan.dependencies_assessed
+        )
+
+        target_plan = delivery_plan_module.DeliveryPlan(
+            touches=new_touches,
+            dependencies_assessed=new_deps,
+        )
+        new_section_html = text_module.to_html(
+            delivery_plan_module.render_section(target_plan)
+        )
+        new_html = delivery_plan_module.replace_section(existing_html, new_section_html)
+        self.update_card(card, {"description_html": new_html})
+
+        card_id = str(card.id)
+        refetched = self.client.work_items.retrieve(self.slug, self.project.id, card_id)
+        readback_html = getattr(refetched, "description_html", None) or ""
+        readback_plan = delivery_plan_module.parse_delivery_plan(readback_html)
+
+        if readback_plan.touches != target_plan.touches:
+            raise ReadbackFailed(
+                f"Delivery plan Touches was accepted and reads back as {readback_plan.touches!r} "
+                f"instead of {target_plan.touches!r}."
+            )
+        if readback_plan.dependencies_assessed != target_plan.dependencies_assessed:
+            raise ReadbackFailed(
+                f"Delivery plan Dependencies was accepted and reads back as "
+                f"{readback_plan.dependencies_assessed!r} instead of "
+                f"{target_plan.dependencies_assessed!r}."
+            )
+        return readback_plan
 
     # ---- capture -------------------------------------------------------
 

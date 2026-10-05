@@ -177,3 +177,13 @@ class ReadbackFailed(GuardViolation):
     it set a field it did not set is worse than one that fails, because the
     board and the transcript now disagree and only the board is real.
     """
+
+
+class DeliveryPlanRule(GuardViolation):
+    """A card's delivery plan declaration is missing or invalid.
+
+    Delivery plan rule: every new card declares the repository paths it
+    touches and that its dependencies were assessed. Paths must be relative
+    to the repository root without '..' or backslashes.
+    """
+

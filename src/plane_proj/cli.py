@@ -26,6 +26,7 @@ import click
 from plane.errors import HttpError
 
 from plane_proj import board as board_module
+from plane_proj import delivery_plan as delivery_plan_module
 from plane_proj import dependencies as dependencies_module
 from plane_proj import execution as execution_module
 from plane_proj import operations as operations_module
@@ -49,6 +50,7 @@ from plane_proj.credentials import (
     load_credentials,
 )
 from plane_proj.guards import (
+    DeliveryPlanRule,
     GuardViolation,
     PlaneProjError,
     SprintCycleByHand,
@@ -1310,13 +1312,43 @@ def card_show(obj: Context, reference: str) -> None:
 @click.option("--state", "state_name", help="Starting state.")
 @click.option("--label", "labels", multiple=True, help="Label; repeatable.")
 @click.option("--priority", help="urgent, high, medium, low or none.")
+@click.option("--touches", "touches", multiple=True,
+              help="Repository path touched by card, or 'none'; repeatable.")
+@click.option("--deps-assessed", "deps_assessed", is_flag=True, default=False,
+              help="Dependencies were assessed.")
 @click.pass_obj
 def card_new(obj: Context, title: str, description: str, is_html: bool, module_name: str | None,
              cycle_name: str | None, assignee: str, estimate: str | None,
-             state_name: str | None, labels: tuple[str, ...], priority: str | None) -> None:
+             state_name: str | None, labels: tuple[str, ...], priority: str | None,
+             touches: tuple[str, ...], deps_assessed: bool) -> None:
     """Create a work item, place it in its cycle and module, and verify all three."""
     board = obj.board
     body = text_module.read_text(description) or ""
+
+    touches_none = False
+    plan_touches: tuple[delivery_plan_module.TouchedPath, ...] | None = None
+    if touches:
+        if len(touches) == 1 and touches[0].lower() == "none":
+            touches_none = True
+            plan_touches = ()
+        elif any(t.lower() == "none" for t in touches):
+            raise DeliveryPlanRule(
+                "Delivery plan rule: cannot specify both 'none' and paths in --touches."
+            )
+        else:
+            plan_touches = tuple(delivery_plan_module.TouchedPath.parse(t) for t in touches)
+
+    plan_deps = True if deps_assessed else None
+    if plan_touches is not None or touches_none or plan_deps is not None:
+        sec = delivery_plan_module.render_section(
+            touches=plan_touches,
+            touches_none=touches_none,
+            deps_assessed=plan_deps,
+        )
+        if is_html:
+            sec = text_module.to_html(sec)
+        body = delivery_plan_module.replace_section(body, sec)
+
     written = board.create_card(
         title=title,
         description_html=text_module.to_html(body, already_html=is_html),
@@ -1739,6 +1771,55 @@ def card_set(obj: Context, reference: str, title: str | None, description: str |
         fields["priority"] = priority
     board.update_card(board.find(reference), fields)
     click.echo(f"{reference} updated: {', '.join(sorted(fields))}")
+
+
+@card.command("plan")
+@click.argument("reference")
+@click.option("--touches", "touches", multiple=True,
+              help="Repository path touched by card, or 'none'; repeatable.")
+@click.option("--deps-assessed", "deps_assessed", is_flag=True, default=False,
+              help="Dependencies were assessed.")
+@click.pass_obj
+def card_plan(obj: Context, reference: str, touches: tuple[str, ...],
+              deps_assessed: bool) -> None:
+    """Replace only the Delivery plan section of an existing card."""
+    board = obj.board
+    item = board.find(reference)
+
+    touches_none = False
+    parsed_touches: tuple[delivery_plan_module.TouchedPath, ...] | None = None
+    if touches:
+        if len(touches) == 1 and touches[0].lower() == "none":
+            touches_none = True
+            parsed_touches = ()
+        elif any(t.lower() == "none" for t in touches):
+            raise DeliveryPlanRule(
+                "Delivery plan rule: cannot specify both 'none' and paths in --touches."
+            )
+        else:
+            parsed_touches = tuple(delivery_plan_module.TouchedPath.parse(t) for t in touches)
+
+    deps = True if deps_assessed else None
+    if parsed_touches is None and not touches_none and deps is None:
+        raise GuardViolation("Nothing to update.")
+
+    updated_plan = board.plan_card(
+        item,
+        touches=parsed_touches,
+        touches_none=touches_none,
+        deps_assessed=deps,
+    )
+    payload = {
+        "card": reference,
+        "touches": (
+            [str(p) for p in updated_plan.touches]
+            if updated_plan.touches is not None
+            else None
+        ),
+        "dependencies_assessed": updated_plan.dependencies_assessed,
+    }
+    emit(payload, as_json=obj.as_json,
+         render=lambda d: click.echo(f"{reference} delivery plan updated."))
 
 
 @card.command("set-cycle")
