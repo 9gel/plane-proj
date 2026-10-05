@@ -1584,6 +1584,9 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
     assert payload["project"] == {"key": "DEMO", "name": "Demo"}
     assert [s["sprint"] for s in payload["listing"]["current"]] == [3]
     assert [s["sprint"] for s in payload["listing"]["planned"]] == [4]
+    # Each sprint links to its own cycle, which lists only its cards.
+    cycles = "https://plane.example/test/projects/project-uuid/cycles/"
+    assert payload["cycle_urls"] == {"3": cycles + "3", "4": cycles + "4"}
     assert payload["cards"] == {"3": [{
         "id": "card-3", "ref": "DEMO-1", "title": "Ship it", "state": "Todo",
         "points": 3, "url": board + "card-3",
@@ -1594,7 +1597,7 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
         raise AssertionError("the local payload must not read Plane")
 
     names = ("planned_sprint_totals", "sprint_cycle_metrics",
-             "dependency_facts", "sprint_cycle_cards")
+             "dependency_facts", "sprint_cycle_cards", "sprint_cycles")
     saved = {name: getattr(sprint_board, name) for name in names}
     for name in names:
         setattr(sprint_board, name, no_plane)
@@ -1603,6 +1606,7 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
         setattr(sprint_board, name, method)
     assert quick["partial"] is True and quick["cards"] == {}
     assert quick["board_url"] is None
+    assert quick["cycle_urls"] == {}
     assert quick["project"]["key"] == "DEMO"
     assert quick["listing"]["planned"][0]["cards"] is None
     assert [s["sprint"] for s in quick["listing"]["current"]] == [3]

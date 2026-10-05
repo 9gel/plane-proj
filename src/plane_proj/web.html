@@ -233,11 +233,11 @@ details summary { cursor: pointer; color: var(--text-2); }
 <script>
 // ===== data =====
 // Filled by boot() from /api/sprints; every view reads these.
-let DATA, PARTIAL, L, ST, SNAP, PROJECT, PLANE_BOARD, POINTS, current, planned, past, byId, MEDV;
+let DATA, PARTIAL, L, ST, SNAP, PROJECT, POINTS, current, planned, past, byId, MEDV;
 function boot(data) {
   // A partial payload is the register alone: Plane-only facts arrive next.
   DATA = data; PARTIAL = !!data.partial; L = data.listing; ST = L.stats || {}; SNAP = new Date(data.generated_at);
-  PROJECT = data.project.key; PLANE_BOARD = data.board_url; POINTS = data.estimates;
+  PROJECT = data.project.key; POINTS = data.estimates;
   current = L.current || [];
   planned = [...(L.planned || [])].sort((a, b) => a.position - b.position);
   past = [...(L.past || [])].sort((a, b) => new Date(a.started) - new Date(b.started));
@@ -279,6 +279,12 @@ const STATES = ['Todo', 'In Progress', 'Verifying', 'Done', 'Cancelled'];
 const PROGRESS = ['Done', 'Verifying', 'In Progress', 'Todo', 'Cancelled'];
 const byProgress = cards => [...cards].sort((a, b) => PROGRESS.indexOf(a.state) - PROGRESS.indexOf(b.state));
 const stC = { 'Todo': 'var(--st-todo)', 'In Progress': 'var(--st-prog)', 'Verifying': 'var(--st-verify)', 'Done': 'var(--st-done)', 'Cancelled': 'var(--st-cancel)' };
+// The sprint's own Plane cycle, which lists only its cards.
+const planeLink = s => {
+  const url = DATA.cycle_urls?.[s.sprint];
+  return url ? `<a class="small" href="${esc(url)}" target="_blank"
+    rel="noopener">Open in Plane ↗</a>` : '';
+};
 const goto = id => `onclick="location.hash='#/sprint/${id}'"`;
 
 const tip = $('#tip');
@@ -539,7 +545,7 @@ V.currentOne = s => {
   const execTot = exec.reduce((a, x) => a + x[1], 0);
   const active = Object.values(t.active_minutes || {}).reduce((a, b) => a + b, 0);
   const openT = Object.entries(t.open_timer_minutes || {});
-  return `<div class="row">${label(s)}<span class="pill" style="color:var(--st-prog)">● current</span><span class="sp"></span>
+  return `<div class="row">${label(s)}<span class="pill" style="color:var(--st-prog)">● current</span>${planeLink(s)}<span class="sp"></span>
     <span class="muted small">Started ${fullDate(s.started)} · ${fmtH(el)} elapsed</span></div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
 
@@ -560,9 +566,9 @@ V.currentOne = s => {
     <div class="row" style="flex-wrap:nowrap;margin:10px 0 6px"><div style="display:flex;height:14px;gap:2px;flex:1">${exec.map(([, v, tp, c]) => `<span style="flex:${v};background:${c};border-radius:2px" data-tip="${esc(tp)}"></span>`).join('')}</div>
       <span class="tot" style="font-weight:650;white-space:nowrap">${fmtMin(execTot)}</span></div>
     <div class="legend">${exec.map(([k, v, , c]) => `<span><i style="background:${c}"></i>${k} ${fmtMin(v)}</span>`).join('')}</div></div>
-  ${PARTIAL ? `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2><span class="sp"></span><a style="visibility:hidden">Open in Plane ↗</a></div>
+  ${PARTIAL ? `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2></div>
   <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st}</div>`).join('')}
-    ${STATES.map((st, i) => `<div class="colb">${i < 4 ? `<div class="wi" style="border-left-color:${stC[st]}">${sk('40%', 14)}<div style="margin-top:8px">${sk('85%', 14)}</div></div>` : ''}</div>`).join('')}</div>` : `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2><span class="sp"></span>${PLANE_BOARD ? `<a href="${esc(PLANE_BOARD)}" target="_blank" rel="noopener">Open in Plane ↗</a>` : ''}</div>
+    ${STATES.map((st, i) => `<div class="colb">${i < 4 ? `<div class="wi" style="border-left-color:${stC[st]}">${sk('40%', 14)}<div style="margin-top:8px">${sk('85%', 14)}</div></div>` : ''}</div>`).join('')}</div>` : `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2></div>
   <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st} <span class="muted">${cards.filter(c => c.state === st).length}</span></div>`).join('')}
     ${STATES.map(st => `<div class="colb">${cards.filter(c => c.state === st).map(c => `<div class="wi" style="border-left-color:${stC[st]}">
       <div class="row"><a class="mono" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.ref)}</a><span class="sp"></span>${POINTS ? `<span class="pill">${c.points} pt</span>` : ''}</div>
@@ -618,7 +624,7 @@ window.loadDeps = () => {
 };
 
 V.plannedDetail = s => `<p><a href="#/planned">← Planned</a></p>
-  <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span></div>
+  <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span>${planeLink(s)}</div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
   <div class="card" style="margin-top:16px"><div class="row">${s.cards == null ? skIcons(4, true) : `${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span>`}</div>
     ${POINTS ? `<div style="margin:12px 0 4px;max-width:${s.points * 14}px">${segbar(s.points, s.points, Math.max(1, s.points))}</div><span class="t2">${s.points} pts${MEDV ? ` · ≈ ${fmtH(s.points / MEDV)} at ${num(MEDV, 2)} pts/h` : ''}</span>` : ''}</div>
@@ -656,7 +662,7 @@ V.pastDetail = s => {
   const mx = Math.max(1, ...res.map(x => x[1]), ...exec.map(x => x[1]));
   return `<div class="row"><a href="#/past">← Past</a><span class="sp"></span>
     ${prev ? `<a href="#/sprint/${prev.sprint}">‹ ${esc(prev.alias || '#' + prev.sprint)}</a>` : ''}${next ? `<a href="#/sprint/${next.sprint}">${esc(next.alias || '#' + next.sprint)} ›</a>` : ''}</div>
-  <div class="row" style="margin-top:10px">${label(s)}<span class="pill" style="color:var(--st-done)">✓ completed</span><span class="sp"></span>
+  <div class="row" style="margin-top:10px">${label(s)}<span class="pill" style="color:var(--st-done)">✓ completed</span>${planeLink(s)}<span class="sp"></span>
     <span class="muted small" data-tip="${esc(fullDate(s.started) + ' → ' + fullDate(s.ended))}">ended ${ago(s.ended)} · ran ${s.elapsed}</span></div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
   <div class="grid g4" style="margin:16px 0">

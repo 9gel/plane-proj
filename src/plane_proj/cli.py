@@ -1025,12 +1025,31 @@ def sprints_web(
             sprint_id: web_module.with_blockers(members, facts)
             for sprint_id, members in facts["members"].items()
         }
+        # Each sprint links to its cycle page, which lists only its cards.
+        # The register knows current and completed cycles; planned ones are
+        # found by their `Sprint N` name.
+        cycles = {
+            sprint.sprint_id: sprint.cycle_id
+            for sprint in listing["selected"] if sprint.cycle_id is not None
+        }
+        planned = {
+            sprint.sprint_id for sprint in listing["selected"]
+            if sprint.status == sprints_module.STATUS_PLANNED
+            and sprint.sprint_id not in cycles
+        }
+        if planned:
+            cycles |= board.sprint_cycles(planned)
         return web_module.build_payload(
             listing["payload"],
             project={"key": project.key, "name": project.name},
             board=web_module.board_url(plane_url, board.slug, project.id),
             cards=cards,
             estimates=listing["estimates_enabled"],
+            cycle_urls={
+                sprint_id: web_module.cycle_url(
+                    plane_url, board.slug, project.id, cycle_id)
+                for sprint_id, cycle_id in cycles.items()
+            },
         )
 
     def load_local() -> dict[str, Any]:

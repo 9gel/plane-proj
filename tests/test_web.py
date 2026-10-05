@@ -21,6 +21,12 @@ def test_default_board_link_is_plane_cloud() -> None:
     )
 
 
+def test_cycle_link_is_the_cycle_page() -> None:
+    assert web.cycle_url("https://plane.example/", "ws", "pid", "cid") == (
+        "https://plane.example/ws/projects/pid/cycles/cid"
+    )
+
+
 @pytest.fixture
 def serve() -> Iterator:
     servers = []

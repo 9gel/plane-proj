@@ -27,15 +27,27 @@ def board_url(plane_url: str, workspace: str, project_id: str) -> str:
     return f"{plane_url.rstrip('/')}/{workspace}/projects/{project_id}/issues/"
 
 
+def cycle_url(
+    plane_url: str, workspace: str, project_id: str, cycle_id: str,
+) -> str:
+    """A cycle's page in the Plane web app: only that sprint's cards."""
+    base = plane_url.rstrip("/")
+    return f"{base}/{workspace}/projects/{project_id}/cycles/{cycle_id}"
+
+
 def build_payload(
     listing: dict[str, Any], *, project: dict[str, str], board: str | None,
     cards: dict[int, list[dict[str, Any]]], estimates: bool,
+    cycle_urls: dict[int, str] | None = None,
 ) -> dict[str, Any]:
     """Everything the page renders, in one JSON document."""
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "project": project,
         "board_url": board,
+        "cycle_urls": {
+            str(sprint_id): url for sprint_id, url in (cycle_urls or {}).items()
+        },
         "estimates": estimates,
         "listing": listing,
         "cards": {
