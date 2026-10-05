@@ -73,6 +73,11 @@
 
             export VIRTUAL_ENV="$_root/.venv"
             export PATH="$_root/.venv/bin:$PATH"
+
+            if [ -d "$_root/.git" ] || [ -f "$_root/.git" ]; then
+              git -C "$_root" config core.hooksPath .githooks
+            fi
+
             unset _root
 
             if [ -t 1 ]; then

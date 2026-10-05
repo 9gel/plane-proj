@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+py_files=()
+md_files=()
+
+while IFS= read -r -d '' file; do
+  case "$file" in
+    *.py)
+      py_files+=("$file")
+      ;;
+    *.md|*.markdown)
+      md_files+=("$file")
+      ;;
+  esac
+done < <(git diff --cached --name-only -z --diff-filter=ACM)
+
+status=0
+
+if [ ${#py_files[@]} -gt 0 ]; then
+  if command -v ruff >/dev/null 2>&1; then
+    ruff check "${py_files[@]}" || status=1
+  else
+    echo "pre-commit: ruff not found in PATH" >&2
+    status=1
+  fi
+fi
+
+if [ ${#md_files[@]} -gt 0 ]; then
+  if command -v rumdl >/dev/null 2>&1; then
+    rumdl check "${md_files[@]}" || status=1
+  else
+    echo "pre-commit: rumdl not found in PATH" >&2
+    status=1
+  fi
+fi
+
+exit "$status"

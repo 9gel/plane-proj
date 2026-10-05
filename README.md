@@ -372,6 +372,11 @@ ruff check .
 rumdl check .
 ```
 
+The development shell points git at `.githooks/pre-commit`, which refuses
+commits whose staged Python files fail `ruff check` or staged Markdown files
+fail `rumdl check`. Clean commits succeed, and unstaged or untracked files with
+findings do not block the commit.
+
 After changing `pyproject.toml` or `uv.lock`, also run:
 
 ```sh
