@@ -997,6 +997,11 @@ def sprints_critical_path(obj: dict[str, Any]) -> None:
     emit(payload, as_json=obj["root"].as_json, render=render)
 
 
+def _board_shared_paths(board: Any) -> tuple[str, ...]:
+    config = getattr(board, "config", None)
+    return tuple(getattr(config, "shared_paths", ()))
+
+
 @sprints.command("readiness")
 @click.option("--json", "as_json", is_flag=True, help="Machine-readable output.")
 @click.pass_obj
@@ -1019,6 +1024,7 @@ def sprints_readiness(obj: dict[str, Any], as_json: bool) -> None:
         planned_sprints,
         blocker_states,
         completed_velocities=velocities,
+        shared_paths=_board_shared_paths(board),
     )
 
     def render(data: dict[str, Any]) -> None:
@@ -1187,6 +1193,7 @@ def sprints_web(
             planned_sprints,
             blocker_states,
             completed_velocities=velocities,
+            shared_paths=_board_shared_paths(board),
         )
 
     server = web_module.make_server(host, port, {
@@ -1700,7 +1707,12 @@ def card_verdict(obj: Context, reference: str, role: str, result: str,
     if board.project.rules.require_declared_scope:
         seq = getattr(item, "sequence_id", None)
         canonical_ref = f"{board.project.key}-{seq}" if seq is not None else reference
-        scope_module.check_verdict_scope(item, canonical_ref, revision)
+        scope_module.check_verdict_scope(
+            item,
+            canonical_ref,
+            revision,
+            shared_paths=_board_shared_paths(board),
+        )
     posted = not verdicts_module.already_recorded(
         board.comments(item), fields
     )

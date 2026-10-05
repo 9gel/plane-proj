@@ -292,3 +292,39 @@ def test_path_covered_helpers():
     assert path_covered("./src/a.py", "src/a.py")
     assert not path_covered("src/a.py", "src/b.py")
     assert not path_covered("src/", "tests/test_a.py")
+
+
+def test_verdict_accepts_undeclared_shared_path_and_refuses_undeclared_non_shared(tmp_path):
+    """pytest against a temporary git repository: a verdict is accepted when the
+    change set adds an undeclared shared path, and refused for an undeclared
+    non-shared path.
+    """
+    repo = init_git_repo(tmp_path)
+    commit_files(repo, {"README.md": "base\n"}, "Base commit")
+
+    plan = DeliveryPlan(
+        touches=(TouchedPath("src/allowed.py"),),
+        dependencies_assessed=True,
+    )
+    card = SimpleNamespace(description_html=render_section(plan))
+    shared = ("pyproject.toml", "uv.lock")
+
+    rev_ok = commit_files(
+        repo,
+        {"src/allowed.py": "print('ok')\n", "pyproject.toml": "version = '1.0'\n"},
+        "Implement feature and bump version",
+        trailers=[("Card", "DEMO-12")],
+    )
+    check_verdict_scope(card, "DEMO-12", rev_ok, cwd=repo, shared_paths=shared)
+
+    rev_bad = commit_files(
+        repo,
+        {"uncovered.py": "print('bad')\n"},
+        "Add unexpected file",
+        trailers=[("Card", "DEMO-12")],
+    )
+    with pytest.raises(ScopeRule) as exc_info:
+        check_verdict_scope(card, "DEMO-12", rev_bad, cwd=repo, shared_paths=shared)
+    assert "uncovered.py" in str(exc_info.value)
+    assert "pyproject.toml" not in str(exc_info.value)
+

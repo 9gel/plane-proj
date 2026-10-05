@@ -97,3 +97,51 @@ def test_runtime_guards_default_to_strict(config_path):
     assert rules.require_cycle
     assert rules.require_module
     assert rules.require_estimate
+
+
+def test_config_accepts_and_validates_shared_paths(tmp_path: Path):
+    """pytest shows the config accepts shared_paths as a list of repository
+    paths and refuses absolute paths or a non-list value.
+    """
+    cfg = load_config(write(tmp_path, {
+        "defaults": {"project": "DEMO"},
+        "shared_paths": ["pyproject.toml", "./uv.lock", "docs/"],
+    }))
+    assert cfg.shared_paths == ("pyproject.toml", "uv.lock", "docs/")
+
+    with pytest.raises(ConfigError, match="shared_paths must be a list"):
+        load_config(write(tmp_path, {
+            "defaults": {"project": "DEMO"},
+            "shared_paths": "pyproject.toml",
+        }))
+
+    with pytest.raises(ConfigError, match="shared_paths must be a list"):
+        load_config(write(tmp_path, {
+            "defaults": {"project": "DEMO"},
+            "shared_paths": 123,
+        }))
+
+    with pytest.raises(ConfigError, match="shared_paths must not contain absolute paths"):
+        load_config(write(tmp_path, {
+            "defaults": {"project": "DEMO"},
+            "shared_paths": ["/etc/passwd"],
+        }))
+
+    with pytest.raises(ConfigError, match="shared_paths must not contain absolute paths"):
+        load_config(write(tmp_path, {
+            "defaults": {"project": "DEMO"},
+            "shared_paths": ["pyproject.toml", "/tmp/uv.lock"],
+        }))
+
+    with pytest.raises(ConfigError, match="shared_paths must be a list of nonempty path strings"):
+        load_config(write(tmp_path, {
+            "defaults": {"project": "DEMO"},
+            "shared_paths": [""],
+        }))
+
+    with pytest.raises(ConfigError, match="shared_paths must be a list of nonempty path strings"):
+        load_config(write(tmp_path, {
+            "defaults": {"project": "DEMO"},
+            "shared_paths": [123],
+        }))
+

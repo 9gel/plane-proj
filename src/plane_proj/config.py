@@ -200,6 +200,7 @@ class Config:
     # The Plane web app for links; the API host is not it on Plane Cloud.
     web_url: str = DEFAULT_WEB_URL
     integration_branch: str | None = None
+    shared_paths: tuple[str, ...] = ()
     document: Mapping[str, object] = field(repr=False, default_factory=dict)
 
     def project(self, key: str | None) -> Project:
@@ -315,17 +316,33 @@ def load_config(explicit: str | Path | None = None) -> Config:
     document = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict):
         raise ConfigError(f"{path}: expected a JSON object.")
-    unknown = document.keys() - {"defaults", "state_file", "estimate_points", "rules"}
+    unknown = document.keys() - {
+        "defaults", "state_file", "estimate_points", "rules", "shared_paths",
+    }
     if unknown:
         raise ConfigError(
             f"{path}: unsupported config keys: {', '.join(sorted(unknown))}. "
-            "Keep defaults, state_file, estimate_points and rules only; "
+            "Keep defaults, state_file, estimate_points, rules and shared_paths only; "
             "Plane supplies project metadata."
         )
     defaults = document.get("defaults", {})
     points = document.get("estimate_points", {})
     if not isinstance(defaults, dict) or not isinstance(points, dict):
         raise ConfigError(f"{path}: defaults and estimate_points must be objects.")
+    raw_shared = document.get("shared_paths")
+    shared_paths: tuple[str, ...] = ()
+    if raw_shared is not None:
+        if not isinstance(raw_shared, list):
+            raise ConfigError(f"{path}: shared_paths must be a list of repository paths.")
+        for item in raw_shared:
+            if not isinstance(item, str) or not item.strip():
+                raise ConfigError(f"{path}: shared_paths must be a list of nonempty path strings.")
+            cleaned = item.strip()
+            if cleaned.startswith("/") or cleaned.startswith("\\") or Path(cleaned).is_absolute():
+                raise ConfigError(
+                    f"{path}: shared_paths must not contain absolute paths: {item!r}."
+                )
+        shared_paths = tuple(item.strip().removeprefix("./") for item in raw_shared)
     state_file = document.get("state_file")
     if state_file is not None and (not isinstance(state_file, str) or not state_file.strip()):
         raise ConfigError(f"{path}: state_file must be a nonempty path string.")
@@ -374,6 +391,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
         ),
         web_url=web_url,
         integration_branch=defaults.get("integration_branch"),
+        shared_paths=shared_paths,
         document=document,
     )
 

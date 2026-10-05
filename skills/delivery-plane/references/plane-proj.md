@@ -37,6 +37,12 @@ cycle. The CLI verifies the new pending Intake record before reporting success.
   - `sprints preflight SPRINT_ID` and `sprints close SPRINT_ID` report scope
     findings against `defaults.integration_branch` (unmerged cards, out-of-scope
     paths, and unnamed commits) without blocking closure.
+  - A top-level `shared_paths` list in `plane-proj.json` specifies files every
+    card changes for mechanical reasons (such as `pyproject.toml` or `uv.lock`).
+    A shared path is always within a card's scope without being declared, never
+    counts as overlap in the readiness report, and still appears in the
+    close-time scope report. A card that lists a shared path explicitly in
+    `Touches` counts as overlap again.
   `sprints start` and `sprints close` are lifecycle commands outside the table:
   start moves admitted cards to Todo and unplanned open cards to Backlog.
 - `card list --sprint ID` (where `ID` is a sprint number or alias) lists every

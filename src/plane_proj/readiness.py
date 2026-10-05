@@ -117,7 +117,23 @@ def paths_overlap(
     )
 
 
-def card_shared_paths(card_a: CardFact, card_b: CardFact) -> list[str]:
+def _explicitly_lists(plan: delivery_plan_module.DeliveryPlan, target: str) -> bool:
+    clean_target = target.removeprefix("./").rstrip()
+    for decl in (plan.touches or ()):
+        p = decl.path.removeprefix("./").rstrip()
+        if p.lower().endswith("(new)"):
+            p = p[:-5].rstrip()
+        if p == clean_target:
+            return True
+    return False
+
+
+def card_shared_paths(
+    card_a: CardFact,
+    card_b: CardFact,
+    *,
+    shared_paths: Sequence[str] = (),
+) -> list[str]:
     """Return list of overlapping paths declared between card_a and card_b."""
     plan_a = card_a.parsed_plan
     plan_b = card_b.parsed_plan
@@ -138,6 +154,15 @@ def card_shared_paths(card_a: CardFact, card_b: CardFact) -> list[str]:
                 if clean_b.lower().endswith("(new)"):
                     clean_b = clean_b[:-5].rstrip()
                 rep = clean_a if len(clean_a) <= len(clean_b) else clean_b
+                is_undeclared_shared = False
+                for sp in shared_paths:
+                    if paths_overlap(rep, sp) and not (
+                        _explicitly_lists(plan_a, sp) and _explicitly_lists(plan_b, sp)
+                    ):
+                        is_undeclared_shared = True
+                        break
+                if is_undeclared_shared:
+                    continue
                 if rep not in shared:
                     shared.append(rep)
     return shared
@@ -206,6 +231,7 @@ def evaluate_readiness(
     blocker_states: dict[str, tuple[str, str]],
     *,
     completed_velocities: list[float] | None = None,
+    shared_paths: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Evaluate readiness, overlap, dependencies, and duration estimates."""
     all_sprints = current_sprints + planned_sprints
@@ -308,7 +334,7 @@ def evaluate_readiness(
         for other_sprint in candidates_to_check:
             for card in sprint.open_cards:
                 for other_card in other_sprint.open_cards:
-                    shared = card_shared_paths(card, other_card)
+                    shared = card_shared_paths(card, other_card, shared_paths=shared_paths)
                     if shared:
                         has_overlap = True
                         other_desc = (

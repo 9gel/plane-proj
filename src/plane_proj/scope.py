@@ -161,6 +161,7 @@ def check_verdict_scope(
     revision: str,
     *,
     cwd: Path | None = None,
+    shared_paths: Sequence[str] = (),
 ) -> None:
     """Refuse under ScopeRule if a card's change set leaves its declared Touches."""
     desc = getattr(card, "description_html", None) or ""
@@ -171,18 +172,21 @@ def check_verdict_scope(
 
     changes = card_change_set(reference, revision, cwd=cwd)
 
+    uncovered: list[str] = []
+    for file_path in sorted(changes):
+        if any(path_covered(p, file_path) for p in (plan.touches or ())):
+            continue
+        if any(path_covered(p, file_path) for p in shared_paths):
+            continue
+        uncovered.append(file_path)
+
     if plan.is_touches_none:
-        if changes:
+        if uncovered:
             raise ScopeRule(
                 f"Scope rule: {reference} declares Touches: none, but change set from {revision} "
-                f"contains {len(changes)} changed file(s): {', '.join(sorted(changes))}."
+                f"contains {len(uncovered)} changed file(s): {', '.join(sorted(uncovered))}."
             )
         return
-
-    uncovered: list[str] = []
-    for file_path in changes:
-        if not any(path_covered(p, file_path) for p in (plan.touches or ())):
-            uncovered.append(file_path)
 
     if uncovered:
         raise ScopeRule(

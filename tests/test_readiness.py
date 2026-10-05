@@ -437,3 +437,117 @@ def test_sprints_readiness_cli_text_and_json(
     assert data["queue"][0]["state"] == "Overlap"
     assert "overlap_pairs" in data
     assert len(data["overlap_pairs"]) == 1
+
+
+def test_two_sprints_sharing_only_undeclared_shared_path_not_in_overlap_explicit_overlaps() -> None:
+    """pytest from constructed facts: two sprints sharing only an undeclared
+    shared path are not in overlap; listing it explicitly in both makes them
+    overlap.
+    """
+    plan_1 = (
+        "<div><h2>Delivery plan</h2><p>Touches:<br>- src/a.py<br>"
+        "Dependencies: assessed</p></div>"
+    )
+    card_1 = CardFact(
+        id="c-1",
+        ref="DEMO-1",
+        title="Card 1",
+        state="In Progress",
+        points=3,
+        sprint_id=1,
+        description_html=plan_1,
+    )
+    sprint_1 = SprintFact(
+        sprint_id=1,
+        title="Running Sprint",
+        alias="RUN-1",
+        is_current=True,
+        cards=(card_1,),
+    )
+
+    plan_2_clean = (
+        "<div><h2>Delivery plan</h2><p>Touches:<br>- src/b.py<br>"
+        "Dependencies: assessed</p></div>"
+    )
+    card_2_clean = CardFact(
+        id="c-2",
+        ref="DEMO-2",
+        title="Card 2",
+        state="Todo",
+        points=2,
+        sprint_id=2,
+        description_html=plan_2_clean,
+    )
+    sprint_2_clean = SprintFact(
+        sprint_id=2,
+        title="Planned Sprint",
+        alias="PLAN-2",
+        position=1,
+        cards=(card_2_clean,),
+    )
+
+    shared_paths = ("pyproject.toml", "uv.lock")
+
+    report_clean = evaluate_readiness(
+        [sprint_1],
+        [sprint_2_clean],
+        {},
+        shared_paths=shared_paths,
+    )
+    assert report_clean["queue"][0]["state"] == STATE_CAN_START
+    assert report_clean["queue"][0]["why"] == []
+    assert report_clean["overlap_pairs"] == []
+
+    plan_1_explicit = (
+        "<div><h2>Delivery plan</h2><p>Touches:<br>- src/a.py<br>- pyproject.toml<br>"
+        "Dependencies: assessed</p></div>"
+    )
+    card_1_explicit = CardFact(
+        id="c-1",
+        ref="DEMO-1",
+        title="Card 1",
+        state="In Progress",
+        points=3,
+        sprint_id=1,
+        description_html=plan_1_explicit,
+    )
+    sprint_1_explicit = SprintFact(
+        sprint_id=1,
+        title="Running Sprint",
+        alias="RUN-1",
+        is_current=True,
+        cards=(card_1_explicit,),
+    )
+
+    plan_2_explicit = (
+        "<div><h2>Delivery plan</h2><p>Touches:<br>- src/b.py<br>- pyproject.toml<br>"
+        "Dependencies: assessed</p></div>"
+    )
+    card_2_explicit = CardFact(
+        id="c-2",
+        ref="DEMO-2",
+        title="Card 2",
+        state="Todo",
+        points=2,
+        sprint_id=2,
+        description_html=plan_2_explicit,
+    )
+    sprint_2_explicit = SprintFact(
+        sprint_id=2,
+        title="Planned Sprint",
+        alias="PLAN-2",
+        position=1,
+        cards=(card_2_explicit,),
+    )
+
+    report_overlap = evaluate_readiness(
+        [sprint_1_explicit],
+        [sprint_2_explicit],
+        {},
+        shared_paths=shared_paths,
+    )
+    assert report_overlap["queue"][0]["state"] == STATE_OVERLAP
+    assert any("pyproject.toml" in r for r in report_overlap["queue"][0]["why"])
+    assert len(report_overlap["overlap_pairs"]) == 1
+    assert "pyproject.toml" in report_overlap["overlap_pairs"][0]["paths"]
+

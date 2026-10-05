@@ -212,7 +212,10 @@ and Tech Lead verdicts before Done (`require_independent_verdicts`), must follow
 the allowed state flow (`require_transition_table`), must declare touched files
 and dependency assessment (`require_delivery_plan`), and must stay within its
 declared scope (`require_declared_scope`). Projects can also set
-`defaults.integration_branch` for scope reports. Check the board against them:
+`defaults.integration_branch` for scope reports and top-level `shared_paths` for
+files every card changes for mechanical reasons (such as `pyproject.toml` or
+`uv.lock`) that stay in scope without declaration and never cause parallel
+sprint overlap. Check the board against them:
 
 ```sh
 plane-proj project rules-check
