@@ -215,13 +215,19 @@ span.sk.inline { display: inline-block; vertical-align: middle; }
 .cur-top > .card { margin-top: 0 !important; }
 .quad { grid-template-columns: 1fr 1fr; }
 @media (max-width: 900px) { .cur-top { grid-template-columns: 1fr; } }
+/* A running timer: a hollow extension in its timer's colour. */
+.openseg { border: 1.5px solid; border-radius: 2px; }
+/* Elapsed tile: when the sprint started, as a digital clock and a date. */
+.clock { text-align: right; }
+.clock .t { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 22px; font-weight: 600; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.clock .d { font-size: 12px; color: var(--text-2); }
 .kpi.side { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi.side > :first-child { flex: none; }
 /* The dial shrinks in a narrow tile instead of overflowing it. */
 .kpi.side .dial { flex: 0 1 auto; min-width: 0; max-width: 60%; height: auto; }
 .kpi .v { white-space: nowrap; }
 /* Without room beside the figure, a tile's table goes under it. */
-.kpi.side:has(table.mini) { flex-wrap: wrap; }
+.kpi.side:has(table.mini), .kpi.side:has(.clock) { flex-wrap: wrap; }
 table.mini { width: auto; font-size: 11.5px; color: var(--text-2); border-collapse: collapse; }
 table.mini td { padding: 0 0 1px; border: 0; white-space: nowrap; }
 table.mini td + td { padding-left: 10px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
@@ -600,17 +606,22 @@ function summaryCard(s, cards) {
 
 V.currentOne = s => {
   const cards = cardsFor(s), t = s.timing || {}, el = elapsedH(s), vel = POINTS && !PARTIAL ? s.points_done / el : null;
-  // Named timers keep their own hue; every other timer folds into one grey "other".
-  const execAll = Object.entries(t.execution_minutes || {}), rest = execAll.filter(([k, v]) => !TIMERS.includes(k) && v > 0);
-  const exec = execAll.filter(([k, v]) => TIMERS.includes(k) && v > 0)
-    .sort((a, b) => TIMERS.indexOf(a[0]) - TIMERS.indexOf(b[0]))
-    .map(([k, v]) => [k, v, `${k}: ${fmtMin(v)}`, timerColor(k)]);
-  if (rest.length) exec.push(['other', rest.reduce((a, x) => a + x[1], 0), `other: ${rest.map(([k, v]) => `${k} ${fmtMin(v)}`).join(', ')}`, 'var(--t-other)']);
-  const execTot = exec.reduce((a, x) => a + x[1], 0);
+  // Named timers keep their own hue; every other timer folds into one grey
+  // "other". Each timer is [name, closed minutes, open minutes, colour]: the
+  // closed time draws solid and running timers extend it as a hollow segment.
+  const closed = t.execution_minutes || {}, open = t.open_timer_minutes || {};
+  const names = [...new Set([...Object.keys(closed), ...Object.keys(open)])]
+    .filter(k => (closed[k] || 0) + (open[k] || 0) > 0);
+  const exec = names.filter(k => TIMERS.includes(k))
+    .sort((a, b) => TIMERS.indexOf(a) - TIMERS.indexOf(b))
+    .map(k => [k, closed[k] || 0, open[k] || 0, timerColor(k)]);
+  const rest = names.filter(k => !TIMERS.includes(k));
+  if (rest.length) exec.push(['other', rest.reduce((a, k) => a + (closed[k] || 0), 0),
+    rest.reduce((a, k) => a + (open[k] || 0), 0), 'var(--t-other)', rest]);
+  const execTot = exec.reduce((a, x) => a + x[1] + x[2], 0);
   const active = Object.values(t.active_minutes || {}).reduce((a, b) => a + b, 0);
-  const openT = Object.entries(t.open_timer_minutes || {});
-  return `<div class="row">${label(s)}<span class="pill" style="color:var(--st-prog)">● current</span>${planeLink(s)}<span class="sp"></span>
-    <span class="muted small">Started ${fullDate(s.started)} · ${fmtH(el)} elapsed</span></div>
+  const timerText = ([k, c, o]) => `${k} ${fmtMin(c)}${o ? ` · ${fmtMin(o)} open` : ''}`;
+  return `<div class="row">${label(s)}<span class="pill" style="color:var(--st-prog)">● current</span>${planeLink(s)}</div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
 
   <div class="cur-top"><div class="grid quad">
@@ -621,15 +632,19 @@ V.currentOne = s => {
     <div class="card kpi side" data-tip="${esc(`${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}`)}"><div><div class="v">${t.rework_count || 'None'}</div><div class="l">Rework events</div></div>
       ${miniTable(Object.entries(t.rework_reasons || {}).sort((a, b) => b[1] - a[1]), String)}</div>
     <div class="card kpi"><div class="row" style="flex-wrap:nowrap"><div class="v">${fmtMin(active)}</div>${active ? activeSplit(t.active_minutes) : ''}</div><div class="l">Active time</div></div>
-    <div class="card kpi side"><div><div class="v">${openT.length || 'None'}</div><div class="l">Open timers</div></div>
-      ${miniTable(openT.sort((a, b) => b[1] - a[1]), fmtMin)}</div>
+    <div class="card kpi side"><div><div class="v" data-elapsed="${esc(s.started)}">${fmtH((Date.now() - Date.parse(s.started)) / 36e5)}</div><div class="l">Elapsed</div></div>
+      <div class="clock" data-tip="Started ${esc(fullDate(s.started))}"><div class="t">${new Date(s.started).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</div>
+        <div class="d">${new Date(s.started).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</div></div></div>
   </div>
   ${summaryCard(s, cards)}</div>
   <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers</h3><span class="sp"></span>
     <span class="muted small">${t.timed_cards ?? 0} cards timed · summed over all cards</span></div>
-    <div class="row" style="flex-wrap:nowrap;margin:10px 0 6px"><div style="display:flex;height:14px;gap:2px;flex:1">${exec.map(([, v, tp, c]) => `<span style="flex:${v};background:${c};border-radius:2px" data-tip="${esc(tp)}"></span>`).join('')}</div>
+    <div class="row" style="flex-wrap:nowrap;margin:10px 0 6px"><div style="display:flex;height:14px;gap:2px;flex:1">${exec.map(x => {
+        const [, c, o, col] = x, tp = esc(timerText(x) + (x[4] ? ` (${x[4].join(', ')})` : ''));
+        return (c ? `<span style="flex:${c};background:${col};border-radius:2px" data-tip="${tp}"></span>` : '')
+          + (o ? `<span class="openseg" style="flex:${o};border-color:${col}" data-tip="${tp}"></span>` : ''); }).join('')}</div>
       <span class="tot" style="font-weight:650;white-space:nowrap">${fmtMin(execTot)}</span></div>
-    <div class="legend">${exec.map(([k, v, , c]) => `<span><i style="background:${c}"></i>${k} ${fmtMin(v)}</span>`).join('')}</div></div>
+    <div class="legend">${exec.map(x => `<span><i style="background:${x[3]}"></i>${timerText(x)}</span>`).join('')}</div></div>
   ${PARTIAL ? `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2></div>
   <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st}</div>`).join('')}
     ${STATES.map((st, i) => `<div class="colb">${i < 4 ? `<div class="wi" style="border-left-color:${stC[st]}">${sk('40%', 14)}<div style="margin-top:8px">${sk('85%', 14)}</div></div>` : ''}</div>`).join('')}</div>` : `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2></div>
@@ -1106,6 +1121,9 @@ function fitNav() {
   bar.classList.toggle('compact', room < navW);
 }
 new ResizeObserver(fitNav).observe($('.bar')); fitNav();
+// Elapsed time on the Current page moves with the clock, not with reloads.
+setInterval(() => document.querySelectorAll('[data-elapsed]').forEach(e => {
+  e.textContent = fmtH((Date.now() - Date.parse(e.dataset.elapsed)) / 36e5); }), 30000);
 addEventListener('hashchange', () => { if (DATA) { render(); scrollTo(0, 0); if (isCurrentOpen() && Date.now() - lastTimingFetch >= 60000) { lastTimingFetch = Date.now(); refresh(); } } });
 $('#theme').onclick = () => { const r = document.documentElement;
   const dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; };
