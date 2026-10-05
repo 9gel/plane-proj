@@ -30,6 +30,20 @@ production code. Route technical rulings to the Tech Lead.
   ready` when capacity frees; a ready card in a planned sprint is a reason to
   start that sprint in parallel under §4 rather than wait for the current one
   to close.
+- Read sprint readiness for planned sprints (from the web dashboard Planned
+  view):
+  - `Can start`: unblocked, verified, and disjoint from running work.
+  - `Not ready`: a card waits on an unsettled card in another sprint.
+  - `Overlap`: shares a declared path with a running sprint or an earlier
+    runnable planned sprint.
+  - `Unverified`: some card lacks a `Touches` declaration or the `Dependencies:
+    assessed` marker.
+- Before closing a sprint, run `plane-proj sprints preflight SPRINT_ID`. Read
+  the readiness status (`READY` vs `NOT READY`) and the scope report against
+  `defaults.integration_branch`. Preflight lists nonterminal cards, missing
+  final snapshots, open timers, per-card out-of-scope paths, unmerged cards,
+  and branch commits naming no card. The scope report is informational and never
+  refuses closure; evaluate findings autonomously and resolve discrepancies.
 - With the Tech Lead's approval, a card MAY start against an agreed interface
   before its blocker is Done. Keep the `blocked_by` relation; rework caused by
   an interface change is recorded with reason `spec`.

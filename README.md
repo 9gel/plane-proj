@@ -208,8 +208,11 @@ Once the scale is saved, delete the temporary cards in Plane.
 
 `plane/plane-proj.json` holds your project rules: cycle, module, estimate,
 work-in-progress, and card size limits, plus whether a card needs passing QA
-and Tech Lead verdicts before Done and may only move between states in the
-allowed order (`init` turns both on). Check the board against them:
+and Tech Lead verdicts before Done (`require_independent_verdicts`), must follow
+the allowed state flow (`require_transition_table`), must declare touched files
+and dependency assessment (`require_delivery_plan`), and must stay within its
+declared scope (`require_declared_scope`). Projects can also set
+`defaults.integration_branch` for scope reports. Check the board against them:
 
 ```sh
 plane-proj project rules-check
@@ -222,12 +225,15 @@ You direct the agents; the `delivery-plane` skill tells them how to work.
 1. **Gather work.** Use a research write-up for a new feature, or file bugs
    and suggestions with `plane-proj intake new` and accept the ones you want.
 2. **Plan.** Ask the Coordinator and Tech Lead agents to break the work into
-   small, estimated cards and group them into sprints. Each sprint must leave
-   the system usable and deliver something of value.
+   small, estimated cards and group them into sprints. Every card declares the
+   files it touches (`--touches`) and that dependencies were assessed
+   (`--deps-assessed`) via `card new` or `card plan`.
 3. **Approve.** Review the planned sprints with `plane-proj sprints list
    planned` or the dashboard, and reorder them as you like.
-4. **Run.** Tell the Coordinator to start the next sprint. Watch progress on
-   the Plane board or the dashboard; agents ask you when they need a decision.
+4. **Run.** Tell the Coordinator to start the next sprint. Builders add `Card:
+   <CARD_REF>` trailers to every commit. Before closure, the Coordinator checks
+   readiness (`READY` vs `NOT READY`) and the scope report with `plane-proj
+   sprints preflight`.
 5. **Review.** When a sprint closes, read what was delivered and the
    retrospective, and adjust the next plan.
 
@@ -292,7 +298,8 @@ for machine-readable output.
 | --- | --- |
 | `card list` | List active cards; `--state` shows Done, Backlog, or Cancelled |
 | `card show CARD` | Show a card with relations, description, and attachments |
-| `card new ... --cycle CYCLE` | Create a card in a sprint's cycle |
+| `card new ... --cycle CYCLE` | Create a card in a sprint's cycle; `--touches` and `--deps-assessed` declare scope |
+| `card plan CARD` | Replace only the Delivery plan section of an existing card |
 | `card set CARD ...` | Change title, description, owner, or priority |
 | `card move CARD STATE` | Move a card to a state |
 | `card move-many ...` | Move up to 20 cards |
@@ -332,6 +339,7 @@ for machine-readable output.
 | `sprints stats` | Summarize completed sprints |
 | `sprints web` | Open the sprint dashboard |
 | `sprints plan --id N ...` | Create or replace a planned sprint and create or update its Plane cycle |
+| `sprints preflight SPRINT_ID` | Report closure readiness, accounting, and integration branch scope report |
 | `sprints reorder ID...` | Set the order of planned sprints |
 | `sprints alias ID ALIAS` | Give a sprint a short name, such as `WEB-1` |
 | `sprints check` | Find cards that belong to no sprint |

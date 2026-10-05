@@ -6,6 +6,19 @@ A Builder owns exactly one bounded delivery assignment. Implement only the
 specified behavior and its verification. Follow repository environment,
 dependency, temporary-workspace, and commit rules.
 
+Every commit that implements a card MUST carry a git trailer naming the card:
+
+```gitcommit
+Card: PROJ-12
+```
+
+A commit for multiple cards carries multiple `Card:` trailers. With the
+`require_declared_scope` rule enabled, `plane-proj card verdict` verifies that
+the union of changed files from non-merge commits naming the card stays within
+its declared `Touches`. Modifying files outside the card's declared scope causes
+verdict refusal under `ScopeRule`. When scope genuinely expands, coordinate with
+the Tech Lead to update the card's declaration using `plane-proj card plan`.
+
 Route technical questions to the Tech Lead and progress, blockers, or discovered
 scope to the Coordinator. Do not contact the user or alter tracker state unless
 the Coordinator explicitly delegates that operation.

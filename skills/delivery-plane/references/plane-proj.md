@@ -21,16 +21,24 @@ cycle. The CLI verifies the new pending Intake record before reporting success.
 - Follow the
   [Coordinator transition table](coordinator.md#3-allowed-card-state-transitions).
   Move cards when reality changes; an idle card MUST NOT remain In Progress.
-- Enable the `require_transition_table` and `require_independent_verdicts`
-  project rules; `plane-proj init` writes both as on for new projects. With
-  them on, `card transition`, `card move`, and `card move-many` refuse a move
-  outside the transition table, and refuse a move into Done unless it comes
-  from Verifying and the latest qa and tech-lead verdicts posted since the
-  card last entered Verifying both pass, name the same revision, and have
-  different authors. With either rule on, `card new --state` accepts only
-  Backlog or Todo. `sprints start` and `sprints close` are lifecycle commands
-  outside the table: start moves admitted cards to Todo and unplanned open
-  cards to Backlog.
+- Enable the `require_transition_table`, `require_independent_verdicts`,
+  `require_delivery_plan`, and `require_declared_scope` project rules;
+  `plane-proj init` writes them as on for new projects. With them on:
+  - `card transition`, `card move`, and `card move-many` refuse moves outside
+    the transition table, and refuse moves to Done without passing independent
+    QA and Tech Lead verdicts on the same revision.
+  - `card new` accepts only Backlog or Todo, and requires `--touches PATH`
+    (or `--touches none`) and `--deps-assessed`.
+  - `card plan CARD --touches PATH --deps-assessed` replaces only the Delivery
+    plan section of an existing card with readback verification.
+  - `card verdict --revision REV` verifies that non-merge commits naming the
+    card stay within declared `Touches`, refusing under `ScopeRule` when
+    uncovered paths exist.
+  - `sprints preflight SPRINT_ID` and `sprints close SPRINT_ID` report scope
+    findings against `defaults.integration_branch` (unmerged cards, out-of-scope
+    paths, and unnamed commits) without blocking closure.
+  `sprints start` and `sprints close` are lifecycle commands outside the table:
+  start moves admitted cards to Todo and unplanned open cards to Backlog.
 - Use native dependency relations and configured estimate values.
 - Serialize board writes through the Coordinator and honor `Retry-After` or
   reported rate limits without polling.

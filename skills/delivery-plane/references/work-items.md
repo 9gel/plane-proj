@@ -28,11 +28,44 @@ A card MUST state, in this order:
 ## Current status
 
 ## Acceptance criteria
+
+## Delivery plan
 ```
 
 The human owns product value, priority, and negotiation. This card format is a
 delivery contract, not a user-story persona: agents MUST state the work and its
 acceptance boundary without inventing stakeholder value or an `As a ...` voice.
+
+### Delivery plan
+
+Every card MUST declare the repository paths it touches and that its
+dependencies were assessed:
+
+```markdown
+## Delivery plan
+
+Touches:
+- src/path/to/file.py
+- src/dir/
+- src/new_file.py (new)
+Dependencies: assessed
+```
+
+- Planners MUST declare `Touches` listing repository paths relative to the
+  repository root, with `/` separators. A path ending in `/` is a directory and
+  covers all files below it. Newly created files MAY carry the informational
+  `(new)` marker. A card that changes no code declares `Touches: none`.
+- Planners MUST assess whether the card waits on any prerequisite cards, and
+  record `Dependencies: assessed`. Card dependencies themselves remain native
+  Plane `blocked_by` relations; `Dependencies: assessed` proves that the check
+  was performed rather than omitted.
+- Write both declarations at card creation with `plane-proj card new --touches
+  PATH --deps-assessed` (repeat `--touches` for each path, or pass `--touches
+  none`). To update only the delivery plan of an existing card without modifying
+  the rest of the description, use `plane-proj card plan CARD --touches PATH
+  --deps-assessed`.
+- With the `require_delivery_plan` project rule enabled, `card new` refuses
+  cards lacking either declaration before the first network request.
 
 Verify every factual assertion in a card description (that a file cites
 something, that a check exercises something) when the card is written; do not
