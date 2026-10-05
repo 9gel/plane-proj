@@ -176,6 +176,11 @@ span.sk.inline { display: inline-block; vertical-align: middle; }
 .tip { position: fixed; pointer-events: none; z-index: 20; background: var(--text); color: var(--bg); padding: 6px 9px; border-radius: 6px; font-size: 12px; display: none; max-width: 300px; }
 .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
 .tabs button.on { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+/* one tab per running sprint */
+.stabs { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); margin: 12px 0 18px; }
+.stabs a { padding: 8px 12px; border-radius: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; color: var(--text-2); white-space: nowrap; text-decoration: none; }
+.stabs a:hover { text-decoration: none; color: var(--text); }
+.stabs a.on { background: none; border-bottom-color: var(--text); color: var(--text); font-weight: 600; }
 /* velocity dial */
 .dial { display: block; overflow: visible; }
 .gwrap { height: 34px; margin-top: 8px; }
@@ -454,8 +459,17 @@ V.overview = () => {
     ref: MEDV, refLabel: `median ${num(MEDV, 2)}`, tipFn: d => tipHead(d) + `${num(d.velocity, 2)} pts/h · ${d.elapsed}` })}</div>` : ''}`;
 };
 
-V.current = () => current.length ? (current.length > 1 ? `<h1>Current sprints</h1><p class="muted">${current.length} running in parallel on distinct cycles.</p>` : '') +
-  current.map(s => V.currentOne(s)).join('<hr style="border:0;border-top:2px solid var(--border);margin:40px 0">') : '<p class="muted">No sprint in progress.</p>';
+// Parallel sprints get one tab each; the tab is in the URL, so it survives
+// a reload and can be linked. An unknown or missing id opens the first.
+V.current = id => {
+  if (!current.length) return '<p class="muted">No sprint in progress.</p>';
+  if (current.length === 1) return V.currentOne(current[0]);
+  const s = current.find(c => c.sprint === id) || current[0];
+  return `<h1>Current sprints</h1><p class="muted">${current.length} running in parallel on distinct cycles.</p>
+  <nav class="stabs" aria-label="Current sprints">${current.map(c =>
+    `<a href="#/current/${c.sprint}" class="${c === s ? 'on' : ''}">${esc(c.alias || '#' + c.sprint)} · ${esc(c.title)}</a>`).join('')}</nav>`
+    + V.currentOne(s);
+};
 
 // Points and cards of a current sprint. Loading and loaded share one layout:
 // only the data-bearing pieces swap between placeholder and value.
@@ -722,8 +736,10 @@ V.stats = () => {
 // ===== router =====
 function render() {
   const [, view, arg] = (location.hash || '#/').split('/');
-  const fn = { '': V.overview, current: V.current, planned: V.planned, past: V.past, stats: V.stats, sprint: () => V.sprint(+arg) }[view || ''] || V.overview;
+  const fn = { '': V.overview, current: () => V.current(+arg), planned: V.planned, past: V.past, stats: V.stats, sprint: () => V.sprint(+arg) }[view || ''] || V.overview;
   $('#app').innerHTML = fn();
+  // A narrow screen scrolls the sprint tabs; keep the open one in view.
+  document.querySelector('.stabs a.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const sec = view === 'sprint' ? { current: 'current', planned: 'planned', completed: 'past' }[byId[+arg]?.status] : (view || '');
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.getAttribute('href').split('/')[1] === sec));
   $('#navsel').value = '#/' + (sec || '');

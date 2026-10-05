@@ -19,8 +19,9 @@ sprint, and recent velocity.
 
 ## Current sprints
 
-Points and cards by state, the board with what each card waits on, velocity,
-rework, active time, timers, and acceptance.
+One tab per sprint when several run in parallel. Points and cards by state,
+the board with what each card waits on, velocity, rework, active time, timers,
+and acceptance.
 
 ![Current sprints](current.png)
 
