@@ -13,7 +13,8 @@ from plane.errors import HttpError
 from plane.models.projects import ProjectFeature
 
 from plane_proj.cli import cli
-from plane_proj.guards import ReadbackFailed
+from plane_proj.guards import ReadbackFailed, SprintCycleByHand
+from tests.conftest import _page
 
 KINDS = ("cycle", "module")
 
@@ -40,14 +41,17 @@ def test_every_lifecycle_verb_exists(config_path, kind):
     """The gap this closed: there was no way to make or rename either."""
     result = run(config_path, kind, "--help")
 
-    verbs = ("new", "rename", "set", "list", "cards")
+    verbs = ("rename", "set", "list", "cards")
     for verb in verbs:
         assert verb in result.output, f"{kind} has no {verb}"
     if kind == "cycle":
+        # Sprints create their cycle with `sprints plan`.
+        assert "\n  new " not in result.output
         assert "restore" in result.output
         assert "\n  archive " not in result.output
         assert "\n  delete " not in result.output
     else:
+        assert "\n  new " in result.output
         assert "add" in result.output
         assert "rm" in result.output
         assert "archive" in result.output
@@ -78,7 +82,9 @@ def test_deleting_a_module_needs_force_and_names_archive(config_path):
 
 
 def test_a_cycle_rejects_module_only_options(config_path):
-    result = run(config_path, "cycle", "new", "Sprint 9", "--lead", "automation")
+    result = run(
+        config_path, "cycle", "new", "Release 9", "--lead", "automation",
+    )
 
     assert result.exit_code != 0
     assert "lead" in result.output
@@ -238,9 +244,11 @@ class TestMetadataStaysOffDisk:
                             lambda self, name, fields:
                             type("C", (), {"name": name, "id": "cycle-2"})())
         monkeypatch.setattr("plane_proj.board.Board.refresh_grouping",
-                            lambda self, kind: {"Sprint 1": "cycle-1", "Sprint 2": "cycle-2"})
+                            lambda self, kind: {
+                                "Sprint 1": "cycle-1", "Release 2": "cycle-2",
+                            })
 
-        assert run(config_path, "cycle", "new", "Sprint 2").exit_code == 0
+        assert run(config_path, "cycle", "new", "Release 2").exit_code == 0
 
         assert config_path.read_bytes() == before
 
@@ -249,8 +257,10 @@ class TestMetadataStaysOffDisk:
         monkeypatch.setattr("plane_proj.board.Board.update_cycle",
                             lambda self, cycle_id, fields: None)
         monkeypatch.setattr("plane_proj.board.Board.refresh_grouping",
-                            lambda self, kind: {"Sprint 1": "cycle-1"})
-        result = run(config_path, "cycle", "rename", "Sprint 1", "Sprint One")
+                            lambda self, kind: {"Release 1": "cycle-1"})
+        result = run(
+            config_path, "cycle", "rename", "Release 1", "Release One",
+        )
         assert isinstance(result.exception, ReadbackFailed)
         assert config_path.read_bytes() == before
 
@@ -268,8 +278,122 @@ class TestMetadataStaysOffDisk:
         monkeypatch.setattr("plane_proj.board.Board.update_cycle",
                             lambda self, cycle_id, fields: None)
         monkeypatch.setattr("plane_proj.board.Board.refresh_grouping",
-                            lambda self, kind: {"Sprint One": "cycle-1"})
+                            lambda self, kind: {
+                                "Release 1": "cycle-1",
+                                "Release One": "cycle-1",
+                            })
 
-        assert run(config_path, "cycle", "rename", "Sprint 1", "Sprint One").exit_code == 0
+        assert run(
+            config_path, "cycle", "rename", "Release 1", "Release One",
+        ).exit_code == 0
 
         assert config_path.read_bytes() == before
+
+
+@pytest.mark.parametrize("name", ["Sprint 7", "Sprint 7 — Delivery"])
+def test_cycle_new_refuses_a_sprint_cycle(config_path, client, name):
+    result = run(config_path, "cycle", "new", name)
+
+    assert isinstance(result.exception, SprintCycleByHand)
+    assert "Sprint cycle rule" in str(result.exception)
+    assert "sprints plan --id 7" in str(result.exception)
+    assert client.calls == []
+
+
+def test_cycle_new_still_creates_other_cycles_with_a_notice(
+    config_path, client, monkeypatch,
+):
+    created = type("Cycle", (), {"id": "cycle-r", "name": "Release 3"})()
+    monkeypatch.setattr(client.cycles, "create", lambda *args, **kwargs: (
+        client.calls.append(("cycles.create", args, kwargs)) or created
+    ))
+    monkeypatch.setattr(client.cycles, "list", lambda *args, **kwargs: _page(
+        [created]
+    ))
+    monkeypatch.setattr(
+        "plane_proj.board.Board.me", lambda self: "member-uuid",
+    )
+
+    result = CliRunner().invoke(
+        cli, ["--conf", str(config_path), "cycle", "new", "Release 3"],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert client.named("cycles.create")[0][2]["data"].name == "Release 3"
+    assert "`cycle new` is deprecated" in result.stderr
+    assert "sprints plan" in result.stderr
+    assert result.stderr.count("\n") == 1
+
+
+@pytest.mark.parametrize(("old", "new_name"), [
+    ("Release 3", "Sprint 9"),
+    ("Release 3", " Sprint 9 "),
+])
+def test_cycle_rename_refuses_another_sprint_name(
+    config_path, client, old, new_name,
+):
+    result = run(config_path, "cycle", "rename", old, new_name)
+
+    assert isinstance(result.exception, SprintCycleByHand)
+    assert "sprints plan --id 9" in str(result.exception)
+    assert client.calls == []
+
+
+@pytest.mark.parametrize(
+    "new_name", ["Sprint One", "Release 1", "Sprint 10", "Sprint 2 — Title"],
+)
+def test_cycle_rename_refuses_dropping_a_sprint_name(
+    config_path, client, new_name,
+):
+    result = run(config_path, "cycle", "rename", "Sprint 1", new_name)
+
+    assert isinstance(result.exception, SprintCycleByHand)
+    assert "Sprint cycle rule" in str(result.exception)
+    assert client.calls == []
+
+
+def test_cycle_rename_keeps_a_sprint_number(config_path, monkeypatch):
+    renamed: list[tuple[str, dict]] = []
+    monkeypatch.setattr(
+        "plane_proj.board.Board.update_cycle",
+        lambda self, cycle_id, fields: renamed.append((cycle_id, fields)),
+    )
+    monkeypatch.setattr(
+        "plane_proj.board.Board.refresh_grouping",
+        lambda self, kind: {"Sprint 1 — Title": "cycle-1"},
+    )
+
+    result = run(config_path, "cycle", "rename", "Sprint 1", "Sprint 1 — Title")
+
+    assert result.exit_code == 0, result.output
+    assert renamed == [("cycle-1", {"name": "Sprint 1 — Title"})]
+
+
+@pytest.mark.parametrize("name", ["Sprint 1", " Sprint 1 — Title "])
+def test_cycle_set_refuses_a_sprint_description(config_path, client, name):
+    result = run(config_path, "cycle", "set", name, "--description", "x")
+
+    assert isinstance(result.exception, SprintCycleByHand)
+    assert "sprints plan --id 1" in str(result.exception)
+    assert client.calls == []
+
+
+def test_cycle_set_still_changes_sprint_dates(config_path, monkeypatch):
+    updated: list[dict] = []
+    monkeypatch.setattr(
+        "plane_proj.board.Board.update_cycle",
+        lambda self, cycle_id, fields: updated.append(fields),
+    )
+
+    result = run(config_path, "cycle", "set", "Sprint 1", "--end", "2026-10-09")
+
+    assert result.exit_code == 0, result.output
+    assert updated[0]["end_date"] == "2026-10-09"
+    assert updated[0]["description"] is None
+
+
+def test_cycle_new_refuses_a_padded_sprint_name(config_path, client):
+    result = run(config_path, "cycle", "new", "  Sprint 7  ")
+
+    assert isinstance(result.exception, SprintCycleByHand)
+    assert client.calls == []

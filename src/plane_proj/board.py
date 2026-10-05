@@ -148,6 +148,12 @@ class CardWrite:
         return str(self.sequence_id) if self.sequence_id is not None else self.card_id
 
 
+def sprint_cycle_number(name: str) -> int | None:
+    """The N of a cycle named for `Sprint N`, or None for any other name."""
+    match = _SPRINT_NAME.match(name.strip())
+    return None if match is None else int(match.group(1))
+
+
 class Board:
     """One project on one workspace, with this project's rules applied to every write."""
 
@@ -721,7 +727,8 @@ class Board:
                     })
         findings.extend(
             {"card": "—", "finding": "planned sprint has no cycle",
-             "detail": f"Sprint {sprint_id}: cycle new 'Sprint {sprint_id} …'"}
+             "detail": f"Sprint {sprint_id}: re-run `sprints plan --id "
+                       f"{sprint_id}` with its plan to create the cycle"}
             for sprint_id in cycleless
         )
         return findings
@@ -1230,6 +1237,43 @@ class Board:
                 data=CreateCycle(**payload),
             )
         )
+
+    def write_sprint_cycle(
+        self, sprint_id: int, cycle_id: str | None, description: str,
+    ) -> str:
+        """Create or update the `Sprint N` cycle so it describes the plan.
+
+        `cycle_id` is the live cycle `sprint_cycles` found, or None to create
+        one. An unchanged description is not rewritten. Both the cycle and
+        its description are read back before the id is returned.
+        """
+        if cycle_id is None:
+            created = self.create_cycle(
+                f"Sprint {sprint_id}", {"description": description}
+            )
+            cycle_id = str(getattr(created, "id", ""))
+            found = self.sprint_cycles({sprint_id}).get(sprint_id)
+            if not cycle_id or found != cycle_id:
+                raise ReadbackFailed(
+                    f"Plane did not confirm cycle 'Sprint {sprint_id}': "
+                    f"created {cycle_id!r}, read back {found!r}."
+                )
+        elif self.cycle_description(cycle_id) != description:
+            self.update_cycle(cycle_id, {"description": description})
+        actual = self.cycle_description(cycle_id)
+        if actual != description:
+            raise ReadbackFailed(
+                f"Plane accepted the plan for cycle {cycle_id}, but its "
+                f"description reads back {actual!r}."
+            )
+        return cycle_id
+
+    def cycle_description(self, cycle_id: str) -> object:
+        """A cycle's stored description, read live."""
+        cycle = self.client.cycles.retrieve(
+            self.slug, self.project.id, cycle_id
+        )
+        return getattr(cycle, "description", None)
 
     def update_cycle(self, cycle_id: str, fields: Mapping[str, Any]) -> Any:
         return self._cycle_write(

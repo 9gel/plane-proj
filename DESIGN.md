@@ -266,6 +266,87 @@ be silently claimed by the first config used to read it. An existing binding
 cannot be overwritten, including by `bind` retries. A register without cycle
 evidence relies on the explicit bind declaration.
 
+### Sprint planning owns its cycle
+
+`sprints plan --id N` creates and maintains both halves of a sprint plan: the
+register row and the Plane cycle named `Sprint N`. A sprint cycle made by hand
+had no plan behind it, and a plan with no cycle had nowhere for its cards to
+go, so `sprints check` reported the gap after the fact. One command closes it.
+
+The order of work is fixed. Local validation runs first: title, goal, and
+every acceptance criterion must be non-blank, the alias valid, and the sprint
+still planned. Blank text is refused before any request because a server that
+trims it could never read it back, and planning would fail on every retry
+after creating the cycle.
+
+The command then lists cycles to find `Sprint N`, and refuses before any
+write when:
+
+- more than one cycle claims the name (`ConfigError`);
+- the register binds the cycle to another sprint (`SprintCycleBound`, which
+  says to rename that cycle back to `Sprint M`);
+- the register has no sprint N and the cycle holds a different, non-blank
+  description (`SprintCycleTaken`). Another register, for instance on another
+  git branch, may have planned it, and adopting it would silently replace
+  that plan. A blank cycle, or one already holding exactly this plan, is
+  adopted; the latter is the retry case. A server that rewrote the
+  description, or a corrected re-run after a failed register write, also
+  lands here, so `sprints plan --adopt-cycle` takes the cycle over and
+  overwrites its description. `--adopt-cycle` never overrides
+  `SprintCycleBound`.
+
+With no match it creates the cycle and reads it back by name. The cycle
+description is the plan in Markdown: the title as a heading, the goal, any
+execution guidance, and the acceptance criteria as a list. The cycle name
+stays `Sprint N`. The description is written only when it differs and is
+verified by readback. The register row is written last. A failure between the
+Plane write and the register write therefore converges on retry: the cycle is
+found by name and reused, and an unchanged description is not rewritten.
+
+The register's write lock (`BEGIN IMMEDIATE`) is taken only for that final
+write, never across the Plane exchange. A plan makes several requests, each
+with a long timeout, while other register writers wait only SQLite's
+five-second busy timeout; holding the lock that long could make a command such
+as `card transition` fail after its board write but before journalling it.
+Under the lock the command repeats the plan validation and the bound-cycle
+check, and refuses with `SprintCycleTaken` if a sprint N row appeared during
+the exchange, unless `--adopt-cycle` was given. That late refusal follows the
+Plane write: the cycle then holds this plan while the register holds the
+other planner's, and either planner re-runs `sprints plan` to settle it.
+Concurrent planners on different registers rely on the name lookup and
+`SprintCycleTaken`; two that both find no cycle can each create one, which
+every sprint command then refuses with `ConfigError` until one is removed in
+Plane.
+
+The lookup reads active cycles only and ignores archived ones. That is
+acceptable because the tool never archives a cycle: closure leaves it
+unarchived, and there is no cycle archive command. An archived `Sprint N`
+exists only through a manual change in Plane, is invisible to every sprint
+command, and `cycle restore` brings it back as a duplicate that those commands
+then refuse with `ConfigError`.
+
+Binding is unchanged. A planned row keeps no `cycle_id`; `sprints start`
+binds the cycle, as before. Planning now needs Plane credentials and a
+reachable server, where it was previously a register-only command.
+
+`cycle new` is deprecated for sprints and hidden from help. Names are matched
+after trimming surrounding whitespace. Three hand-made changes raise
+`SprintCycleByHand` before any request and name `sprints plan --id N`:
+
+- `cycle new` with a `Sprint N` name;
+- `cycle rename` that moves a cycle into or out of a sprint's name: to a
+  `Sprint N` name unless the old name already names sprint N, or from a
+  `Sprint N` name to one that no longer names sprint N, which would break
+  that sprint's cycle lookup. `Sprint 9` may still become `Sprint 9 — Title`;
+- `cycle set` with `--description` on a `Sprint N` cycle, whose description
+  the plan owns. Its dates may still be set.
+
+Any other `cycle new` still creates the cycle, after a one-line deprecation
+notice on stderr. The guard on renames means a cycle bound to another sprint
+is renamed back in the Plane UI. Whether a live server stores a cycle
+description verbatim has not been measured; a server that rewrites it fails
+the readback rather than reporting success.
+
 ### Merging the register in git (0.21.13)
 
 Each project commits `plane/SPRINTS.sqlite`, so sprints run on different

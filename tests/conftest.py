@@ -11,6 +11,7 @@ from __future__ import annotations
 import inspect
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -308,6 +309,43 @@ class FakeClient:
             if any(name.endswith(verb) for verb in
                    (".create", ".update", "._patch", ".add_work_items"))
         ]
+
+
+class PlannedCycles(Recorder):
+    """Cycles that keep what was created or updated, as Plane does."""
+
+    def __init__(self, client: FakeClient, *, store: bool = True) -> None:
+        super().__init__(client.calls, "cycles")
+        self.records: list[SimpleNamespace] = []
+        self.store = store
+
+    def list(self, *args: Any, **kwargs: Any) -> Any:
+        super().__getattr__("list")(*args, **kwargs)
+        return _page(list(self.records))
+
+    def create(self, *args: Any, **kwargs: Any) -> Any:
+        super().__getattr__("create")(*args, **kwargs)
+        sent = kwargs["data"]
+        record = SimpleNamespace(
+            id=f"cycle-{len(self.records) + 1}", name=sent.name,
+            description=sent.description if self.store else None,
+        )
+        self.records.append(record)
+        return record
+
+    def update(self, *args: Any, **kwargs: Any) -> Any:
+        super().__getattr__("update")(*args, **kwargs)
+        record = self.retrieve_record(str(args[2]))
+        if self.store:
+            record.description = kwargs["data"].description
+        return record
+
+    def retrieve(self, *args: Any, **kwargs: Any) -> Any:
+        super().__getattr__("retrieve")(*args, **kwargs)
+        return self.retrieve_record(str(args[2]))
+
+    def retrieve_record(self, cycle_id: str) -> SimpleNamespace:
+        return next(item for item in self.records if item.id == cycle_id)
 
 
 class _Page:

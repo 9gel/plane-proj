@@ -12,8 +12,13 @@ from click.testing import CliRunner
 
 from plane_proj import execution, sprints
 from plane_proj.cli import Context, cli
-from plane_proj.guards import OrphanedCard
-from tests.conftest import Card
+from plane_proj.guards import (
+    ConfigError,
+    OrphanedCard,
+    SprintCycleBound,
+    SprintCycleTaken,
+)
+from tests.conftest import Card, PlannedCycles
 
 
 @pytest.mark.parametrize(
@@ -54,6 +59,9 @@ class SprintBoard:
             estimates_enabled=True,
         )
         self.telemetry_cards = [Card(id="card-uuid", sequence_id=12, state="state-done")]
+        # Live `Sprint N` cycles, keyed by N; planning writes them.
+        self.cycles: dict[int, SimpleNamespace] = {}
+        self.cycle_writes: list[tuple[str, int, str]] = []
 
     def cycle_sprint_id(self, cycle_id: str):
         return int(cycle_id), SimpleNamespace(name=f"Sprint {cycle_id}")
@@ -70,7 +78,28 @@ class SprintBoard:
         return f"Sprint {cycle_id}"
 
     def sprint_cycles(self, sprint_ids: set[int]):
-        return {sprint_id: str(sprint_id) for sprint_id in sprint_ids}
+        return {
+            sprint_id: cycle.id for sprint_id, cycle in self.cycles.items()
+            if sprint_id in sprint_ids
+        }
+
+    def cycle_description(self, cycle_id):
+        return next(
+            cycle.description for cycle in self.cycles.values()
+            if cycle.id == cycle_id
+        )
+
+    def write_sprint_cycle(self, sprint_id, cycle_id, description):
+        if cycle_id is None:
+            self.cycle_writes.append(("create", sprint_id, description))
+            self.cycles[sprint_id] = SimpleNamespace(
+                id=str(sprint_id), name=f"Sprint {sprint_id}",
+                description=description,
+            )
+        elif self.cycles[sprint_id].description != description:
+            self.cycle_writes.append(("update", sprint_id, description))
+            self.cycles[sprint_id].description = description
+        return self.cycles[sprint_id].id
 
     def planned_sprint_totals(self, sprint_ids: set[int]):
         return {sprint_id: (3, 8) for sprint_id in sprint_ids}
@@ -528,7 +557,9 @@ def test_stats_and_past_list_have_tables_and_local_json(tmp_path: Path) -> None:
     assert set(json.loads(past_json.output)) == {"past", "stats"}
 
 
-def test_plan_updates_future_sprint_but_not_current(tmp_path: Path) -> None:
+def test_plan_updates_future_sprint_but_not_current(
+    tmp_path: Path, sprint_board,
+) -> None:
     database = tmp_path / "SPRINTS.sqlite"
     create_register(database)
     assert plan(database, 7).exit_code == 0
@@ -539,9 +570,11 @@ def test_plan_updates_future_sprint_but_not_current(tmp_path: Path) -> None:
     assert updated.exit_code == 0
     assert "Changed goal" in invoke(database, "show", "7").output
     invoke(database, "start", "7", "--started", "2026-01-02T03:04:05+08:00")
+    writes = list(sprint_board.cycle_writes)
     refused = plan(database, 7)
     assert refused.exit_code == 1
     assert "cannot be replanned" in refused.output
+    assert sprint_board.cycle_writes == writes
 
 
 def test_reorder_assigns_complete_planned_order_without_replacing_content(
@@ -1669,3 +1702,340 @@ def test_ready_and_critical_path_read_current_and_planned_cycles(
     assert path.exit_code == 0, path.output
     assert "Critical path: 5 points" in path.output
     assert "Speedup ceiling: 1.0x" in path.output
+
+
+PLAN_DESCRIPTION = (
+    "# Sprint 7\n\n## Goal\n\nShip the outcome\n\n"
+    "## Execution\n\nBuild before integration\n\n"
+    "## Acceptance criteria\n\n- The gate passes"
+)
+
+
+def test_plan_creates_the_sprint_cycle_with_the_plan(tmp_path, sprint_board):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+
+    assert plan(database, 7).exit_code == 0
+
+    assert sprint_board.cycle_writes == [("create", 7, PLAN_DESCRIPTION)]
+    assert sprint_board.cycles[7].name == "Sprint 7"
+    with sprints.connect_database(database, writable=False) as connection:
+        planned = sprints.fetch_sprint(connection, 7)
+    assert planned.status == "planned"
+    assert planned.cycle_id is None
+
+
+def test_plan_description_lists_every_criterion_and_omits_empty_guidance():
+    assert sprints.plan_description(
+        " Title ", " Ship ", " ", ("One", " Two "),
+    ) == (
+        "# Title\n\n## Goal\n\nShip\n\n"
+        "## Acceptance criteria\n\n- One\n- Two"
+    )
+
+
+def test_replan_reuses_the_cycle_and_rewrites_only_a_changed_plan(
+    tmp_path, sprint_board,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    assert plan(database, 7).exit_code == 0
+    assert plan(database, 7, position=2).exit_code == 0
+    assert sprint_board.cycle_writes == [("create", 7, PLAN_DESCRIPTION)]
+
+    replanned = invoke(
+        database, "plan", "--id", "7", "--title", "Sprint 7",
+        "--position", "1", "--goal", "Ship more",
+        "--acceptance", "One", "--acceptance", "Two",
+    )
+
+    assert replanned.exit_code == 0, replanned.output
+    expected = sprints.plan_description(
+        "Sprint 7", "Ship more", "", ("One", "Two"),
+    )
+    assert sprint_board.cycle_writes[1:] == [("update", 7, expected)]
+    assert sprint_board.cycles[7].description == expected
+
+
+@pytest.mark.parametrize("arguments", [
+    ("--title", "T", "--goal", " ", "--acceptance", "Works"),
+    ("--title", " ", "--goal", "Ship", "--acceptance", "Works"),
+    ("--title", "T", "--goal", "Ship", "--acceptance", "Works",
+     "--acceptance", " \t"),
+    ("--title", "T", "--goal", "Ship", "--acceptance", "Works",
+     "--alias", "bad"),
+])
+def test_invalid_plan_writes_no_cycle(tmp_path, sprint_board, arguments):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    before = database.read_bytes()
+
+    result = invoke(
+        database, "plan", "--id", "7", "--position", "1", *arguments,
+    )
+
+    assert result.exit_code != 0
+    assert sprint_board.cycle_writes == []
+    assert sprint_board.cycles == {}
+    assert database.read_bytes() == before
+
+
+def test_plan_refuses_duplicate_cycle_names_before_writing(
+    tmp_path, sprint_board, monkeypatch,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    before = database.read_bytes()
+
+    def duplicated(sprint_ids):
+        raise ConfigError("More than one Plane cycle is named for Sprint 7.")
+
+    monkeypatch.setattr(sprint_board, "sprint_cycles", duplicated)
+
+    result = plan(database, 7)
+
+    assert isinstance(result.exception, ConfigError)
+    assert sprint_board.cycle_writes == []
+    assert database.read_bytes() == before
+
+
+@pytest.fixture
+def live_board(monkeypatch, board, client):
+    """The real Board over a client whose cycles keep what was written."""
+    client.cycles = PlannedCycles(client)
+    board.me = lambda: "member-uuid"
+    monkeypatch.setattr(Context, "board", property(lambda self: board))
+    return client
+
+
+def test_plan_retry_after_register_failure_reuses_the_cycle(
+    tmp_path, live_board, monkeypatch,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    with monkeypatch.context() as failing:
+        def broken(*args, **kwargs):
+            raise sqlite3.OperationalError("disk I/O error")
+
+        failing.setattr(sprints, "plan_sprint", broken)
+        assert plan(database, 7).exit_code != 0
+    with sprints.connect_database(database, writable=False) as connection:
+        assert sprints.fetch_sprint(connection, 7) is None
+    assert len(live_board.named("cycles.create")) == 1
+
+    retried = plan(database, 7)
+
+    assert retried.exit_code == 0, retried.output
+    assert len(live_board.named("cycles.create")) == 1
+    assert live_board.named("cycles.update") == []
+    (cycle,) = live_board.cycles.records
+    assert (cycle.name, cycle.description) == ("Sprint 7", PLAN_DESCRIPTION)
+    with sprints.connect_database(database, writable=False) as connection:
+        assert sprints.fetch_sprint(connection, 7).status == "planned"
+
+
+def test_plan_refuses_a_cycle_bound_to_another_sprint(tmp_path, live_board):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    live_board.cycles.records.append(SimpleNamespace(
+        id="cycle-bound", name="Sprint 8", description="old history",
+    ))
+    with sprints.connect_database(database, writable=True) as connection:
+        sprints.add_completed_sprint(connection, sprints.Sprint(
+            sprint_id=6, title="Done", status="completed",
+            started="2026-01-01T00:00:00+00:00",
+            ended="2026-01-02T00:00:00+00:00", hours=24.0, cards_start=1,
+            cards_end=1, points_start=1, points_end=1, velocity=1.0,
+            delivered="Shipped",
+        ))
+        connection.execute(
+            "UPDATE sprints SET cycle_id = 'cycle-bound' WHERE sprint_id = 6"
+        )
+        connection.commit()
+    before = database.read_bytes()
+
+    result = plan(database, 8)
+
+    assert isinstance(result.exception, SprintCycleBound)
+    assert "Sprint cycle rule" in str(result.exception)
+    assert live_board.write_calls == []
+    assert live_board.cycles.records[0].description == "old history"
+    assert database.read_bytes() == before
+
+
+def test_fresh_plan_refuses_a_cycle_holding_another_plan(
+    tmp_path, live_board,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    live_board.cycles.records.append(SimpleNamespace(
+        id="cycle-elsewhere", name="Sprint 7",
+        description="# Other branch\n\n## Goal\n\nTheirs",
+    ))
+    before = database.read_bytes()
+
+    result = plan(database, 7)
+
+    assert isinstance(result.exception, SprintCycleTaken)
+    assert "Sprint cycle rule" in str(result.exception)
+    assert live_board.write_calls == []
+    assert live_board.cycles.records[0].description.startswith("# Other")
+    assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize("stored", [None, "", "  \n", PLAN_DESCRIPTION])
+def test_fresh_plan_adopts_a_blank_or_identical_cycle(
+    tmp_path, live_board, stored,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    live_board.cycles.records.append(SimpleNamespace(
+        id="cycle-blank", name="Sprint 7", description=stored,
+    ))
+
+    result = plan(database, 7)
+
+    assert result.exit_code == 0, result.output
+    assert live_board.named("cycles.create") == []
+    assert live_board.cycles.records[0].description == PLAN_DESCRIPTION
+    expected_updates = 0 if stored == PLAN_DESCRIPTION else 1
+    assert len(live_board.named("cycles.update")) == expected_updates
+
+
+def test_bound_cycle_message_names_the_fix(tmp_path):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    with sprints.connect_database(database, writable=True) as connection:
+        connection.execute(
+            "INSERT INTO sprints (sprint_id, title, status, cycle_id, "
+            "started) VALUES (6, 'Six', 'current', 'cycle-x', "
+            "'2026-01-01T00:00:00+00:00')"
+        )
+        connection.commit()
+        with pytest.raises(SprintCycleBound, match="back to `Sprint 6`"):
+            sprints.require_unbound_cycle(connection, 8, "cycle-x")
+
+
+def test_plan_does_not_hold_the_register_lock_during_plane_calls(
+    tmp_path, sprint_board, monkeypatch,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    seen: list[bool] = []
+    original = sprint_board.write_sprint_cycle
+
+    def write_while_another_writer_locks(sprint_id, cycle_id, description):
+        other = sqlite3.connect(database, timeout=0)
+        try:
+            other.execute("BEGIN IMMEDIATE")
+        except sqlite3.OperationalError:
+            seen.append(False)
+        else:
+            other.rollback()
+            seen.append(True)
+        finally:
+            other.close()
+        return original(sprint_id, cycle_id, description)
+
+    monkeypatch.setattr(
+        sprint_board, "write_sprint_cycle", write_while_another_writer_locks,
+    )
+
+    assert plan(database, 7).exit_code == 0
+    assert seen == [True]
+
+
+def test_plan_refuses_when_another_planner_recorded_the_sprint_meanwhile(
+    tmp_path, sprint_board, monkeypatch,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    original = sprint_board.write_sprint_cycle
+
+    def racing_write(sprint_id, cycle_id, description):
+        cycle = original(sprint_id, cycle_id, description)
+        with sprints.connect_database(database, writable=True) as other:
+            sprints.plan_sprint(
+                other, sprint_id, "Theirs", 1, "Their goal", "", ("Theirs",),
+            )
+        return cycle
+
+    monkeypatch.setattr(sprint_board, "write_sprint_cycle", racing_write)
+
+    result = plan(database, 7)
+
+    assert isinstance(result.exception, SprintCycleTaken)
+    with sprints.connect_database(database, writable=False) as connection:
+        assert sprints.fetch_sprint(connection, 7).title == "Theirs"
+
+
+def test_adopt_cycle_overwrites_another_plan_with_readback(
+    tmp_path, live_board,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    live_board.cycles.records.append(SimpleNamespace(
+        id="cycle-elsewhere", name="Sprint 7", description="# Theirs",
+    ))
+
+    result = invoke(
+        database, "plan", "--id", "7", "--title", "Sprint 7",
+        "--position", "1", "--goal", "Ship the outcome",
+        "--execution", "Build before integration",
+        "--acceptance", "The gate passes", "--adopt-cycle",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert live_board.named("cycles.create") == []
+    assert len(live_board.named("cycles.update")) == 1
+    assert live_board.cycles.records[0].description == PLAN_DESCRIPTION
+    # The description was read back after the update.
+    calls = [name for name, _, _ in live_board.calls]
+    assert "cycles.retrieve" in calls[calls.index("cycles.update"):]
+    with sprints.connect_database(database, writable=False) as connection:
+        assert sprints.fetch_sprint(connection, 7).status == "planned"
+
+
+def test_adopt_cycle_still_refuses_a_cycle_bound_to_another_sprint(
+    tmp_path, live_board,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    live_board.cycles.records.append(SimpleNamespace(
+        id="cycle-bound", name="Sprint 8", description="old history",
+    ))
+    with sprints.connect_database(database, writable=True) as connection:
+        connection.execute(
+            "INSERT INTO sprints (sprint_id, title, status, cycle_id, "
+            "started) VALUES (6, 'Six', 'current', 'cycle-bound', "
+            "'2026-01-01T00:00:00+00:00')"
+        )
+        connection.commit()
+    before = database.read_bytes()
+
+    result = invoke(
+        database, "plan", "--id", "8", "--title", "T", "--position", "1",
+        "--goal", "G", "--acceptance", "A", "--adopt-cycle",
+    )
+
+    assert isinstance(result.exception, SprintCycleBound)
+    assert live_board.write_calls == []
+    assert live_board.cycles.records[0].description == "old history"
+    assert database.read_bytes() == before
+
+
+def test_cycle_taken_message_names_both_causes_and_the_flag(
+    tmp_path, live_board,
+):
+    database = tmp_path / "sprints.sqlite"
+    create_register(database)
+    live_board.cycles.records.append(SimpleNamespace(
+        id="cycle-elsewhere", name="Sprint 7", description="# Theirs",
+    ))
+
+    message = str(plan(database, 7).exception)
+
+    assert "another git branch" in message
+    assert "rewritten" in message
+    assert "previous plan attempt failed" in message
+    assert "--adopt-cycle" in message

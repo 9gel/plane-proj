@@ -15,7 +15,7 @@ from plane_proj.guards import (
     GuardViolation,
     ReadbackFailed,
 )
-from tests.conftest import Card, FakeClient
+from tests.conftest import Card, FakeClient, PlannedCycles, _page
 
 
 def test_planned_sprint_totals_read_live_cycle_cards(board, client, monkeypatch) -> None:
@@ -316,3 +316,72 @@ def test_dependency_facts_read_each_cycle_once_and_settle_archived_blockers(
     # No archived-items listing: some servers answer it with 404.
     assert not client.named("work_items.list_archived")
     assert dependencies.ready(facts)["blocked"][0]["blocked_by"] == ["DEMO-8"]
+
+
+@pytest.fixture
+def planned(board, client: FakeClient) -> PlannedCycles:
+    client.cycles = PlannedCycles(client)
+    board.me = lambda: "member-uuid"
+    return client.cycles
+
+
+def test_write_sprint_cycle_creates_named_cycle_and_reads_it_back(
+    board, client: FakeClient, planned: PlannedCycles,
+) -> None:
+    cycle_id = board.write_sprint_cycle(7, None, "## Goal\n\nShip")
+
+    (_, _, sent), = client.named("cycles.create")
+    assert sent["data"].name == "Sprint 7"
+    assert sent["data"].description == "## Goal\n\nShip"
+    assert sent["data"].owned_by == "member-uuid"
+    assert cycle_id == "cycle-1"
+    assert board.sprint_cycles({7}) == {7: "cycle-1"}
+    assert client.named("cycles.retrieve")
+
+
+def test_write_sprint_cycle_updates_only_a_changed_description(
+    board, client: FakeClient, planned: PlannedCycles,
+) -> None:
+    cycle_id = board.write_sprint_cycle(7, None, "first")
+
+    assert board.write_sprint_cycle(7, cycle_id, "first") == cycle_id
+    assert client.named("cycles.update") == []
+
+    assert board.write_sprint_cycle(7, cycle_id, "second") == cycle_id
+    (_, args, sent), = client.named("cycles.update")
+    assert args[2] == cycle_id
+    assert sent["data"].description == "second"
+    assert planned.records[0].description == "second"
+    assert len(client.named("cycles.create")) == 1
+
+
+def test_write_sprint_cycle_fails_when_description_does_not_read_back(
+    board, client: FakeClient,
+) -> None:
+    client.cycles = PlannedCycles(client, store=False)
+    board.me = lambda: "member-uuid"
+
+    with pytest.raises(ReadbackFailed, match="description reads back None"):
+        board.write_sprint_cycle(7, None, "plan")
+
+
+def test_write_sprint_cycle_fails_when_created_cycle_is_not_listed(
+    board, client: FakeClient, planned: PlannedCycles, monkeypatch,
+) -> None:
+    monkeypatch.setattr(planned, "list", lambda *args, **kwargs: _page([]))
+
+    with pytest.raises(ReadbackFailed, match="not confirm cycle 'Sprint 7'"):
+        board.write_sprint_cycle(7, None, "plan")
+
+
+def test_sprint_cycles_refuse_a_duplicated_sprint_name(
+    board, client: FakeClient, planned: PlannedCycles,
+) -> None:
+    planned.records = [
+        SimpleNamespace(id="a", name="Sprint 7", description=""),
+        SimpleNamespace(id="b", name="Sprint 7 — copy", description=""),
+    ]
+
+    with pytest.raises(ConfigError, match="More than one Plane cycle"):
+        board.sprint_cycles({7})
+    assert client.write_calls == []

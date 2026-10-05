@@ -47,6 +47,14 @@ only through `plane-proj sprints` (with `--json` for machine-readable output),
 never through Python `sqlite3`, the `sqlite3` CLI, or any other SQLite client.
 Its location comes solely from the config's `state_file`, resolved relative
 to the config file; agents MUST NOT create or copy a register elsewhere.
+Plan each sprint with `plane-proj sprints plan --id N`. It creates or reuses
+the Plane cycle `Sprint N`, writes the plan into the cycle description, and
+then records the plan in the register. Re-run it to change a plan. Never
+create a sprint cycle with `cycle new`, rename a cycle into or out of a
+sprint's name, or set a sprint cycle's description by hand; the CLI refuses
+all three. Use `--adopt-cycle` only after confirming that the existing
+`Sprint N` cycle's plan should be replaced.
+
 The register is bound to its Plane server, workspace, and project. Legacy
 registers require `sprint bind` with the correct config. A mismatch MUST be
 corrected by selecting the matching config/register, never by overwriting its

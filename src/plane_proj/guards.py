@@ -60,6 +60,39 @@ class EmptyCycle(GuardViolation):
     """
 
 
+class SprintCycleBound(GuardViolation):
+    """Planning would take over a cycle the register binds to another sprint.
+
+    Sprint cycle rule: each sprint has its own `Sprint N` cycle, and
+    `sprints plan --id N` writes its plan into that cycle. A cycle the
+    register already binds to a different sprint holds that sprint's
+    history; rewriting its description, or binding it twice, would merge
+    two sprints into one record.
+    """
+
+
+class SprintCycleTaken(GuardViolation):
+    """A fresh plan would overwrite another plan's `Sprint N` cycle.
+
+    Sprint cycle rule: when this register has no sprint N, an existing
+    `Sprint N` cycle with a different, non-blank description may have been
+    planned elsewhere, for instance by a register on another git branch.
+    Adopting it silently would replace that plan, so taking it over needs
+    `sprints plan --adopt-cycle`.
+    """
+
+
+class SprintCycleByHand(GuardViolation):
+    """A `Sprint N` cycle was created or changed outside sprint planning.
+
+    Sprint cycle rule: `plane-proj sprints plan --id N` creates and
+    maintains a sprint's cycle together with its register row. A cycle made
+    or renamed by hand has no plan behind it, or duplicates a sprint's name
+    so every command for that sprint stops; a hand-written description
+    drifts from the plan it mirrors.
+    """
+
+
 class UnknownModule(GuardViolation):
     """A card named a module the project does not have.
 

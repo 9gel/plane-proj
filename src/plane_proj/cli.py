@@ -48,7 +48,11 @@ from plane_proj.credentials import (
     load_connection_target,
     load_credentials,
 )
-from plane_proj.guards import GuardViolation, PlaneProjError
+from plane_proj.guards import (
+    GuardViolation,
+    PlaneProjError,
+    SprintCycleByHand,
+)
 from plane_proj.output import emit, records_table, table
 
 BLANK_ESTIMATE = "blank"
@@ -195,14 +199,47 @@ def sprints_bind(obj: dict[str, Any]) -> None:
 @click.option("--execution", default="", help="Ordering and execution guidance.")
 @click.option("--acceptance", multiple=True, required=True,
               help="Acceptance criterion; repeat for each criterion.")
+@click.option("--adopt-cycle", is_flag=True,
+              help="Take over an existing `Sprint N` cycle and overwrite "
+                   "its description with this plan.")
 @click.pass_obj
 def sprints_plan(
     obj: dict[str, Any], sprint_id: str, title: str, position: int,
     goal: str, execution: str, acceptance: tuple[str, ...], alias: str | None,
+    adopt_cycle: bool,
 ) -> None:
-    """Create or replace one future sprint plan."""
+    """Create or replace one future sprint plan and its `Sprint N` cycle.
+
+    The cycle's description mirrors the plan. The register row is written
+    after the cycle, so a retry reuses the cycle rather than adding one.
+    The register's write lock is taken only for that final write; the
+    checks are repeated under it so nothing changed in the meantime.
+    """
     with sprints_module.connect_database(obj["database"], writable=True) as connection:
         sprint_id = sprints_module.resolve_sprint_id(connection, sprint_id)
+        description = sprints_module.plan_description(
+            title, goal, execution, acceptance,
+        )
+        sprints_module.validate_plan(
+            connection, sprint_id, title, goal, acceptance, alias,
+        )
+        known = sprints_module.fetch_sprint(connection, sprint_id) is not None
+        board = obj["root"].board
+        cycle_id = board.sprint_cycles({sprint_id}).get(sprint_id)
+        if cycle_id is not None:
+            sprints_module.require_unbound_cycle(
+                connection, sprint_id, cycle_id,
+            )
+            if not adopt_cycle:
+                sprints_module.require_adoptable_cycle(
+                    connection, sprint_id, cycle_id,
+                    board.cycle_description(cycle_id), description,
+                )
+        cycle_id = board.write_sprint_cycle(sprint_id, cycle_id, description)
+        connection.execute("BEGIN IMMEDIATE")
+        sprints_module.require_unbound_cycle(connection, sprint_id, cycle_id)
+        if not known and not adopt_cycle:
+            sprints_module.require_unplanned(connection, sprint_id, cycle_id)
         sprints_module.plan_sprint(
             connection, sprint_id, title, position, goal, execution,
             acceptance, alias,
@@ -2039,6 +2076,48 @@ def _grouping_id(
     raise click.ClickException(f"No {kind} named {name!r} on {board.project.key}. Known: {known}.")
 
 
+def _refuse_sprint_cycle(name: str) -> None:
+    """Refuse a hand-made `Sprint N` cycle before any request."""
+    sprint_id = board_module.sprint_cycle_number(name)
+    if sprint_id is not None:
+        raise SprintCycleByHand(
+            f"Sprint cycle rule: {name!r} is a sprint cycle, and sprint "
+            "cycles are created with their plan. Use `plane-proj sprints "
+            f"plan --id {sprint_id}`."
+        )
+
+
+def _refuse_sprint_rename(old: str, new_name: str) -> None:
+    """Refuse a rename that moves a cycle into or out of a sprint's name."""
+    was = board_module.sprint_cycle_number(old)
+    sprint_id = board_module.sprint_cycle_number(new_name)
+    if was is not None and sprint_id != was:
+        raise SprintCycleByHand(
+            f"Sprint cycle rule: {old!r} is sprint {was}'s cycle, and "
+            f"{new_name!r} is not named for sprint {was}, so sprint {was} "
+            f"would lose its cycle. Keep the `Sprint {was}` prefix, e.g. "
+            f"'Sprint {was} — Title'."
+        )
+    if sprint_id is not None and was != sprint_id:
+        raise SprintCycleByHand(
+            f"Sprint cycle rule: {new_name!r} is a sprint cycle name, and "
+            f"{old!r} is not sprint {sprint_id}'s cycle. Sprint cycles are "
+            f"created with their plan: use `plane-proj sprints plan --id "
+            f"{sprint_id}`."
+        )
+
+
+def _refuse_sprint_description(name: str) -> None:
+    """Refuse a hand-written description on a sprint's cycle."""
+    sprint_id = board_module.sprint_cycle_number(name)
+    if sprint_id is not None:
+        raise SprintCycleByHand(
+            f"Sprint cycle rule: {name!r} describes sprint {sprint_id}'s "
+            "plan, and the plan owns that description. Change it with "
+            f"`plane-proj sprints plan --id {sprint_id}`."
+        )
+
+
 def _grouping_commands(group: click.Group, kind: str) -> None:
     """Attach the full lifecycle for `kind` to `group`."""
     plural = f"{kind}s"
@@ -2062,7 +2141,9 @@ def _grouping_commands(group: click.Group, kind: str) -> None:
             ("card_count", "CARDS"), (id_field, "UUID"),
         ]))
 
-    @group.command("new", help=f"Create a {kind}.")
+    @group.command(
+        "new", help=f"Create a {kind}.", hidden=kind == "cycle",
+    )
     @click.argument("name")
     @click.option("--start", help="Start date, YYYY-MM-DD.")
     @click.option("--end", help="End date, YYYY-MM-DD (cycles) or target date (modules).")
@@ -2073,12 +2154,19 @@ def _grouping_commands(group: click.Group, kind: str) -> None:
             description: str | None, lead: str | None) -> None:
         if kind == "cycle" and lead:
             raise click.UsageError("--lead is for modules; a cycle has an owner, not a lead.")
+        if kind == "cycle":
+            _refuse_sprint_cycle(name)
         board = obj.board
         fields: dict[str, Any] = {
             "start_date": start, "description": text_module.read_text(description)
         }
         if kind == "cycle":
             fields["end_date"] = end
+            click.echo(
+                "plane-proj: `cycle new` is deprecated; sprints are created "
+                "with `plane-proj sprints plan`.",
+                err=True,
+            )
             created = board.create_cycle(name, fields)
         else:
             fields["target_date"] = end
@@ -2092,6 +2180,8 @@ def _grouping_commands(group: click.Group, kind: str) -> None:
     @click.argument("new_name")
     @click.pass_obj
     def rename(obj: Context, old: str, new_name: str) -> None:
+        if kind == "cycle":
+            _refuse_sprint_rename(old, new_name)
         board = obj.board
         target = _grouping_id(board, kind, old)
         setter = board.update_cycle if kind == "cycle" else board.update_module
@@ -2111,6 +2201,8 @@ def _grouping_commands(group: click.Group, kind: str) -> None:
              description: str | None, lead: str | None, status: str | None) -> None:
         if kind == "cycle" and (lead or status):
             raise click.UsageError("--lead and --status are for modules.")
+        if kind == "cycle" and description is not None:
+            _refuse_sprint_description(name)
         board = obj.board
         fields: dict[str, Any] = {
             "start_date": start, "description": text_module.read_text(description)

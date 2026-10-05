@@ -20,6 +20,8 @@ from rich import box
 from rich.console import Console
 from rich.table import Table
 
+from plane_proj.guards import SprintCycleBound, SprintCycleTaken
+
 SCHEMA_VERSION = 9
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 STATUS_PLANNED = "planned"
@@ -731,6 +733,101 @@ def complete_operation(
     connection.commit()
 
 
+def validate_plan(
+    connection: sqlite3.Connection,
+    sprint_id: int,
+    title: str,
+    goal: str,
+    acceptance: tuple[str, ...],
+    alias: str | None,
+) -> str | None:
+    """Check a plan against the register; return the alias it will keep."""
+    if (
+        not title.strip() or not goal.strip() or not acceptance
+        or any(not item.strip() for item in acceptance)
+    ):
+        raise SprintError(
+            "planned sprints require a title, goal, and at least one "
+            "acceptance criterion, none of them blank"
+        )
+    existing = fetch_sprint(connection, sprint_id)
+    if existing is not None and existing.status != STATUS_PLANNED:
+        raise SprintError(
+            f"sprint {sprint_id} is {existing.status} and cannot be replanned"
+        )
+    if alias is None and existing is not None:
+        alias = existing.alias
+    validate_alias(connection, sprint_id, alias)
+    return alias
+
+
+def plan_description(
+    title: str, goal: str, execution: str, acceptance: tuple[str, ...],
+) -> str:
+    """The sprint plan as Markdown, as its Plane cycle describes it."""
+    sections = [f"# {title.strip()}", f"## Goal\n\n{goal.strip()}"]
+    if execution.strip():
+        sections.append(f"## Execution\n\n{execution.strip()}")
+    criteria = "\n".join(f"- {item.strip()}" for item in acceptance)
+    sections.append(f"## Acceptance criteria\n\n{criteria}")
+    return "\n\n".join(sections)
+
+
+def require_unbound_cycle(
+    connection: sqlite3.Connection, sprint_id: int, cycle_id: str,
+) -> None:
+    """Refuse a `Sprint N` cycle the register binds to another sprint."""
+    row = connection.execute(
+        "SELECT sprint_id, status FROM sprints "
+        "WHERE cycle_id = ? AND sprint_id != ?",
+        (cycle_id, sprint_id),
+    ).fetchone()
+    if row is not None:
+        raise SprintCycleBound(
+            f"Sprint cycle rule: Plane cycle {cycle_id} is named for sprint "
+            f"{sprint_id}, but the register binds it to {row[1]} sprint "
+            f"{row[0]}. Rename cycle {cycle_id} back to `Sprint {row[0]}` "
+            f"in Plane, then plan sprint {sprint_id} again."
+        )
+
+
+def require_adoptable_cycle(
+    connection: sqlite3.Connection, sprint_id: int, cycle_id: str,
+    actual: object, description: str,
+) -> None:
+    """Refuse to adopt a `Sprint N` cycle that holds someone else's plan.
+
+    A sprint already in the register owns its cycle. A fresh plan adopts an
+    existing cycle only when it is blank or already holds this exact plan,
+    which is the retry after a failed register write.
+    """
+    if fetch_sprint(connection, sprint_id) is not None:
+        return
+    text = "" if actual is None else str(actual)
+    if text.strip() and text != description:
+        raise _cycle_taken(sprint_id, cycle_id)
+
+
+def require_unplanned(
+    connection: sqlite3.Connection, sprint_id: int, cycle_id: str,
+) -> None:
+    """Refuse when another planner recorded sprint N during this plan."""
+    if fetch_sprint(connection, sprint_id) is not None:
+        raise _cycle_taken(sprint_id, cycle_id)
+
+
+def _cycle_taken(sprint_id: int, cycle_id: str) -> SprintCycleTaken:
+    return SprintCycleTaken(
+        f"Sprint cycle rule: Plane cycle {cycle_id} is named for sprint "
+        f"{sprint_id} and holds a different plan, but this register had no "
+        f"sprint {sprint_id}. Either another register (perhaps another git "
+        "branch) or planner planned it, or its description was rewritten or "
+        "a previous plan attempt failed. Merge the other register, or plan "
+        "under an unused sprint number; if this plan should win, re-run "
+        "`sprints plan` with --adopt-cycle."
+    )
+
+
 def plan_sprint(
     connection: sqlite3.Connection,
     sprint_id: int,
@@ -741,16 +838,10 @@ def plan_sprint(
     acceptance: tuple[str, ...],
     alias: str | None = None,
 ) -> None:
-    if not title.strip() or not goal.strip() or not acceptance:
-        raise SprintError(
-            "planned sprints require a title, goal, and at least one acceptance criterion"
-        )
-    existing = fetch_sprint(connection, sprint_id)
-    if existing is not None and existing.status != STATUS_PLANNED:
-        raise SprintError(f"sprint {sprint_id} is {existing.status} and cannot be replanned")
-    if alias is None and existing is not None:
-        alias = existing.alias
-    connection.execute("BEGIN IMMEDIATE")
+    alias = validate_plan(connection, sprint_id, title, goal, acceptance, alias)
+    # `sprints plan` takes the write lock itself to re-check under it.
+    if not connection.in_transaction:
+        connection.execute("BEGIN IMMEDIATE")
     try:
         validate_alias(connection, sprint_id, alias)
         connection.execute(

@@ -316,7 +316,7 @@ for machine-readable output.
 | `sprints show [N]` | Show one sprint, or the current ones |
 | `sprints stats` | Summarize completed sprints |
 | `sprints web` | Open the sprint dashboard |
-| `sprints plan --id N ...` | Create or replace a planned sprint |
+| `sprints plan --id N ...` | Create or replace a planned sprint and create or update its Plane cycle |
 | `sprints reorder ID...` | Set the order of planned sprints |
 | `sprints alias ID ALIAS` | Give a sprint a short name, such as `WEB-1` |
 | `sprints check` | Find cards that belong to no sprint |
