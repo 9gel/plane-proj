@@ -82,13 +82,33 @@ main { max-width: 1200px; margin: 0 auto; padding: 20px 16px 60px; }
 h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 10px; } h3 { font-size: 14px; margin: 0 0 8px; }
 .grid { display: grid; gap: 12px; }
 .g2 { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.g3 { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .g4 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
 .card.link { cursor: pointer; } .card.link:hover { border-color: var(--accent); }
+.kpis { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.kpis .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; min-width: 96px; }
+.kpis .kpi .v { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kpis .kpi .l { font-size: 11.5px; color: var(--text-2); }
 .kpi .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .kpi .l { color: var(--text-2); font-size: 12.5px; }
 .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
 .alias { font-weight: 600; color: var(--text); }
+a.plane { font-size: 12px; color: var(--text-2); text-decoration: underline; text-decoration-color: var(--muted); margin-left: 4px; white-space: nowrap; }
+.state { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.state::before { font-size: 26px; line-height: 1; }
+.state.start { color: var(--text); } .state.start::before { content: "🚀"; }
+.state.overlap { color: var(--warn); } .state.overlap::before { content: "⚠️"; }
+.state.unknown { color: var(--warn); } .state.unknown::before { content: "❓"; }
+.state.notready { color: var(--muted); } .state.notready::before { content: "⏳"; }
+td.why div { font-size: 12.5px; color: var(--text-2); margin: 1px 0; }
+.unknown { color: var(--text); font-weight: 600; } .unknown::before { content: "? "; color: var(--warn); font-weight: 700; }
+.plan-table th, .plan-table td { vertical-align: top; padding: 10px; }
+.plan-table td.pos { font-family: ui-monospace, monospace; color: var(--muted); font-size: 16px; text-align: center; width: 36px; }
+.plan-table tbody tr:last-child td { border-bottom: 0; }
+.info { position: relative; cursor: help; color: var(--muted); font-weight: 400; margin-left: 4px; }
+.info .pop { display: none; position: absolute; left: 0; top: 22px; z-index: 5; width: 520px; max-width: 80vw; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.15); padding: 10px 12px; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; font-weight: 400; color: var(--text-2); white-space: normal; font-size: 12.5px; }
+.info:hover .pop, .info:focus .pop { display: grid; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .sp { flex: 1; }
 .goal { color: var(--text-2); margin: 4px 0 0; max-width: 900px; }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text-2); }
@@ -105,7 +125,7 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .scroll { overflow-x: auto; }
 /* bars */
 .hb { display: flex; align-items: center; gap: 8px; min-width: 120px; }
-.hb .track { flex: 1; height: 10px; position: relative; }
+.hb .track { flex: 1; height: 10px; position: relative; background: var(--surface-2); border-radius: 0 3px 3px 0; }
 .hb .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 3px 3px 0; }
 .hb .lbl { font-size: 11.5px; color: var(--text-2); white-space: nowrap; min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
 .seg { display: block; width: 100%; height: 12px; }
@@ -132,6 +152,7 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.r::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
+.ci.u { border-style: dashed; }
 /* one big board */
 .board { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: auto; height: 460px; grid-template-rows: auto 1fr; }
 /* The board has one fixed height, loading or loaded, so nothing below it
@@ -210,6 +231,7 @@ table.mini td + td { padding-left: 10px; text-align: right; font-variant-numeric
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 details summary { cursor: pointer; color: var(--text-2); }
 @media (max-width: 640px) { .bar { gap: 8px; } }
+@media (max-width: 760px) { .hide-sm { display: none; } }
 </style>
 </head>
 <body>
@@ -280,10 +302,13 @@ const PROGRESS = ['Done', 'Verifying', 'In Progress', 'Todo', 'Cancelled'];
 const byProgress = cards => [...cards].sort((a, b) => PROGRESS.indexOf(a.state) - PROGRESS.indexOf(b.state));
 const stC = { 'Todo': 'var(--st-todo)', 'In Progress': 'var(--st-prog)', 'Verifying': 'var(--st-verify)', 'Done': 'var(--st-done)', 'Cancelled': 'var(--st-cancel)' };
 // The sprint's own Plane cycle, which lists only its cards.
-const planeLink = s => {
-  const url = DATA.cycle_urls?.[s.sprint];
-  return url ? `<a class="small" href="${esc(url)}" target="_blank"
-    rel="noopener">Open in Plane ↗</a>` : '';
+const planeLink = (s, txt = 'Open in Plane ↗') => {
+  const id = s?.sprint ?? s?.sprint_id;
+  const url = DATA.cycle_urls?.[id];
+  if (!url) return '';
+  const cls = txt === 'Plane ↗' ? 'plane' : 'small';
+  const tip = txt === 'Plane ↗' ? ` title="Open Sprint ${id}'s cycle in Plane"` : '';
+  return `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener"${tip}>${txt}</a>`;
 };
 const goto = id => `onclick="location.hash='#/sprint/${id}'"`;
 
@@ -578,49 +603,166 @@ V.currentOne = s => {
   <details style="margin-top:12px"><summary>Execution guidance</summary><div class="card prose" style="margin-top:8px">${esc(s.execution)}</div></details>`;
 };
 
+let READINESS = null, readinessState = 'idle', readinessError = null;
+
+function loadReadiness() {
+  if (readinessState === 'loading') return;
+  readinessState = 'loading';
+  getJSON('api/readiness')
+    .then(d => {
+      READINESS = d;
+      readinessState = 'done';
+    })
+    .catch(e => {
+      readinessError = e.message;
+      readinessState = 'error';
+    })
+    .finally(() => {
+      if ((location.hash || '').startsWith('#/planned')) {
+        render();
+      }
+    });
+}
+
+const stateClass = st => {
+  if (st === 'Can start') return 'start';
+  if (st === 'Overlap') return 'overlap';
+  if (st === 'Unverified') return 'unknown';
+  if (st === 'Not ready') return 'notready';
+  return '';
+};
+const stateBadge = st => `<span class="state ${stateClass(st)}">${esc(st)}</span>`;
+
+function cardIconsHtml(total, undeclared = 0) {
+  let r = '';
+  for (let i = 0; i < total; i++) {
+    const isU = i >= total - undeclared;
+    r += `<span class="ci plain ${isU ? 'u' : ''}"></span>`;
+  }
+  return r;
+}
+
+function whyHtml(s) {
+  if (s.state === 'Can start') {
+    return '<div class="muted">All cards declared and assessed; no blockers outside the sprint; no shared code</div>';
+  }
+  const lines = (s.why || []).map(w => {
+    let t = esc(w);
+    if (t.startsWith('Dependencies unknown:')) {
+      return `<div><span class="unknown">Dependencies unknown</span>:${t.slice(21)}</div>`;
+    }
+    if (t.startsWith('Overlap unknown:')) {
+      return `<div><span class="unknown">Overlap unknown</span>:${t.slice(16)}</div>`;
+    }
+    if (t.includes('which is not ready: a clash only if both run at once')) {
+      return `<div class="muted">${t}</div>`;
+    }
+    return `<div>${t}</div>`;
+  });
+  return lines.join('');
+}
+
 V.planned = () => {
   if (!planned.length) return '<h1>Planned sprints</h1><p class="muted">No planned sprints.</p>';
-  const maxPts = Math.max(1, ...planned.map(s => s.points || 0)), maxEst = MEDV ? maxPts / MEDV : 0;
-  return `<h1>Planned sprints</h1>
-  <p class="muted">${planned.length} sprints in execution order${PARTIAL ? ` ${skInline('120px')}` : ` · ${planned.reduce((a, s) => a + s.cards, 0)} cards${POINTS ? ` · ${planned.reduce((a, s) => a + s.points, 0)} pts` : ''}`}</p>
-  ${MEDV ? `<div class="note" style="border-left-color:var(--accent)">Estimates assume <b>${num(MEDV, 2)} pts/h</b>: the median velocity of ${past.length} completed sprints.
-    Hours = points ÷ ${num(MEDV, 2)}.</div>` : ''}
-  <div class="card" id="deps" style="margin-bottom:12px">${depsView()}</div>
-  <div class="card"><div class="plan">
-    <div class="hd">#</div><div class="hd">Sprint and goal</div><div class="hd wide">Cards</div><div class="hd wide">${POINTS ? 'Points' : ''}</div><div class="hd wide">${MEDV ? 'Estimate' : ''}</div>
-    ${planned.map(s => { const est = MEDV && s.points != null ? s.points / MEDV : null;
-      return `<div class="pos">${s.position}</div>
-      <div class="ttl" ${goto(s.sprint)}><div class="row">${label(s)}<span class="tt">${esc(s.title)}</span></div><div class="gl">${esc(s.goal)}</div></div>
-      <div class="wide">${s.cards == null ? `${skIcons(4)}<div style="margin-top:5px">${sk('50px', 11)}</div>` : `${cardIcons(Array(s.cards).fill('plain'))}<div class="muted small" style="margin-top:3px">${s.cards} card${s.cards === 1 ? '' : 's'}</div>`}</div>
-      <div class="wide">${!POINTS ? '' : s.points == null ? `${sk('70%', 12)}<div style="margin-top:5px">${sk('40px', 11)}</div>` : `${segbar(s.points, s.points, maxPts)}<div class="muted small" style="margin-top:3px">${s.points} pts</div>`}</div>
-      <div class="wide last">${est != null ? hbar(est, maxEst, fmtH(est), 'var(--slate-2)', { tipText: `${s.points} pts ÷ ${num(MEDV, 2)} pts/h` }) : PARTIAL && MEDV ? `<div class="hb">${sk('100%', 10, 'flex:1')}${skInline('52px', 11)}</div>` : ''}</div>`; }).join('')}
-  </div></div>`;
-};
+  if (readinessState === 'idle') {
+    loadReadiness();
+  }
 
-// The critical path reads every planned card's relations, so it runs on request.
-let DEPS = null, depsState = 'idle';
-function depsView() {
-  if (depsState === 'loading') return '<h3>Dependencies</h3><p class="muted">Reading card dependencies…</p>';
-  if (depsState === 'error') return `<h3>Dependencies</h3><p class="flag">${esc(DEPS)}</p>`;
-  if (!DEPS) return `<div class="row"><h3 style="margin:0">Dependencies</h3><span class="sp"></span>
-    <button onclick="loadDeps()">Find critical path</button></div>
-    <p class="muted small" style="margin:6px 0 0">Reads every open card's blockers in current and planned sprints.</p>`;
-  const p = DEPS.critical_path, unit = p.unit === 'points' ? 'pts' : 'cards';
-  return `<div class="row"><h3 style="margin:0">Dependencies</h3><span class="sp"></span><button onclick="loadDeps()">Refresh</button></div>
-    <div class="grid g4" style="margin:10px 0">
-      <div class="kpi"><div class="v">${p.total}<span class="muted small"> ${unit}</span></div><div class="l">Open work</div></div>
-      <div class="kpi"><div class="v">${p.critical_path}<span class="muted small"> ${unit}</span></div><div class="l">Critical path</div></div>
-      <div class="kpi"><div class="v">${p.speedup_ceiling == null ? '—' : p.speedup_ceiling + '×'}</div><div class="l">Speedup ceiling: open work ÷ critical path</div></div>
-      <div class="kpi"><div class="v">${DEPS.ready.length}</div><div class="l">Ready to start · ${DEPS.blocked.length} blocked</div></div>
-    </div>
-    <div class="small t2">Longest chain: ${p.chain.map(c => `<span class="pill">${esc(c.ref)} · #${c.sprint}</span>`).join(' → ') || '—'}</div>`;
-}
-window.loadDeps = () => {
-  depsState = 'loading'; $('#deps').innerHTML = depsView();
-  getJSON('api/dependencies')
-    .then(d => { DEPS = d; depsState = 'idle'; })
-    .catch(e => { DEPS = e.message; depsState = 'error'; })
-    .finally(() => { const el = $('#deps'); if (el) el.innerHTML = depsView(); });
+  const sum = READINESS?.summary;
+  const queue = READINESS?.queue;
+  const maxHours = queue ? Math.max(0.1, ...queue.map(s => s.hours || 0)) : 1;
+
+  const kpisHtml = sum ? `
+<div class="kpis">
+  <div class="kpi"><div class="v">${sum.sprints}</div><div class="l">sprints</div></div>
+  <div class="kpi"><div class="v">${sum.cards}</div><div class="l">cards</div></div>
+  <div class="kpi"><div class="v">${sum.points}</div><div class="l">points</div></div>
+  <div class="kpi"><div class="v">${num(sum.velocity, 2)} pts/h</div><div class="l">${sum.velocity_source === 'median' ? 'median velocity' : 'assumed: no history yet'}</div></div>
+  <div class="kpi"><div class="v">≈ ${fmtH(sum.serial_hours)}</div><div class="l">one sprint at a time</div></div>
+  <div class="kpi"><div class="v">≈ ${fmtH(sum.parallel_hours)}</div><div class="l">all in parallel</div></div>
+</div>` : `
+<div class="kpis">
+  <div class="kpi"><div class="v">${sk('40px', 20)}</div><div class="l">sprints</div></div>
+  <div class="kpi"><div class="v">${sk('40px', 20)}</div><div class="l">cards</div></div>
+  <div class="kpi"><div class="v">${sk('40px', 20)}</div><div class="l">points</div></div>
+  <div class="kpi"><div class="v">${sk('80px', 20)}</div><div class="l">velocity</div></div>
+  <div class="kpi"><div class="v">${sk('80px', 20)}</div><div class="l">one sprint at a time</div></div>
+  <div class="kpi"><div class="v">${sk('80px', 20)}</div><div class="l">all in parallel</div></div>
+</div>`;
+
+  const startable = queue ? queue.filter(s => s.state === 'Can start') : null;
+  const startNowHtml = !queue ? `
+<div class="grid g3">
+  <div class="card">${sk('100%', 80)}</div>
+</div>` : startable.length ? `
+<div class="grid g3">
+  ${startable.map(s => `
+  <div class="card">
+    <div class="row"><span class="state start">Can start</span><span class="sp"></span><span class="pill">position ${s.position}</span></div>
+    <h3 style="margin:6px 0 2px">
+      <a href="#/sprint/${s.sprint_id}" style="color:inherit;text-decoration:none">
+        ${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> ${esc(s.title)}
+      </a> ${planeLink(s, 'Plane ↗')}
+    </h3>
+    <div class="small t2">${s.points} pts · ≈ ${fmtH(s.hours)} · no blockers outside the sprint</div>
+    <div class="small" style="margin-top:8px">No overlap with running sprints.</div>
+  </div>`).join('')}
+</div>` : '<p class="muted">No sprints are clear to start right now.</p>';
+
+  const rowsHtml = !queue ? [1, 2, 3].map(i => `
+  <tr>
+    <td class="pos">${i}</td>
+    <td>${sk('180px', 16)}<div style="margin-top:4px">${sk('80%', 12)}</div></td>
+    <td>${sk('90px', 16)}</td>
+    <td>${sk('70%', 14)}</td>
+    <td class="hide-sm">${skIcons(4)}</td>
+    <td class="hide-sm">${sk('100px', 14)}</td>
+  </tr>`).join('') : queue.map(s => `
+  <tr>
+    <td class="pos">${s.position}</td>
+    <td>
+      <div>
+        <a href="#/sprint/${s.sprint_id}" style="color:inherit;text-decoration:none">
+          ${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> <b>${esc(s.title)}</b>
+        </a>
+        ${planeLink(s, 'Plane ↗')}
+      </div>
+      <div class="small t2">${esc(s.goal)}</div>
+    </td>
+    <td>${stateBadge(s.state)}</td>
+    <td class="why">${whyHtml(s)}</td>
+    <td class="hide-sm">
+      <div class="cicons">${cardIconsHtml(s.cards_count, s.undeclared)}</div>
+      <div class="small muted" style="margin-top:3px">${s.cards_count} card${s.cards_count === 1 ? '' : 's'}</div>
+    </td>
+    <td class="hide-sm" style="min-width:150px">
+      ${hbar(s.hours, maxHours, fmtH(s.hours), 'var(--slate-2)')}
+    </td>
+  </tr>`).join('');
+
+  return `<h1>Planned sprints</h1>
+  ${readinessError ? `<div class="note flag">${esc(readinessError)}</div>` : ''}
+  ${kpisHtml}
+
+  <h2>Start now</h2>
+  <p class="small muted" style="margin:-4px 0 10px">Only sprints that are clear to start: every card declared and assessed, nothing outside the sprint blocks them, and no shared code.</p>
+  ${startNowHtml}
+
+  <h2>Queue</h2>
+  <div class="card" style="padding:4px 6px"><table class="plan-table">
+  <thead><tr>
+    <th>#</th>
+    <th>Sprint and goal</th>
+    <th>State <span class="info" tabindex="0">ⓘ<span class="pop"><span class="state start">Can start</span><span>every card declares its scope and has its dependencies assessed, nothing outside the sprint blocks it, and no code is shared</span>
+  <span class="state overlap">Overlap</span><span>could start, but shares code with a running sprint or with an earlier sprint in the queue that can also start</span>
+  <span class="state unknown">Unverified</span><span>some cards lack a scope declaration or a dependency assessment, so readiness cannot be checked</span>
+  <span class="state notready">Not ready</span><span>waits on unfinished cards in another sprint</span></span></span></th>
+    <th>Why</th>
+    <th class="hide-sm">Cards</th>
+    <th class="hide-sm">Estimate</th>
+  </tr></thead>
+  <tbody>${rowsHtml}</tbody>
+  </table></div>`;
 };
 
 V.plannedDetail = s => `<p><a href="#/planned">← Planned</a></p>
@@ -833,6 +975,7 @@ function show(data) {
 }
 function refresh() {
   busy('Updating from Plane…');
+  READINESS = null; readinessState = 'idle';
   const first = DATA ? Promise.resolve() : getJSON('api/sprints/local').then(show);
   return first.then(() => getJSON('api/sprints')).then(data => { show(data); busy(''); });
 }

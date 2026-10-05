@@ -1163,6 +1163,32 @@ def sprints_web(
             ),
         }
 
+    def readiness() -> dict[str, Any]:
+        board = obj["root"].board
+        cycles = _open_sprint_cycles(obj)
+        with sprints_module.connect_database(
+            obj["database"], writable=False
+        ) as connection:
+            sprints_list = sprints_module.fetch_sprints(connection)
+
+        current_sprints, planned_sprints, blocker_states = (
+            readiness_module.gather_sprint_facts(
+                sprints_list, board.readiness_facts(cycles)
+            )
+        )
+        completed = [
+            s for s in sprints_list if s.status == sprints_module.STATUS_COMPLETED
+        ]
+        velocities = [
+            s.velocity for s in completed if s.velocity is not None and s.velocity > 0
+        ]
+        return readiness_module.evaluate_readiness(
+            current_sprints,
+            planned_sprints,
+            blocker_states,
+            completed_velocities=velocities,
+        )
+
     server = web_module.make_server(host, port, {
         "/api/sprints": load,
         "/api/sprints/local": load_local,
@@ -1170,6 +1196,7 @@ def sprints_web(
             "version": web_module.register_version(obj["database"])
         },
         "/api/dependencies": dependencies,
+        "/api/readiness": readiness,
     })
     click.echo(f"Serving sprints on http://{host}:{server.server_port}/ (Ctrl+C stops)")
     try:

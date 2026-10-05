@@ -24,14 +24,23 @@ def test_build_writes_the_page_and_every_response_it_requests(tmp_path):
     assert (tmp_path / "index.html").read_text(encoding="utf-8") == web.page()
     # Every relative JSON path the page fetches must exist in the copy.
     requested = set(re.findall(r"getJSON\('(api/[a-z/]+)'\)", web.page()))
-    assert requested == {"api/sprints", "api/sprints/local", "api/version",
-                         "api/dependencies"}
+    assert requested == {
+        "api/sprints",
+        "api/sprints/local",
+        "api/version",
+        "api/readiness",
+    }
     for path in requested:
         body = json.loads((tmp_path / path / "index.html").read_text())
         assert body
     payload = json.loads((tmp_path / "api/sprints/index.html").read_text())
     assert payload["project"] == {"key": "WAY", "name": "Wayfinder"}
     assert len(payload["listing"]["current"]) == 2
+    readiness = json.loads((tmp_path / "api/readiness/index.html").read_text())
+    assert readiness["summary"]["sprints"] == 7
+    states = {row["state"] for row in readiness["queue"]}
+    assert states == {"Can start", "Overlap", "Unverified", "Not ready"}
+    assert len(readiness["overlap_pairs"]) == 3
 
 
 def test_the_invented_history_is_the_same_on_every_build(tmp_path):

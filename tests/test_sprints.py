@@ -77,6 +77,13 @@ class SprintBoard:
         self.closed.append((cycle_id, ended))
         return f"Sprint {cycle_id}"
 
+    def readiness_facts(self, cycles: dict[int, str]):
+        return {
+            "members": {},
+            "blocked_by": {},
+            "states": {},
+        }
+
     def sprint_cycles(self, sprint_ids: set[int]):
         return {
             sprint_id: cycle.id for sprint_id, cycle in self.cycles.items()
@@ -1560,7 +1567,8 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
         served.update(host=host, port=port, load=routes["/api/sprints"],
                       version=lambda: routes["/api/version"]()["version"],
                       dependencies=routes["/api/dependencies"],
-                      local=routes["/api/sprints/local"])
+                      local=routes["/api/sprints/local"],
+                      readiness=routes["/api/readiness"])
         return Server()
 
     monkeypatch.setattr("plane_proj.web.make_server", make_server)
@@ -1616,6 +1624,9 @@ def test_web_serves_the_listing_with_live_cycle_cards_and_links(
     assert facts_read[-1] == {3: "3", 4: "4"}
     assert found["critical_path"]["critical_path"] == 3
     assert [card["ref"] for card in found["blocked"]] == ["DEMO-1"]
+    ready_report = served["readiness"]()
+    assert "summary" in ready_report
+    assert "queue" in ready_report
     # The page's live check moves when the register is written.
     before = served["version"]()
     assert invoke(database, "alias", "4", "NEXT").exit_code == 0

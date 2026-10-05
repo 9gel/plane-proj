@@ -446,6 +446,13 @@ def demo_responses(now):
         },
         "cards": cards,
     }
+    all_sprints = current + planned + past
+    payload["cycle_urls"] = {
+        str(s["sprint"]): web.cycle_url(
+            "https://plane.example", "wayfinder", "proj-uuid", f"cycle-{s['sprint']}"
+        )
+        for s in all_sprints
+    }
     chain = (
         ("WAY-303", 39),
         ("WAY-305", 39),
@@ -467,11 +474,213 @@ def demo_responses(now):
             ],
         },
     }
+    readiness = {
+        "summary": {
+            "sprints": len(planned),
+            "cards": 31,
+            "points": 65,
+            "velocity": 3.47,
+            "velocity_source": "median",
+            "serial_hours": 18.75,
+            "parallel_hours": 6.62,
+        },
+        "queue": [
+            {
+                "position": 1,
+                "sprint_id": 41,
+                "alias": "RTE-4",
+                "title": "Accessible route variants",
+                "goal": "Every saved route offers a step-free and a quiet variant.",
+                "state": "Can start",
+                "why": [],
+                "reasons": [],
+                "cards_count": 4,
+                "points": 8,
+                "hours": 2.3,
+                "undeclared": 0,
+                "unassessed": 0,
+                "overlaps": [],
+            },
+            {
+                "position": 2,
+                "sprint_id": 42,
+                "alias": "AUD-4",
+                "title": "Multilingual audio guide",
+                "goal": (
+                    "Audio stops play in the visitor's chosen language with matching transcripts."
+                ),
+                "state": "Not ready",
+                "why": [
+                    "Waits on running OFF-4 #39: WAY-319 needs WAY-303 · ≈ 1h 10m left",
+                    "Shares src/offline/ with running OFF-4 #39 (WAY-322, WAY-302)",
+                ],
+                "reasons": [
+                    "Waits on running OFF-4 #39: WAY-319 needs WAY-303 · ≈ 1h 10m left",
+                    "Shares src/offline/ with running OFF-4 #39 (WAY-322, WAY-302)",
+                ],
+                "cards_count": 6,
+                "points": 16,
+                "hours": 4.62,
+                "undeclared": 0,
+                "unassessed": 0,
+                "overlaps": ["Shares src/offline/ with running OFF-4 #39 (WAY-322, WAY-302)"],
+            },
+            {
+                "position": 3,
+                "sprint_id": 43,
+                "alias": "ANL-3",
+                "title": "Popular exhibit heatmap",
+                "goal": "Curators see which galleries draw visitors at each hour.",
+                "state": "Not ready",
+                "why": [
+                    "Waits on planned RTE-4 #41: WAY-326 needs WAY-318",
+                    "Shares src/analytics/events.ts with EVT-3 #47 (WAY-327, WAY-345)",
+                ],
+                "reasons": [
+                    "Waits on planned RTE-4 #41: WAY-326 needs WAY-318",
+                    "Shares src/analytics/events.ts with EVT-3 #47 (WAY-327, WAY-345)",
+                ],
+                "cards_count": 6,
+                "points": 11,
+                "hours": 3.17,
+                "undeclared": 0,
+                "unassessed": 0,
+                "overlaps": ["Shares src/analytics/events.ts with EVT-3 #47 (WAY-327, WAY-345)"],
+            },
+            {
+                "position": 4,
+                "sprint_id": 44,
+                "alias": "SHOP-2",
+                "title": "Click and collect",
+                "goal": "Visitors reserve gift shop items and collect them at the exit.",
+                "state": "Overlap",
+                "why": [
+                    "Shares src/api/members.ts with running TIX-3 #40 (WAY-338, WAY-308)",
+                ],
+                "reasons": [
+                    "Shares src/api/members.ts with running TIX-3 #40 (WAY-338, WAY-308)",
+                ],
+                "cards_count": 4,
+                "points": 9,
+                "hours": 2.6,
+                "undeclared": 0,
+                "unassessed": 0,
+                "overlaps": ["Shares src/api/members.ts with running TIX-3 #40 (WAY-338, WAY-308)"],
+            },
+            {
+                "position": 5,
+                "sprint_id": 45,
+                "alias": "FAM-3",
+                "title": "Trail creator for educators",
+                "goal": "Educators build a family trail from existing exhibits.",
+                "state": "Not ready",
+                "why": [
+                    "Waits on planned ANL-3 #43: WAY-331 needs WAY-327",
+                ],
+                "reasons": [
+                    "Waits on planned ANL-3 #43: WAY-331 needs WAY-327",
+                ],
+                "cards_count": 3,
+                "points": 4,
+                "hours": 1.15,
+                "undeclared": 0,
+                "unassessed": 0,
+                "overlaps": [],
+            },
+            {
+                "position": 6,
+                "sprint_id": 46,
+                "alias": None,
+                "title": "Dependency and security upgrades",
+                "goal": "Toolchain and libraries are current with no open advisories.",
+                "state": "Unverified",
+                "why": [
+                    "Dependencies unknown: 5 of 5 cards not assessed",
+                    "Overlap unknown: 3 of 5 cards have no declared scope (dashed)",
+                ],
+                "reasons": [
+                    "Dependencies unknown: 5 of 5 cards not assessed",
+                    "Overlap unknown: 3 of 5 cards have no declared scope (dashed)",
+                ],
+                "cards_count": 5,
+                "points": 11,
+                "hours": 3.17,
+                "undeclared": 3,
+                "unassessed": 5,
+                "overlaps": [],
+            },
+            {
+                "position": 7,
+                "sprint_id": 47,
+                "alias": "EVT-3",
+                "title": "Event booking",
+                "goal": "Visitors book a seat at a talk and receive a reminder.",
+                "state": "Unverified",
+                "why": [
+                    "Overlap unknown: 1 of 4 cards have no declared scope (dashed)",
+                    (
+                        "Shares src/analytics/events.ts with ANL-3 #43, which is not ready: "
+                        "a clash only if both run at once"
+                    ),
+                ],
+                "reasons": [
+                    "Overlap unknown: 1 of 4 cards have no declared scope (dashed)",
+                    (
+                        "Shares src/analytics/events.ts with ANL-3 #43, which is not ready: "
+                        "a clash only if both run at once"
+                    ),
+                ],
+                "cards_count": 4,
+                "points": 6,
+                "hours": 1.73,
+                "undeclared": 1,
+                "unassessed": 0,
+                "overlaps": ["Shares src/analytics/events.ts with ANL-3 #43 (WAY-327, WAY-345)"],
+            },
+        ],
+        "overlap_pairs": [
+            {
+                "sprint_a": 44,
+                "sprint_b": 40,
+                "card_a": "WAY-338",
+                "card_b": "WAY-308",
+                "paths": ["src/api/members.ts"],
+                "is_running": True,
+            },
+            {
+                "sprint_a": 42,
+                "sprint_b": 39,
+                "card_a": "WAY-322",
+                "card_b": "WAY-302",
+                "paths": ["src/offline/"],
+                "is_running": True,
+            },
+            {
+                "sprint_a": 43,
+                "sprint_b": 47,
+                "card_a": "WAY-327",
+                "card_b": "WAY-345",
+                "paths": ["src/analytics/events.ts"],
+                "is_running": False,
+            },
+        ],
+        "graph": {
+            "columns": {39: 0, 40: 0, 41: 0, 42: 1, 43: 1, 44: 1, 45: 2, 46: 1, 47: 1},
+            "dependencies": [
+                {"from": 39, "to": 42, "reason": "WAY-319 needs WAY-303"},
+                {"from": 41, "to": 43, "reason": "WAY-326 needs WAY-318"},
+                {"from": 43, "to": 45, "reason": "WAY-331 needs WAY-327"},
+            ],
+            "critical_path": [41, 43, 45],
+            "critical_edges": ["41-43", "43-45"],
+        },
+    }
     return {
         "/api/sprints": payload,
         "/api/sprints/local": payload,
         "/api/version": {"version": "demo"},
         "/api/dependencies": dependencies,
+        "/api/readiness": readiness,
     }
 
 

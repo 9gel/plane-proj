@@ -31,9 +31,16 @@ def test_cycle_link_is_the_cycle_page() -> None:
 def serve() -> Iterator:
     servers = []
 
-    def start(load, version=lambda: "v1"):
-        routes = {"/api/sprints": load,
-                  "/api/version": lambda: {"version": version()}}
+    def start(
+        load,
+        version=lambda: "v1",
+        readiness=lambda: {"summary": {}},
+    ):
+        routes = {
+            "/api/sprints": load,
+            "/api/version": lambda: {"version": version()},
+            "/api/readiness": readiness,
+        }
         server = web.make_server("127.0.0.1", 0, routes)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         servers.append(server)
@@ -46,7 +53,7 @@ def serve() -> Iterator:
 
 
 def test_routes_serve_page_payload_version_and_not_found(serve) -> None:
-    base = serve(lambda: {"listing": {}}, lambda: "v7")
+    base = serve(lambda: {"listing": {}}, lambda: "v7", lambda: {"summary": {"sprints": 3}})
 
     with urlopen(base + "/") as response:
         assert "api/sprints" in response.read().decode()
@@ -54,6 +61,8 @@ def test_routes_serve_page_payload_version_and_not_found(serve) -> None:
         assert json.load(response) == {"listing": {}}
     with urlopen(base + "/api/version") as response:
         assert json.load(response) == {"version": "v7"}
+    with urlopen(base + "/api/readiness") as response:
+        assert json.load(response) == {"summary": {"sprints": 3}}
     with pytest.raises(HTTPError) as missing:
         urlopen(base + "/elsewhere")
     assert missing.value.code == 404
