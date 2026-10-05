@@ -33,7 +33,9 @@ load role instructions for another role merely to perform the current role.
   [allowed card state transitions](references/coordinator.md#3-allowed-card-state-transitions).
 - Parallel sprints on the same project MUST bind to distinct Plane cycles and
   follow the pre-start conflict handshake and execution silence protocol in
-  [coordinator.md §4](references/coordinator.md#4-parallel-sprint-coordination-protocol).
+  [coordinator.md §4](references/coordinator.md#4-parallel-sprint-coordination-protocol);
+  explicit human instruction or approval MAY replace the handshake's mutual
+  confirmation.
 - The delivery system and its accountabilities persist across a sprint;
   individual Builders MAY join for one bounded assignment and leave after
   handoff. The Coordinator preserves continuity in the tracker and sprint

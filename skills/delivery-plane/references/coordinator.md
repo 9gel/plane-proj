@@ -205,7 +205,12 @@ every running sprint across:
 ### Pre-Start Handshake
 
 The new sprint Coordinator MUST initiate the handshake with the existing sprint
-Coordinator(s):
+Coordinator(s). A sprint starts on either substantive mutual confirmation
+between Coordinators, as below, or explicit human instruction or approval.
+When the Coordinators cannot readily message each other, for example because
+they run in different harnesses, the new Coordinator presents the same
+proposal or notice to the human and starts only on the human's explicit
+approval:
 
 1. **When potential conflicts are detected:**
    - The new Coordinator sends a structured coordination proposal containing:
@@ -218,7 +223,8 @@ Coordinator(s):
      Lead if technical boundaries are involved) and respond by accepting or
      suggesting specific adjustments.
    - The new sprint MUST NOT start until all identified conflicts and their
-     resolutions are mutually agreed upon.
+     resolutions are mutually agreed upon, or a human explicitly approves the
+     start.
 
 2. **When work appears completely disjoint (zero detected conflicts):**
    - A structured "heads up" MUST still be sent to catch hidden assumptions.
@@ -228,7 +234,8 @@ Coordinator(s):
      current scope, confirming its expected stable contracts, and affirming that
      it sees no conflicts.
    - An empty acknowledgment is prohibited. The new sprint MUST NOT start
-     without this substantive mutual confirmation.
+     without this substantive mutual confirmation or explicit human
+     instruction or approval.
 
 ### Token Waste Guardrail: Execution Silence
 

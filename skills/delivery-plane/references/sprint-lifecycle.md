@@ -95,7 +95,8 @@ distinct Plane cycles.
 
 - **Admission and Start:** The incoming sprint MUST NOT start or admit cards
   until its Coordinator completes the pre-start coordination handshake defined
-  in [coordinator.md](coordinator.md#4-parallel-sprint-coordination-protocol).
+  in [coordinator.md](coordinator.md#4-parallel-sprint-coordination-protocol)
+  or a human explicitly instructs or approves the start.
 - **Cycle Isolation:** Each concurrent sprint MUST bind to a separate Plane
   cycle. A cycle cannot be shared across multiple active sprints.
 - **Execution:** Teams execute in mutual silence. Coordinators communicate only
