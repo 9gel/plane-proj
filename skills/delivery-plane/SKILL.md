@@ -19,7 +19,7 @@ cards.
 | Act as Coordinator (including parallel coordination) | [coordinator.md](references/coordinator.md) |
 | Act as Tech Lead (including parallel boundary analysis) | [tech-lead.md](references/tech-lead.md) and [verification.md](references/verification.md) |
 | Act as QA | [qa.md](references/qa.md) and [verification.md](references/verification.md) |
-| Act as Implementer | [implementer.md](references/implementer.md) and [verification.md](references/verification.md) |
+| Act as Builder | [builder.md](references/builder.md) and [verification.md](references/verification.md) |
 | Operate a Plane board | [plane-proj.md](references/plane-proj.md) |
 
 Load multiple references only when the assignment spans those concerns. Do not
@@ -35,7 +35,7 @@ load role instructions for another role merely to perform the current role.
   follow the pre-start conflict handshake and execution silence protocol in
   [coordinator.md §4](references/coordinator.md#4-parallel-sprint-coordination-protocol).
 - The delivery system and its accountabilities persist across a sprint;
-  individual Implementers MAY join for one bounded assignment and leave after
+  individual Builders MAY join for one bounded assignment and leave after
   handoff. The Coordinator preserves continuity in the tracker and sprint
   register as that worker pool changes.
 - The Tech Lead owns technical design, acceptance tests, review, integration
@@ -45,7 +45,7 @@ load role instructions for another role merely to perform the current role.
 - A card enters Done only with passing QA and Tech Lead verdicts on the same
   revision from different authors; see
   [verification](references/verification.md#1-independence).
-- An Implementer owns one bounded assignment and its implementation evidence.
+- A Builder owns one bounded assignment and its implementation evidence.
 - Cards intended for the current sprint MUST belong to its current tracker
   cycle.
 - Every card that is not Done or Cancelled MUST belong to the current or a

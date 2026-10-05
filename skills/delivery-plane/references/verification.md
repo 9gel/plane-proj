@@ -17,7 +17,7 @@ A card's acceptance verdict has two parts, both recorded with
 A card enters Done only when the latest QA and Tech Lead verdicts recorded
 since it last entered Verifying both pass, name the same revision, and have
 different authors. The QA author MUST differ from the Tech Lead and from the
-author of the acceptance tests. Implementers never record verdicts.
+author of the acceptance tests. Builders never record verdicts.
 
 ## 2. Delivery Sequence
 
@@ -26,18 +26,18 @@ candidate. Review that rejects on design or specification grounds MUST NOT
 follow a long suite or pipeline run that it makes worthless.
 
 1. Before implementation, the Tech Lead writes executable acceptance tests for
-   the acceptance matrix rows that a test can decide. The Implementer MUST NOT
+   the acceptance matrix rows that a test can decide. The Builder MUST NOT
    weaken or delete them; a change to one needs the Tech Lead's approval.
    In parallel with this draft, QA checks that every acceptance criterion is
    measurable; the card enters In Progress only after the Tech Lead resolves
    QA's violations. A size-1 card MAY skip this sign-off.
-2. The Implementer loops locally until the acceptance tests and focused
+2. The Builder loops locally until the acceptance tests and focused
    changed tests pass, then requests a draft review.
 3. Draft review: the Tech Lead reviews the diff, design, test design, and
    focused evidence. A rejection here sends the work back before any complete
    suite or full pipeline run. Meanwhile QA prepares hidden probes the
-   Implementer does not see.
-4. After draft review passes, the Implementer passes the complete ordinary
+   Builder does not see.
+4. After draft review passes, the Builder passes the complete ordinary
    suite and hands off for independent verification.
 5. The Tech Lead integrates accepted changes. Several accepted cards MAY be
    integrated before the next step, so one merged-tree run covers them.

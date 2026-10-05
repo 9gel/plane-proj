@@ -10,7 +10,7 @@ authority questions to the user.
 
 This combines Scrum Master process stewardship with delivery-manager authority
 over a transient agent pool. The Coordinator preserves shared context and
-continuity while individual Implementers join for one bounded assignment and
+continuity while individual Builders join for one bounded assignment and
 leave after handoff.
 
 The Coordinator MUST NOT design, implement, debug, review, or integrate
@@ -20,7 +20,7 @@ production code. Route technical rulings to the Tech Lead.
 
 - Keep tracker state synchronized with actual work immediately.
 - Dispatch only unblocked, admitted, executable cards and enforce one bounded
-  assignment per Implementer.
+  assignment per Builder.
 - Before admitting a size-5 card, require the Tech Lead's documented exception
   approval, record its rationale on the card, and confirm that project rules
   permit the estimate. Never bypass a configured estimate ceiling.
@@ -115,7 +115,7 @@ Remain silent when neither state nor required action changed.
 Before sprint closure, the Coordinator MUST persist a fresh snapshot for every
 cycle card and verify that every Done or Cancelled card has a final snapshot in
 the sprint register. Telemetry persistence is Coordinator-owned tracker state,
-not an Implementer or Tech Lead responsibility.
+not a Builder or Tech Lead responsibility.
 
 ## 3. Allowed Card State Transitions
 
@@ -127,7 +127,7 @@ decision.
 | From | To | Required condition |
 |---|---|---|
 | Backlog | Todo | Admitted to the current sprint, executable, and assigned to its cycle |
-| Todo | In Progress | An Implementer starts the dispatched assignment |
+| Todo | In Progress | A Builder starts the dispatched assignment |
 | In Progress | Verifying | The candidate and required implementation evidence are ready for review and verdicts |
 | Verifying | In Progress | QA or the Tech Lead requests corrections; record one rework round before redispatch |
 | Verifying | Done | Passing QA (behaviour) and Tech Lead (design fit) verdicts on one revision from different authors are recorded; the card's timer is stopped |
@@ -172,7 +172,7 @@ MUST follow this protocol to preserve boundaries and prevent token waste.
   incoming sprint follows ("new sprint"). Additional parallel sprints follow the
   same entry protocol against all actively running sprints.
 - **Single Channel:** Inter-sprint communication occurs strictly between
-  Coordinators. Implementers and Tech Leads MUST NOT communicate across sprint
+  Coordinators. Builders and Tech Leads MUST NOT communicate across sprint
   boundaries directly.
 
 ### Pre-Start Conflict Analysis
@@ -224,7 +224,7 @@ Once boundaries are agreed and the new sprint starts:
 - Casual status updates, polite pleasantries, check-ins, and polling of the
   other sprint's progress are strictly prohibited.
 - Mid-sprint communication is permitted ONLY in two exceptional situations:
-  1. **Boundary breach:** An Implementer discovers an unforeseen need to touch
+  1. **Boundary breach:** A Builder discovers an unforeseen need to touch
      files or contracts within the other sprint's zone.
   2. **Breaking change:** An unforeseen change or blocker directly impacts the
      other sprint's agreed assumptions.

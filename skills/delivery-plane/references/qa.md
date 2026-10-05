@@ -26,10 +26,10 @@ it; only the QA agent the Coordinator names at dispatch records it.
   and acceptance tests, so it adds no serial step. A size-1 card MAY skip the
   measurability sign-off.
 - **Hidden probes:** while implementation and draft review proceed, prepare
-  inputs or checks the Implementer does not see, derived from the
+  inputs or checks the Builder does not see, derived from the
   specification and acceptance criteria. They are a held-out
   set: passing the visible acceptance tests is not enough. Keep probes out of
-  the Implementer's assignment and working tree until the verdict is recorded.
+  the Builder's assignment and working tree until the verdict is recorded.
 - **Blind behaviour verdict:** receive the specification, the acceptance
   criteria, and the frozen merged revision, without prior verdicts, review
   logs, or mutation logs. Run the required behaviour checks and the hidden

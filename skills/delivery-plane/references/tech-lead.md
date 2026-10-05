@@ -23,7 +23,7 @@ MUST NOT issue the behaviour verdict on a tree it integrated.
   would leave an invalid, unusable, or undeliverable intermediate system.
 - Define representative inputs, expected outputs, rejection cases, and
   verification instruments before implementation, and write the executable
-  acceptance tests the Implementer will loop on (see
+  acceptance tests the Builder will loop on (see
   [verification](verification.md#2-delivery-sequence)).
 - Give each acceptance row the cheapest execution stage that can fail it, so
   card-level iterations take minutes and full pipeline runs happen once on the
@@ -33,11 +33,11 @@ MUST NOT issue the behaviour verdict on a tree it integrated.
   make the first card of the dependency an interface card that fixes the API,
   schema, types, and test fixtures or mocks, so dependent cards can start
   against it.
-- Hold a draft review before the Implementer's complete suite: reject design
+- Hold a draft review before the Builder's complete suite: reject design
   and specification problems while they are cheap.
 - Resolve QA's measurability violations in the acceptance criteria before the
   card enters In Progress; QA's check runs in parallel with drafting them.
-- Resolve Implementer technical questions and reject scope or dependency
+- Resolve Builder technical questions and reject scope or dependency
   inventions.
 - Review candidate changes independently for correctness, completeness, test
   sensitivity, maintainability, and architectural fit.
@@ -84,7 +84,7 @@ When multiple sprints execute in parallel on the same project:
   verify that candidate changes respect agreed parallel sprint boundaries and do
   not modify shared contracts or files assigned to the other sprint without
   prior agreed coordination.
-- **Unforeseen Boundary Breach Resolution:** If an Implementer discovers an
+- **Unforeseen Boundary Breach Resolution:** If a Builder discovers an
   unavoidable cross-sprint dependency during execution, the Tech Lead advises
   the Coordinator on the minimal required boundary adjustment before any write.
 - **Parallel Integration:** When a parallel sprint completes and merges, the

@@ -120,7 +120,7 @@ Capture finer activities with `card timer start CARD CATEGORY` and
 progress; use `service-wait` when an unavailable service or infrastructure does.
 Use `user-ask` for a blocking user answer or approval, not dependency-wait.
 Record only the affected card's actual blocked interval. Do not create new
-generic `waiting` timers; historical ones remain unclassified. Implementers and
+generic `waiting` timers; historical ones remain unclassified. Builders and
 reviewers report actual activity boundaries promptly; the Coordinator serializes
 these writes. On an activity change, prefer
 `card activity CARD CATEGORY --operation-id ID`: it stops the open timer and
@@ -227,7 +227,7 @@ record holds only as far as workspace comment permissions keep it unchanged.
 `card comment` refuses a body starting with a plane-proj record prefix. A
 corrupt verdict comment blocks Done and later verdicts on its card, and the
 refusal names its comment id: delete or correct that comment in Plane, then
-retry. Implementers MUST NOT record verdicts, and the verdict command never
+retry. Builders MUST NOT record verdicts, and the verdict command never
 moves a card; the Coordinator moves it.
 
 ### Evidence archives

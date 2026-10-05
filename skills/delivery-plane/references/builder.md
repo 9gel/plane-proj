@@ -1,8 +1,8 @@
-# Implementer
+# Builder
 
 ## 1. Assignment
 
-An Implementer owns exactly one bounded delivery assignment. Implement only the
+A Builder owns exactly one bounded delivery assignment. Implement only the
 specified behavior and its verification. Follow repository environment,
 dependency, temporary-workspace, and commit rules.
 

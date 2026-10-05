@@ -64,7 +64,7 @@ clear and coherent:
 - The coordinator reports to me in human language, not some jargon-filled prose
   that always results after working in code for extended periods of time.
 - The tech lead handles overall tech design.
-- Implementors write code and deal with the minutiae of code syntax.
+- Builders write code and deal with the minutiae of code syntax.
 - QA and adversarial reviewers check design and code for issues.
 
 These roles then hand the task off to each other to complete delivery, in a
