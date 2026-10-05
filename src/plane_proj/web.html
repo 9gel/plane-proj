@@ -117,6 +117,8 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .sbar .segs span.light { color: #0b0b0b; }
 .sbar .tot { font-weight: 650; font-size: 18px; white-space: nowrap; }
 .sbar .start { position: absolute; top: -6px; bottom: -6px; border-left: 2px dashed var(--text); }
+.cstart { position: relative; align-self: stretch; margin: -6px 1px; border-left: 2px dashed var(--text); }
+.cstart b { position: absolute; top: -16px; left: 3px; font-size: 11px; font-weight: 600; white-space: nowrap; color: var(--text-2); }
 .sbar .start b { position: absolute; top: -16px; left: 3px; font-size: 11px; font-weight: 600; white-space: nowrap; color: var(--text-2); }
 /* card icons */
 .cicons { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
@@ -414,14 +416,14 @@ function cardRow(start, end) {
 const cardIcons = (colors, big) => `<div class="cicons">${colors.map(c => c === 'plain' ? `<span class="ci plain ${big ? 'big' : ''}"></span>` : `<span class="ci ${big ? 'big' : ''} ${c === stC.Verifying ? 'v' : ''}" style="background:${c}"></span>`).join('')}</div>`;
 
 // Points by state with numbers inside, total outside, dashed start marker.
-function stateBar(cards, start, unit) {
+function stateBar(cards, start, unit, tipText = '') {
   const val = c => unit === 'pts' ? c.points : 1;
   const tot = cards.reduce((a, c) => a + val(c), 0), scale = Math.max(tot, start);
   const segs = PROGRESS.map(st => [st, cards.filter(c => c.state === st).reduce((a, c) => a + val(c), 0)]).filter(x => x[1]);
   return `<div class="sbar"><div class="segs">${segs.map(([st, n]) =>
     `<span class="${st === 'Cancelled' || st === 'Verifying' ? 'light' : ''}" style="width:${n / scale * 100}%;background:${stC[st]}" data-tip="${st}: ${n} ${unit}">${n}</span>`).join('')}
     ${tot < scale ? `<span style="flex:1;background:none;border:1px dashed var(--muted)"></span>` : ''}
-    <div class="start" style="left:calc(${start / scale * 100}% - 1px)"><b>start ${start}</b></div></div>
+    <div class="start" style="left:calc(${start / scale * 100}% - 1px)" ${tipText ? `data-tip="${esc(tipText)}"` : ''}><b>start ${start}</b></div></div>
     <span class="tot">${tot} <span class="muted small">${unit}</span></span></div>`;
 }
 // Every state, always: the legend needs no data, so it is the same loading or loaded.
@@ -511,17 +513,18 @@ V.current = id => {
 function summaryCard(s, cards) {
   const header = title => `<div class="row" style="margin-bottom:8px"><h3 style="margin:0">${title}</h3><span class="sp"></span>${stateLegend}</div>`;
   const delta = (s.points_current ?? 0) - (s.points_start ?? 0);
-  // Two fixed lines, so a narrow screen wraps the loaded caption exactly like its placeholder.
-  const caption = PARTIAL ? `${skInline('170px', 10)}<br>${skInline('170px', 10)}`
-    : `Started with ${s.cards_start} cards${POINTS ? ` · ${s.points_start} pts` : ''}.<br>Now ${s.cards_current} cards${POINTS ? ` · ${s.points_current} pts (${delta >= 0 ? '+' : ''}${delta} pts)` : ''}.`;
+  // The start markers carry the scope change in their tooltip; the page shows only the graphics.
+  const scope = `Started with ${s.cards_start} cards${POINTS ? ` · ${s.points_start} pts` : ''}.<br>Now ${s.cards_current} cards${POINTS ? ` · ${s.points_current} pts (${delta >= 0 ? '+' : ''}${delta} pts)` : ''}.`;
   const count = PARTIAL ? skInline('70px', 22)
     : `<span class="tot" style="font-weight:650;font-size:18px">${cards.length} <span class="muted small">cards</span></span>`;
-  const icons = PARTIAL ? skIcons(s.cards_start, true) : cardIcons(byProgress(cards).map(c => stC[c.state]), true);
+  // Card icons with a dashed start marker after the sprint's opening card count.
+  const marker = `<span class="cstart" data-tip="${esc(scope)}"><b>start ${s.cards_start}</b></span>`;
+  const icons = PARTIAL ? skIcons(s.cards_start, true) : cardIcons(byProgress(cards).map(c => stC[c.state]), true)
+    .replace(new RegExp(`((?:<span class="ci[^>]*></span>){${Math.min(s.cards_start, cards.length)}})`), `$1${marker}`);
   return `<div class="card" style="margin-top:12px">
-    ${POINTS ? `${header('Points')}<div style="margin-top:22px">${PARTIAL ? skStateBar() : stateBar(cards, s.points_start, 'pts')}</div>
+    ${POINTS ? `${header('Points')}<div style="margin-top:22px">${PARTIAL ? skStateBar() : stateBar(cards, s.points_start, 'pts', scope)}</div>
     <h3 style="margin:20px 0 8px">Cards</h3>` : header('Cards')}
-    <div class="row" style="align-items:flex-start">${icons}<span class="sp"></span>
-      <div style="text-align:right"><div style="height:30px;display:flex;align-items:center;justify-content:flex-end">${count}</div><div class="small muted" style="white-space:nowrap">&#8203;${caption}</div></div></div>
+    <div class="row" style="align-items:center;margin-top:22px">${icons}<span class="sp"></span>${count}</div>
   </div>`;
 }
 
