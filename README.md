@@ -296,7 +296,7 @@ for machine-readable output.
 
 | Command | Purpose |
 | --- | --- |
-| `card list` | List active cards; `--state` shows Done, Backlog, or Cancelled |
+| `card list` | List active cards; `--state` shows Done, Backlog, or Cancelled; `--sprint` lists every card in a sprint's cycle |
 | `card show CARD` | Show a card with relations, description, and attachments |
 | `card new ... --cycle CYCLE` | Create a card in a sprint's cycle; `--touches` and `--deps-assessed` declare scope |
 | `card plan CARD` | Replace only the Delivery plan section of an existing card |

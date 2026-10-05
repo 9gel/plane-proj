@@ -522,6 +522,23 @@ class Board:
         """Return every work item in one cycle."""
         return self._cycle_cards(cycle_id)
 
+    def sprint_cycle_id(
+        self, sprint_id: int, known_cycle_id: str | None = None
+    ) -> str | None:
+        """Return the cycle UUID for sprint_id, from known_cycle_id or live Sprint N name."""
+        if known_cycle_id:
+            return known_cycle_id
+        return self.sprint_cycles({sprint_id}).get(sprint_id)
+
+    def sprint_cards(
+        self, sprint_id: int, known_cycle_id: str | None = None
+    ) -> list[Any]:
+        """Return every work item in a sprint's cycle (planned, current, or completed)."""
+        cycle_id = self.sprint_cycle_id(sprint_id, known_cycle_id)
+        if cycle_id is None:
+            raise ConfigError(f"sprint {sprint_id} has no matching Plane cycle")
+        return self.cycle_cards(cycle_id)
+
     def _cycle_cards(self, cycle_id: str) -> list[Any]:
         return list(self._paged(lambda cursor: self.client.cycles.list_work_items(
             self.slug, self.project.id, cycle_id, params=_cursor_params(cursor)

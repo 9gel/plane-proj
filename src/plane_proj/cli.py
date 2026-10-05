@@ -51,6 +51,7 @@ from plane_proj.credentials import (
     load_credentials,
 )
 from plane_proj.guards import (
+    ConfigError,
     DeliveryPlanRule,
     GuardViolation,
     PlaneProjError,
@@ -1223,6 +1224,8 @@ def card() -> None:
 
 
 @card.command("list")
+@click.option("--sprint", "sprint_ref",
+              help="Only work items in this sprint's cycle (number or alias).")
 @click.option("--state", help="Only work items in this state.")
 @click.option("--module", "module_name", help="Only work items in this module.")
 @click.option("--assignee", help="Only work items assigned to this member.")
@@ -1230,11 +1233,34 @@ def card() -> None:
 @click.option("--all", "show_all", is_flag=True,
               help="Include Done, Backlog, Cancelled, and archived work items.")
 @click.pass_obj
-def card_list(obj: Context, state: str | None, module_name: str | None,
-              assignee: str | None, unestimated: bool, show_all: bool) -> None:
-    """List work items; Done, Backlog, and Cancelled need --all or --state."""
+def card_list(obj: Context, sprint_ref: str | None, state: str | None,
+              module_name: str | None, assignee: str | None, unestimated: bool,
+              show_all: bool) -> None:
+    """List work items; Done, Backlog, and Cancelled need --all, --state, or --sprint."""
     board = obj.board
     project, config = board.project, board.config
+
+    sprint = None
+    if sprint_ref is not None:
+        database = config.state_file or sprints_module.default_database_path()
+        try:
+            with sprints_module.connect_database(database, writable=False) as connection:
+                sprint_id = sprints_module.resolve_sprint_id(connection, sprint_ref)
+                sprint = sprints_module.fetch_sprint(connection, sprint_id)
+                if sprint is None:
+                    raise sprints_module.SprintError(
+                        f"Sprint reference rule: unknown ID or alias {sprint_ref!r}"
+                    )
+                cycle_id = sprint.cycle_id
+        except sqlite3.Error as err:
+            raise sprints_module.SprintError(f"cannot open sprint register: {err}") from err
+        try:
+            items = board.sprint_cards(sprint.sprint_id, known_cycle_id=cycle_id)
+        except ConfigError as err:
+            raise sprints_module.SprintError(str(err)) from err
+    else:
+        items = board.cards(include_archived=show_all)
+
     wanted_state = project.state_id(state) if state else None
     wanted_assignee = config.member_id(assignee) if assignee else None
     module_members = (
@@ -1244,9 +1270,9 @@ def card_list(obj: Context, state: str | None, module_name: str | None,
     )
 
     records = []
-    for item in board.cards(include_archived=show_all):
+    for item in items:
         state_name = _state_name(project, getattr(item, "state", None))
-        if not show_all and (
+        if sprint_ref is None and not show_all and (
             getattr(item, "archived_at", None)
             # An explicit --state shows that state even when hidden by default.
             or (state is None
@@ -1280,9 +1306,14 @@ def card_list(obj: Context, state: str | None, module_name: str | None,
 
     by_id = {row["work_item_id"]: row for row in records}
     if by_id:
-        for cycle_name, cycle_id in sorted(project.cycles.items()):
-            for item_id in board.cycle_card_ids(cycle_id) & by_id.keys():
-                by_id[item_id]["cycles"].append(cycle_name)
+        if sprint is not None:
+            cycle_display = f"Sprint {sprint.sprint_id}"
+            for row in records:
+                row["cycles"].append(cycle_display)
+        else:
+            for cycle_name, cycle_id in sorted(project.cycles.items()):
+                for item_id in board.cycle_card_ids(cycle_id) & by_id.keys():
+                    by_id[item_id]["cycles"].append(cycle_name)
 
     columns = [("card", "CARD"), ("state", "STATE")]
     if project.estimates_enabled:

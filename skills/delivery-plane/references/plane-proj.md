@@ -39,6 +39,9 @@ cycle. The CLI verifies the new pending Intake record before reporting success.
     paths, and unnamed commits) without blocking closure.
   `sprints start` and `sprints close` are lifecycle commands outside the table:
   start moves admitted cards to Todo and unplanned open cards to Backlog.
+- `card list --sprint ID` (where `ID` is a sprint number or alias) lists every
+  card in that sprint's Plane cycle across all states (including Backlog, Done,
+  and Cancelled) without relying on the archived-work-items API.
 - Use native dependency relations and configured estimate values.
 - Serialize board writes through the Coordinator and honor `Retry-After` or
   reported rate limits without polling.
