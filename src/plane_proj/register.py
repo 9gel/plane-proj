@@ -12,7 +12,7 @@ import shutil
 import sqlite3
 import subprocess
 from collections import defaultdict
-from contextlib import closing
+from contextlib import closing, suppress
 from pathlib import Path
 
 from plane_proj.sprints import (
@@ -20,6 +20,7 @@ from plane_proj.sprints import (
     SCHEMA_VERSION,
     SprintError,
     database_uri,
+    to_utc_timestamp,
 )
 
 DRIVER = "plane-proj-register"
@@ -34,6 +35,11 @@ TABLE_KEYS = {
     "sprints": ("sprint_id",),
     "card_execution_snapshots": ("sprint_id", "work_item_id", "captured_at"),
     "operation_journal": ("operation_id",),
+}
+TIMESTAMP_COLUMNS = {
+    "sprints": ("started", "ended"),
+    "card_execution_snapshots": ("captured_at",),
+    "operation_journal": ("created_at", "updated_at"),
 }
 # Characters with meaning in a .gitattributes pattern line.
 PATTERN_SPECIALS = frozenset('*?[\\!#"')
@@ -92,7 +98,7 @@ def _read_register(path: Path, label: str) -> Register:
     try:
         with closing(_connect_read_only(path)) as connection:
             version = connection.execute("PRAGMA user_version").fetchone()[0]
-            if version != SCHEMA_VERSION:
+            if version not in {9, SCHEMA_VERSION}:
                 raise RegisterMergeError(
                     f"Register merge rule: {label} register {path} is schema "
                     f"version {version}, not {SCHEMA_VERSION}; run "
@@ -106,13 +112,20 @@ def _read_register(path: Path, label: str) -> Register:
                     f"{SCHEMA_VERSION} schema; the driver merges only that "
                     "schema, so remove the extras or merge by hand."
                 )
-            return {
-                table: {
-                    tuple(row[column] for column in key): dict(row)
-                    for row in connection.execute(f"SELECT * FROM {table}")
-                }
-                for table, key in TABLE_KEYS.items()
-            }
+            register: Register = {}
+            for table, key in TABLE_KEYS.items():
+                rows: Table = {}
+                time_cols = TIMESTAMP_COLUMNS.get(table, ())
+                for db_row in connection.execute(f"SELECT * FROM {table}"):
+                    row = dict(db_row)
+                    for col in time_cols:
+                        if row.get(col) is not None:
+                            with suppress(SprintError):
+                                row[col] = to_utc_timestamp(str(row[col]))
+                    row_key = tuple(row[column] for column in key)
+                    rows[row_key] = row
+                register[table] = rows
+            return register
     except sqlite3.DatabaseError as error:
         raise RegisterMergeError(
             f"Register merge rule: {label} register {path} is not a "

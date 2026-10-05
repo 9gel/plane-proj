@@ -330,7 +330,7 @@ def test_v7_alias_migration_preserves_every_existing_table(tmp_path):
     assert database.read_bytes() == old_bytes
     result = invoke(database, "migrate")
     assert result.exit_code == 0, result.output
-    assert "schema v7 → v9" in result.output
+    assert "schema v7 → v10" in result.output
     with sprints.connect_database(database, writable=False) as connection:
         for table, expected in before.items():
             actual = [tuple(row) for row in connection.execute(
@@ -953,7 +953,7 @@ def test_timing_reports_latest_card_snapshots_and_excludes_legacy_and_partial(
     assert timing["state_minutes"] == {"In Progress": 40}
     assert timing["execution_minutes"] == {"coding": 20}
     assert timing["open_timer_minutes"] == {}
-    assert timing["captured_through"] == "2026-01-02T11:00:00Z"
+    assert timing["captured_through"] == "2026-01-02T11:00:00+00:00"
     assert timing["rework_count"] == 3
     assert timing["reworked_cards"] == 2
     assert timing["rework_observed_cards"] == 2

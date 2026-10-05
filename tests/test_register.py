@@ -359,7 +359,7 @@ def test_snapshot_for_a_removed_sprint_fails_the_foreign_key(tmp_path):
     before = ours.read_bytes()
 
     refused(merge(base, ours, theirs), ours, before,
-            "card_execution_snapshots 1/card/2026-10-01T10:00:00Z: "
+            "card_execution_snapshots 1/card/2026-10-01T10:00:00+00:00: "
             "references a row missing from sprints")
 
 

@@ -22,7 +22,7 @@ from rich.table import Table
 
 from plane_proj.guards import SprintCycleBound, SprintCycleTaken
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 TIMESTAMP_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 STATUS_PLANNED = "planned"
 STATUS_CURRENT = "current"
@@ -113,7 +113,7 @@ CREATE TABLE sprints (
 ) STRICT;
 """ + (
     SNAPSHOT_SCHEMA_SQL + BINDING_SCHEMA_SQL + JOURNAL_SCHEMA_SQL
-    + ALIAS_INDEX_SQL + "PRAGMA user_version = 9;"
+    + ALIAS_INDEX_SQL + "PRAGMA user_version = 10;"
 )
 
 
@@ -159,6 +159,12 @@ def parse_timestamp(value: str) -> datetime:
     if parsed.isoformat(timespec="seconds") != value.replace("Z", "+00:00"):
         raise SprintError(f"invalid timestamp {value!r}; expected canonical RFC 3339 seconds")
     return parsed
+
+
+def to_utc_timestamp(value: str) -> str:
+    """Parse an RFC 3339 timestamp and format it in canonical UTC (+00:00)."""
+    parsed = parse_timestamp(value)
+    return parsed.astimezone(UTC).isoformat(timespec="seconds")
 
 
 def timestamps_equal(actual: object, expected: str) -> bool:
@@ -318,6 +324,74 @@ def _migrate_v3(connection: sqlite3.Connection) -> None:
         raise
 
 
+def _migrate_v10(connection: sqlite3.Connection) -> None:
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        sprints_rows = connection.execute(
+            "SELECT sprint_id, started, ended FROM sprints "
+            "WHERE started IS NOT NULL OR ended IS NOT NULL"
+        ).fetchall()
+        for row in sprints_rows:
+            sid = row[0]
+            try:
+                started = to_utc_timestamp(row[1]) if row[1] is not None else None
+            except SprintError:
+                started = row[1]
+            try:
+                ended = to_utc_timestamp(row[2]) if row[2] is not None else None
+            except SprintError:
+                ended = row[2]
+            if started != row[1] or ended != row[2]:
+                connection.execute(
+                    "UPDATE sprints SET started = ?, ended = ? WHERE sprint_id = ?",
+                    (started, ended, sid),
+                )
+
+        snapshots = connection.execute(
+            "SELECT sprint_id, work_item_id, captured_at "
+            "FROM card_execution_snapshots"
+        ).fetchall()
+        for row in snapshots:
+            sid, wid, cap = row[0], row[1], row[2]
+            try:
+                new_cap = to_utc_timestamp(cap)
+            except SprintError:
+                new_cap = cap
+            if new_cap != cap:
+                connection.execute(
+                    "UPDATE card_execution_snapshots SET captured_at = ? "
+                    "WHERE sprint_id = ? AND work_item_id = ? AND captured_at = ?",
+                    (new_cap, sid, wid, cap),
+                )
+
+        journal_rows = connection.execute(
+            "SELECT operation_id, created_at, updated_at FROM operation_journal"
+        ).fetchall()
+        for row in journal_rows:
+            op_id, created, updated = row[0], row[1], row[2]
+            try:
+                new_created = to_utc_timestamp(created)
+            except SprintError:
+                new_created = created
+            try:
+                new_updated = to_utc_timestamp(updated)
+            except SprintError:
+                new_updated = updated
+            if new_created != created or new_updated != updated:
+                connection.execute(
+                    "UPDATE operation_journal SET created_at = ?, updated_at = ? "
+                    "WHERE operation_id = ?",
+                    (new_created, new_updated, op_id),
+                )
+
+        connection.execute("PRAGMA user_version = 10")
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        connection.close()
+        raise
+
+
 def connect_database(path: Path, *, writable: bool) -> sqlite3.Connection:
     mode = "rw" if writable else "ro"
     try:
@@ -388,12 +462,16 @@ def connect_database(path: Path, *, writable: bool) -> sqlite3.Connection:
             connection.close()
             raise
         version = 9
+    # v10 normalizes all stored timestamps to canonical UTC (+00:00).
+    if writable and version == 9:
+        _migrate_v10(connection)
+        version = 10
 
     if version != SCHEMA_VERSION:
         connection.close()
         action = (
             "run plane-proj sprints migrate or a write command to upgrade it"
-            if version in {1, 2, 3, 4, 5, 6, 7, 8}
+            if version in {1, 2, 3, 4, 5, 6, 7, 8, 9}
             else "use a supported database"
         )
         raise SprintError(
@@ -581,7 +659,7 @@ def record_execution_snapshot(
     stats: dict[str, object],
 ) -> None:
     """Append one observed card-stat snapshot to the sprint register."""
-    parse_timestamp(captured_at)
+    captured_at = to_utc_timestamp(captured_at)
     sprint = fetch_sprint(connection, sprint_id)
     if sprint is None or sprint.status not in {STATUS_CURRENT, STATUS_COMPLETED}:
         raise SprintError(f"sprint {sprint_id} is not current or completed")
@@ -931,8 +1009,9 @@ def add_completed_sprint(connection: sqlite3.Connection, sprint: Sprint) -> None
         sprint.points_end, sprint.velocity, sprint.delivered,
     )):
         raise SprintError("imported sprint requires complete closure accounting")
-    parse_timestamp(sprint.started)
-    if parse_timestamp(sprint.ended) <= parse_timestamp(sprint.started):
+    started = to_utc_timestamp(sprint.started)
+    ended = to_utc_timestamp(sprint.ended)
+    if parse_timestamp(ended) <= parse_timestamp(started):
         raise SprintError("ended must be later than started")
     if not sprint.title.strip() or not (sprint.delivered or "").strip():
         raise SprintError("title and delivered must not be blank")
@@ -945,7 +1024,7 @@ def add_completed_sprint(connection: sqlite3.Connection, sprint: Sprint) -> None
                    points_start, points_end, velocity, delivered,
                    retrospective, alias
                ) VALUES (?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (sprint.sprint_id, sprint.title.strip(), sprint.started, sprint.ended, sprint.hours,
+            (sprint.sprint_id, sprint.title.strip(), started, ended, sprint.hours,
              sprint.cards_start, sprint.cards_end, sprint.points_start, sprint.points_end,
              sprint.velocity, sprint.delivered.strip(),
              sprint.retrospective.strip(),
@@ -995,6 +1074,7 @@ def start_sprint(
     cards_start: int,
     points_start: int,
 ) -> None:
+    started = to_utc_timestamp(started)
     sprint = validate_sprint_start(connection, sprint_id, started, cycle_id)
     if sprint.status == STATUS_CURRENT:
         return
@@ -1026,6 +1106,7 @@ def close_sprint(
     delivered: str,
     retrospective: str,
 ) -> None:
+    ended = to_utc_timestamp(ended)
     validate_sprint_close(
         connection, sprint_id, ended, hours, cards_start, cards_end,
         points_start, points_end, velocity, delivered,

@@ -30,7 +30,8 @@ behind a network call get tested once and then trusted.
 
 Sprint timestamp readbacks and start retries compare parsed instants, so UTC `Z`
 and equivalent numeric offsets match. Missing, malformed, or different readbacks
-still fail. The local timestamp validator accepts either zone notation.
+still fail. The local timestamp validator accepts either zone notation, and the
+register normalizes every stored timestamp to canonical UTC (+00:00).
 
 `SPRINTS.sqlite` holds ordered future plans, current sprints (supporting
 parallel execution across distinct Plane cycles), the exact Plane cycle UUID
@@ -358,9 +359,11 @@ because git runs them during merges and diffs.
 read-only. A missing or empty BASE, as git passes without a common ancestor,
 is an empty register. It refuses under the register merge rule, naming the
 input, when a file is not a readable SQLite register (for example an LFS
-pointer), when its schema version differs (run `plane-proj sprints migrate`
-on each branch first), or when its tables or columns differ from the current
-schema. Rows merge per table:
+pointer), when its schema version is not a supported version (v9 or v10;
+run `plane-proj sprints migrate` on each branch first for older registers),
+or when its tables or columns differ from the current schema. Timestamp fields
+are normalized to UTC on read so equivalent instants compare equal without false
+conflict, and the driver writes a v10 register. Rows merge per table:
 
 - `sprints` by `sprint_id`, `card_execution_snapshots` by its primary key, and
   `operation_journal` by `operation_id`: equal sides win; a side equal to BASE
@@ -400,6 +403,21 @@ journal claims and multi-row reorders, the schema enforces CHECK, unique, and
 foreign-key constraints on every write, and `user_version` drives
 migrations. A text register would have to re-implement all three; the driver
 and textconv give git what it needs without moving the data out of SQLite.
+
+### Canonical UTC timestamps and schema v10
+
+Schema v10 normalizes every stored timestamp in the register to canonical UTC
+(`YYYY-MM-DDTHH:MM:SS+00:00`). Inputs with non-zero offsets (such as `+08:00`)
+or `Z` suffixes are parsed and stored as their instant in UTC. The v9-to-v10
+migration updates all non-UTC timestamps across `sprints` (`started`,
+`ended`), `card_execution_snapshots` (`captured_at`), and `operation_journal`
+(`created_at`, `updated_at`) to their UTC representations, while leaving
+existing UTC values and NULLs untouched.
+
+The register merge driver accepts both v9 and v10 registers, normalizing
+timestamp fields during read so equivalent instants on different branches
+compare equal without false conflicts, and produces a merged register upgraded
+to schema v10.
 
 ### Plane/ layout and schema v9 (0.20.0)
 

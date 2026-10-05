@@ -328,7 +328,8 @@ def sprints_start(obj: dict[str, Any], cycle_id: str, started: str) -> None:
                 "Sprint reference rule: Plane cycle no longer matches "
                 f"sprint {requested_id}"
             )
-        sprints_module.validate_sprint_start(connection, sprint_id, started, cycle_id)
+        started_utc = sprints_module.to_utc_timestamp(started)
+        sprints_module.validate_sprint_start(connection, sprint_id, started_utc, cycle_id)
         board.require_no_orphans(*_open_sprints(connection))
         cycle_name, admitted, backlogged = board.start_sprint_cycle(cycle_id, started)
         metrics = board.sprint_cycle_metrics(cycle_id)
@@ -337,7 +338,7 @@ def sprints_start(obj: dict[str, Any], cycle_id: str, started: str) -> None:
         sprints_module.start_sprint(
             connection,
             sprint_id,
-            started,
+            started_utc,
             cycle_id,
             metrics["cards_current"] - metrics["cards_cancelled"],
             metrics["points_current"] - metrics["points_cancelled"],
@@ -416,7 +417,9 @@ def sprints_add(
         sprint_id = sprints_module.resolve_sprint_id(connection, sprint_id)
         sprint = sprints_module.Sprint(
             sprint_id, title, sprints_module.STATUS_COMPLETED,
-            started=started, ended=ended, hours=hours,
+            started=sprints_module.to_utc_timestamp(started),
+            ended=sprints_module.to_utc_timestamp(ended),
+            hours=hours,
             cards_start=cards_start, cards_end=cards_end,
             points_start=points_start, points_end=points_end, velocity=velocity,
             delivered=delivered, retrospective=retrospective, alias=alias,
@@ -514,9 +517,10 @@ def sprints_close(obj: dict[str, Any], sprint_id: str, ended: str,
             raise sprints_module.SprintError(f"sprint {sprint_id} is not current")
         board = obj["root"].board
         metrics = board.sprint_cycle_metrics(current.cycle_id)
-        derived = sprints_module.derive_close_accounting(current, ended, metrics)
+        ended_utc = sprints_module.to_utc_timestamp(ended)
+        derived = sprints_module.derive_close_accounting(current, ended_utc, metrics)
         sprint = sprints_module.validate_sprint_close(
-            connection, sprint_id, ended, derived["hours"],
+            connection, sprint_id, ended_utc, derived["hours"],
             derived["cards_start"], derived["cards_end"],
             derived["points_start"], derived["points_end"],
             derived["velocity"], delivered,
@@ -538,11 +542,11 @@ def sprints_close(obj: dict[str, Any], sprint_id: str, ended: str,
             board,
             cycle_cards,
             sprint_started_at=current.started,
-            sprint_ended_at=ended,
+            sprint_ended_at=ended_utc,
         )
         cycle_name = board.close_sprint_cycle(sprint.cycle_id, ended)
         sprints_module.close_sprint(
-            connection, sprint_id, ended, derived["hours"],
+            connection, sprint_id, ended_utc, derived["hours"],
             derived["cards_start"], derived["cards_end"],
             derived["points_start"], derived["points_end"],
             derived["velocity"], delivered, retrospective,
