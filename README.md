@@ -7,8 +7,11 @@ timing, and delivery history, in real time, as delivery happens.
 
 ![Sprint dashboard overview](docs/screenshots/overview.png)
 
+[More screenshots](docs/screenshots/README.md)
+
 ## Contents
 
+- [What is plane-proj](#what-is-plane-proj)
 - [Why plane-proj](#why-plane-proj)
 - [Prerequisites](#prerequisites)
 - [Install](#install)
@@ -18,37 +21,64 @@ timing, and delivery history, in real time, as delivery happens.
 - [Commands](#commands)
 - [Development](#development)
 
+## What is plane-proj
+
+`plane-proj` has three parts:
+
+- A CLI that reads and writes scrum plans on [Plane](https://plane.so) safely.
+- A web dashboard that shows you what's going on, in real time.
+- The `delivery-plane` agent skill, which tells your agents how to plan,
+  build, review, and report, according to Scrum principles, as an agent graph,
+  with checkable, measurable deliverable results, as in the Karparthy loop.
+
 ## Why plane-proj
 
 - **You, the human, stay in charge.** You set goals, approve sprint scope, and
   decide what ships. Agents plan, build, and verify inside those limits.
-- **You know what's going on.** See what's going on, live. Every work item,
-  state change, and timer shows on your Plane board as agents get to work.
-- **Mistakes get caught.** A Tech Lead agent reviews every card before it is
-  accepted, and the CLI refuses unsafe board changes before they happen.
+- **You know what's going on.** Every work item, state change, and timer shows
+  on your Plane board as agents get to work.
+- **Your code is in a good state.** By breaking down work in sprints that
+  deliver completed work, your code is workable and can be released.
 - **You and the agent learn from each sprint.** Velocity, scope change, rework,
   and where time went are recorded for every sprint and committed with your
   code, so the next plan (by agents) is based on evidence.
 
-`plane-proj` has three parts:
+### What is this NOT for
 
-- A CLI that reads and writes Plane safely.
-- A web dashboard that shows you what's going on, in real time.
-- The `delivery-plane` agent skill, which tells your agents how to plan,
-  build, review, and report, according to Scrum principles.
+- A one-off proof-of-concept that you don't have to maintain - you don't use
+  this to build something in one-shot for 30 minutes to impress people on
+  Twitter.
+- Research and spikes - while the skills reference them, they are best done
+  off-sprints and the research written somewhere as the deliverable.
 
-### Scrum, adapted for agents
+### Context clarity
 
-The driver for adapting Scrum for agent coordination is not to anthropomorphize.
-Rather, it is a form of context engineering. For a large project, a single agent
-can struggle to handle multiple tasks at once: implement disparate systems from
-front end, back end, data processing, to reporting to user coherently. They
-also often make mistakes that go unnoticed until too late.
+This project is a form of context and graph engineering. For a large project, a
+single agent or a swarm of undifferentiated agents can struggle to handle
+multiple tasks at once: implement disparate systems from front end, back end,
+data processing, testing, to reporting to user coherently.
 
 By breaking up implementation into clearly defined roles, agent context becomes
-clear and coherent. The coordinator reports to me in human language, not some
-jargon-filled prose after working in code for extended periods of time (I'm
-looking at Claude). They can also detect errors in other agent's work.
+clear and coherent:
+
+- The coordinator reports to me in human language, not some jargon-filled prose
+  that always results after working in code for extended periods of time.
+- The tech lead handles overall tech design.
+- Implementors write code and deal with the minutiae of code syntax.
+- QA and adversarial reviwers check design and code for issues.
+
+These roles then hand the task off to each other to complete delivery, in a
+graph formation.
+
+### Breaking down large projects into Sprints
+
+A naive way of breaking down a large project is into a long list of tasks. You
+may then put this into a kanban board.
+
+The problem: this often becomes an **endless list of TODOs**. You need a
+structure for the backlog of tasks.
+
+The driver for adapting Scrum for agent coordination is not to anthropomorphize.
 
 I was a Certified Scrum Master and a Certified Scrum Product Owner. I used to
 train large corporations on how to use Scrum. Results with people are sometimes
