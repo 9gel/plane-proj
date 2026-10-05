@@ -634,7 +634,7 @@ V.currentOne = s => {
     <div class="card kpi"><div class="row" style="flex-wrap:nowrap"><div class="v">${fmtMin(active)}</div>${active ? activeSplit(t.active_minutes) : ''}</div><div class="l">Active time</div></div>
     <div class="card kpi side"><div><div class="v" data-elapsed="${esc(s.started)}">${fmtH((Date.now() - Date.parse(s.started)) / 36e5)}</div><div class="l">Elapsed</div></div>
       <div class="clock" data-tip="Started ${esc(fullDate(s.started))}"><div class="t">${new Date(s.started).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</div>
-        <div class="d">${new Date(s.started).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</div></div></div>
+        <div class="d">Started - ${new Date(s.started).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</div></div></div>
   </div>
   ${summaryCard(s, cards)}</div>
   <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers</h3><span class="sp"></span>
