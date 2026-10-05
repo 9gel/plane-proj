@@ -932,7 +932,7 @@ V.past = () => {
   const maxH = Math.max(...past.map(s => s.hours || 0)), maxP = Math.max(...past.map(s => Math.max(s.points_start || 0, s.points_end || 0)));
   const maxC = Math.max(...past.map(s => Math.max(s.cards_start || 0, s.cards_end || 0)));
   const rows = past.filter(s => !pastQ || `${s.title} ${s.alias || ''} ${s.sprint}`.toLowerCase().includes(pastQ))
-    .sort((a, b) => { const k = pastSort.k, x = k === 'sprint' ? a.sprint : a[k], y = k === 'sprint' ? b.sprint : b[k]; return ((x ?? -1) > (y ?? -1) ? 1 : -1) * pastSort.d; });
+    .sort((a, b) => { const x = sortValue(a), y = sortValue(b); return ((x ?? -1) > (y ?? -1) ? 1 : -1) * pastSort.d; });
   const th = (k, t, extra = '') => `<th class="sort" onclick="sortPast('${k}')">${t}${pastSort.k === k ? (pastSort.d > 0 ? ' ▲' : ' ▼') : ''}${extra}</th>`;
   return `<h1>Past sprints</h1>
   <div class="row" style="margin:8px 0 12px"><input id="q" placeholder="Filter by title, alias, id" value="${esc(pastQ)}"
@@ -948,6 +948,10 @@ V.past = () => {
     <td style="min-width:170px">${hbar(s.hours, maxH, fmtH(s.hours), 'var(--dur)', { log: true, lo: 0.125 })}</td>
     ${POINTS ? `<td><div class="gsm">${dial(s.velocity)}<span>${num(s.velocity, 2)}</span></div></td>` : ''}</tr>`).join('')}</tbody></table></div>`;
 };
+// Times compare as instants: the register mixes offsets (+08:00, +00:00, Z),
+// so their text does not sort in time order.
+const sortValue = s => pastSort.k === 'sprint' ? s.sprint
+  : ['started', 'ended'].includes(pastSort.k) ? Date.parse(s[pastSort.k]) : s[pastSort.k];
 window.sortPast = k => { pastSort = { k, d: pastSort.k === k ? -pastSort.d : -1 }; render(); };
 
 V.pastDetail = s => {
