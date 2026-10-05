@@ -259,15 +259,13 @@ guide project, without Plane, a register, or credentials. Run it from a
 clone, in the development shell (see [Development](#development)):
 
 ```sh
-python demo/run_demo.py serve
+python demo/run_demo.py
 ```
 
-Open <http://127.0.0.1:8780>. To publish the demo on any static web host,
-such as GitHub Pages, write a static copy and upload the folder:
-
-```sh
-python demo/run_demo.py build site
-```
+It writes a static site to `demo/site`, then serves it at
+<http://127.0.0.1:8780>; `--host`, `--port` and `--out` change those. To
+publish the demo, upload that folder to any static web host, such as GitHub
+Pages.
 
 ## Commands
 

@@ -4,13 +4,14 @@ Wayfinder is a made-up offline museum guide app. Its sprints, cards and
 timers are generated here, so the dashboard runs without Plane, a
 register or credentials.
 
-    python demo/run_demo.py serve [--port 8780]
-        Serve the dashboard locally.
-    python demo/run_demo.py build OUT
-        Write a static copy to OUT for any static web host.
+    python demo/run_demo.py [--host 127.0.0.1] [--port 8780] [--out DIR]
 
-The static copy is the unchanged dashboard page plus the JSON it reads.
-The page requests api/sprints and api/sprints/local, so a path is both a
+writes a static site to DIR (default demo/site), then serves that folder
+as a plain static web host would. To publish the demo, upload DIR to any
+static host.
+
+The site is the unchanged dashboard page plus the JSON it reads. The
+page requests api/sprints and api/sprints/local, so a path is both a
 response and a directory; each response is therefore written as the
 index.html of its directory, which static hosts serve after redirecting
 api/sprints to api/sprints/. The browser parses the body as JSON either
@@ -18,10 +19,13 @@ way.
 """
 
 import argparse
+import contextlib
+import functools
 import json
 import random
 import statistics
 from datetime import UTC, datetime, timedelta
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from plane_proj import web
@@ -475,30 +479,28 @@ def build(out: Path, now: datetime) -> None:
         target.write_text(json.dumps(body), encoding="utf-8")
 
 
-def serve(port: int, now: datetime) -> None:
-    responses = demo_responses(now)
-    server = web.make_server(
-        "127.0.0.1",
-        port,
-        {path: (lambda body=body: body) for path, body in responses.items()},
-    )
-    print(f"Wayfinder demo at http://127.0.0.1:{port}/ (Ctrl-C to stop)")
-    server.serve_forever()
+def serve(out: Path, host: str, port: int) -> None:
+    handler = functools.partial(SimpleHTTPRequestHandler, directory=out)
+    with ThreadingHTTPServer((host, port), handler) as server:
+        print(f"Wayfinder demo at http://{host}:{port}/ (Ctrl-C to stop)")
+        print(f"Static site in {out}; upload it to any static host to publish.")
+        with contextlib.suppress(KeyboardInterrupt):
+            server.serve_forever()
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    commands = parser.add_subparsers(dest="command", required=True)
-    serve_parser = commands.add_parser("serve", help="serve the demo locally")
-    serve_parser.add_argument("--port", type=int, default=8780)
-    build_parser = commands.add_parser("build", help="write a static copy")
-    build_parser.add_argument("out", type=Path)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8780)
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path(__file__).parent / "site",
+        help="where to write the static site",
+    )
     args = parser.parse_args()
-    now = datetime.now(UTC).replace(microsecond=0)
-    if args.command == "serve":
-        serve(args.port, now)
-    else:
-        build(args.out, now)
+    build(args.out, datetime.now(UTC).replace(microsecond=0))
+    serve(args.out.resolve(), args.host, args.port)
 
 
 if __name__ == "__main__":
