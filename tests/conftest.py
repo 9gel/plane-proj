@@ -175,6 +175,9 @@ class FakeClient:
 
             def list(self, *args: Any, **kwargs: Any) -> Any:
                 outer.calls.append(("comments.list", args, kwargs))
+                if isinstance(outer.comments, dict):
+                    card_id = str(args[2]) if len(args) > 2 else ""
+                    return _page(outer.comments.get(card_id, []))
                 return _page(outer.comments)
 
             def create(self, *args: Any, **kwargs: Any) -> Any:
@@ -192,7 +195,7 @@ class FakeClient:
         class WorkItems(Recorder):
             def __init__(self) -> None:
                 super().__init__(outer.calls, "work_items")
-                self.relations = Recorder(outer.calls, "relations")
+                self.relations = Recorder(outer.calls, "relations", result={})
                 self.comments = Comments()
                 self.activities = Recorder(
                     outer.calls, "activities", result=lambda: _page(outer.activities)
@@ -293,7 +296,34 @@ class FakeClient:
                 )
 
         self.intake = Intake()
-        self.cycles = Recorder(self.calls, "cycles", result=_page([]))
+
+        class Cycles(Recorder):
+            def __init__(
+                self,
+                log: list[tuple[str, tuple, dict]] | None = None,
+                name: str = "cycles",
+                result: Any = None,
+            ) -> None:
+                super().__init__(
+                    outer.calls if log is None else log,
+                    name,
+                    result=_page([]) if result is None else result,
+                )
+
+            def list_work_items(self, *args: Any, **kwargs: Any) -> Any:
+                real = getattr(REAL_RESOURCES.get("cycles"), "list_work_items", None)
+                if real is not None:
+                    inspect.signature(real).bind(None, *args, **kwargs)
+                self._log.append(("cycles.list_work_items", args, kwargs))
+                if callable(self._result):
+                    return self._result()
+                if self._result is not None and getattr(self._result, "results", None):
+                    return self._result
+                cycle_id = args[2] if len(args) > 2 else kwargs.get("cycle_id")
+                matching = [c for c in outer.cards if getattr(c, "cycle_id", None) == cycle_id]
+                return _page(matching)
+
+        self.cycles = Cycles()
         self.modules = Recorder(self.calls, "modules", result=_page([]))
         self.states = Recorder(self.calls, "states", result=_page([]))
         self.labels = Recorder(self.calls, "labels", result=_page([]))

@@ -694,7 +694,7 @@ def build(out: Path, now: datetime) -> None:
 
 
 class QuietHandler(SimpleHTTPRequestHandler):
-    """Log requests, except the page's change poll every two seconds."""
+    """Log requests, except the change poll every two seconds; logs minute timing refetches."""
 
     def log_message(self, format, *args):  # noqa: A002 (http.server's name)
         if not self.path.startswith("/api/version"):

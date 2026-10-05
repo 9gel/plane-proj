@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections import defaultdict
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from rich import box
@@ -27,6 +27,92 @@ ACTIVITY_CATEGORIES = (
 )
 
 
+def summarize_snapshots(latest: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    """Aggregate one latest observation per card into a sprint timing summary."""
+    if not latest:
+        return None
+    groups = {
+        name: defaultdict(float)
+        for name in (
+            "state_minutes",
+            "execution_minutes",
+            "delayed_minutes",
+            "current_state_minutes",
+            "open_timer_minutes",
+            "rework_execution_minutes",
+        )
+    }
+    timed_cards = 0
+    rework_counts = []
+    # Rework cost exists only in snapshots taken since it was recorded;
+    # older ones leave it unknown rather than zero.
+    rework_costs = []
+    rework_reasons: dict[str, int] = defaultdict(int)
+    for snapshot in latest.values():
+        stats = snapshot["stats"]
+        if "rework_count" in stats:
+            rework_counts.append(stats["rework_count"])
+        if "rework_minutes" in stats:
+            rework_costs.append(stats["rework_minutes"])
+        for reason, count in stats.get("rework_reasons", {}).items():
+            rework_reasons[reason] += count
+        for name in ("state_minutes", "execution_minutes",
+                     "delayed_minutes", "rework_execution_minutes"):
+            for category, minutes in stats.get(name, {}).items():
+                if (
+                    name in {"execution_minutes",
+                             "rework_execution_minutes"}
+                    and category.casefold() in STATE_TIMER_CATEGORIES
+                ):
+                    continue
+                groups[name][category] += minutes
+        state = stats.get("current_state")
+        if state is not None and "elapsed_minutes" in state:
+            groups["current_state_minutes"][state["name"]] += state["elapsed_minutes"]
+        timer = stats.get("open_timer")
+        if (
+            timer is not None
+            and timer["category"].casefold() not in STATE_TIMER_CATEGORIES
+        ):
+            duration = (
+                parse_timestamp(snapshot["captured_at"])
+                - datetime.fromisoformat(timer["started"])
+            ).total_seconds() / 60
+            groups["open_timer_minutes"][timer["category"]] += max(0, duration)
+        if stats.get("state_minutes") or stats.get("execution_minutes") or state or timer:
+            timed_cards += 1
+    captures = sorted(
+        (snapshot["captured_at"] for snapshot in latest.values()), key=parse_timestamp
+    )
+    residence = defaultdict(float)
+    for group in ("state_minutes", "current_state_minutes"):
+        for name, minutes in groups[group].items():
+            if name.casefold() != "done":
+                residence[name] += minutes
+    groups["residence_minutes"] = residence
+    groups["active_minutes"] = {
+        name: minutes for name, minutes in residence.items()
+        if name.casefold() in {"in progress", "verifying"}
+    }
+    return {
+        "observed_cards": len(latest),
+        "rework_count": sum(rework_counts) if rework_counts else None,
+        "reworked_cards": (
+            sum(count > 0 for count in rework_counts)
+            if rework_counts else None
+        ),
+        "rework_observed_cards": len(rework_counts),
+        "rework_minutes": sum(rework_costs) if rework_costs else None,
+        "rework_cost_cards": len(rework_costs),
+        "rework_reasons": dict(sorted(rework_reasons.items())),
+        "timed_cards": timed_cards,
+        "final_cards": sum(snapshot["is_final"] for snapshot in latest.values()),
+        "captured_from": captures[0],
+        "captured_through": captures[-1],
+        **{name: dict(sorted(values.items())) for name, values in groups.items()},
+    }
+
+
 def summaries(
     connection: sqlite3.Connection, found: list[Sprint]
 ) -> dict[int, dict[str, Any] | None]:
@@ -40,90 +126,69 @@ def summaries(
                 latest[card_id]["captured_at"]
             ):
                 latest[card_id] = snapshot
-        if not latest:
-            result[sprint.sprint_id] = None
-            continue
-        groups = {
-            name: defaultdict(float)
-            for name in (
-                "state_minutes",
-                "execution_minutes",
-                "delayed_minutes",
-                "current_state_minutes",
-                "open_timer_minutes",
-                "rework_execution_minutes",
-            )
-        }
-        timed_cards = 0
-        rework_counts = []
-        # Rework cost exists only in snapshots taken since it was recorded;
-        # older ones leave it unknown rather than zero.
-        rework_costs = []
-        rework_reasons: dict[str, int] = defaultdict(int)
-        for snapshot in latest.values():
-            stats = snapshot["stats"]
-            if "rework_count" in stats:
-                rework_counts.append(stats["rework_count"])
-            if "rework_minutes" in stats:
-                rework_costs.append(stats["rework_minutes"])
-            for reason, count in stats.get("rework_reasons", {}).items():
-                rework_reasons[reason] += count
-            for name in ("state_minutes", "execution_minutes",
-                         "delayed_minutes", "rework_execution_minutes"):
-                for category, minutes in stats.get(name, {}).items():
-                    if (
-                        name in {"execution_minutes",
-                                 "rework_execution_minutes"}
-                        and category.casefold() in STATE_TIMER_CATEGORIES
-                    ):
-                        continue
-                    groups[name][category] += minutes
-            state = stats.get("current_state")
-            if state is not None and "elapsed_minutes" in state:
-                groups["current_state_minutes"][state["name"]] += state["elapsed_minutes"]
-            timer = stats.get("open_timer")
-            if (
-                timer is not None
-                and timer["category"].casefold() not in STATE_TIMER_CATEGORIES
-            ):
-                duration = (
-                    parse_timestamp(snapshot["captured_at"])
-                    - datetime.fromisoformat(timer["started"])
-                ).total_seconds() / 60
-                groups["open_timer_minutes"][timer["category"]] += max(0, duration)
-            if stats.get("state_minutes") or stats.get("execution_minutes") or state or timer:
-                timed_cards += 1
-        captures = sorted(
-            (snapshot["captured_at"] for snapshot in latest.values()), key=parse_timestamp
-        )
-        residence = defaultdict(float)
-        for group in ("state_minutes", "current_state_minutes"):
-            for name, minutes in groups[group].items():
-                if name.casefold() != "done":
-                    residence[name] += minutes
-        groups["residence_minutes"] = residence
-        groups["active_minutes"] = {
-            name: minutes for name, minutes in residence.items()
-            if name.casefold() in {"in progress", "verifying"}
-        }
-        result[sprint.sprint_id] = {
-            "observed_cards": len(latest),
-            "rework_count": sum(rework_counts) if rework_counts else None,
-            "reworked_cards": (
-                sum(count > 0 for count in rework_counts)
-                if rework_counts else None
-            ),
-            "rework_observed_cards": len(rework_counts),
-            "rework_minutes": sum(rework_costs) if rework_costs else None,
-            "rework_cost_cards": len(rework_costs),
-            "rework_reasons": dict(sorted(rework_reasons.items())),
-            "timed_cards": timed_cards,
-            "final_cards": sum(snapshot["is_final"] for snapshot in latest.values()),
-            "captured_from": captures[0],
-            "captured_through": captures[-1],
-            **{name: dict(sorted(values.items())) for name, values in groups.items()},
-        }
+        result[sprint.sprint_id] = summarize_snapshots(latest)
     return result
+
+
+def live_sprint_timing(
+    connection: sqlite3.Connection,
+    board: Any,
+    sprint_id: int,
+    cycle_cards: list[dict[str, Any]],
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any] | None:
+    """Derive timing for a current sprint live from Plane for open cards.
+
+    Settled cards retain their latest register snapshot.
+    """
+    now = now or datetime.now(UTC)
+    now_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    latest: dict[str, dict[str, Any]] = {}
+    for snapshot in fetch_execution_snapshots(connection, sprint_id):
+        card_id = snapshot["work_item_id"]
+        if card_id not in latest or parse_timestamp(snapshot["captured_at"]) > parse_timestamp(
+            latest[card_id]["captured_at"]
+        ):
+            latest[card_id] = dict(snapshot)
+
+    from plane_proj import execution as execution_module
+
+    for card in cycle_cards:
+        card_id = card.get("id")
+        if not card_id:
+            continue
+        state = card.get("state", "")
+        if state.casefold() in {"done", "cancelled"}:
+            # Settled card: keep its latest register snapshot, do not re-read comments.
+            continue
+        comments = board.comments(card_id)
+        derived = execution_module.execution_stats([], comments, as_of=now)
+        existing = latest.get(card_id)
+        stats = dict(existing["stats"]) if existing and "stats" in existing else {}
+        stats["execution_minutes"] = derived["execution_minutes"]
+        stats["open_timer"] = derived["open_timer"]
+        stats["delayed_minutes"] = derived["delayed_minutes"]
+        if derived.get("rework_reasons"):
+            stats["rework_reasons"] = derived["rework_reasons"]
+        if stats.get("current_state") and "started" in stats["current_state"]:
+            started_dt = parse_timestamp(stats["current_state"]["started"])
+            stats["current_state"] = dict(stats["current_state"])
+            stats["current_state"]["elapsed_minutes"] = round(
+                max(0.0, (now - started_dt).total_seconds() / 60), 2
+            )
+        latest[card_id] = {
+            "sprint_id": sprint_id,
+            "work_item_id": card_id,
+            "card_reference": card.get("ref") or (
+                existing.get("card_reference", "") if existing else ""
+            ),
+            "captured_at": now_str,
+            "is_final": False,
+            "stats": stats,
+        }
+
+    return summarize_snapshots(latest)
 
 
 def statistics(

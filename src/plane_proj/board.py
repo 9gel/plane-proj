@@ -1702,14 +1702,16 @@ class Board:
         return created
 
     def comments(self, card: Any) -> list[Any]:
+        card_id = getattr(card, "id", None) or (card["id"] if isinstance(card, dict) else str(card))
         return list(self._paged(lambda cursor: self.client.work_items.comments.list(
-            self.slug, self.project.id, card.id, params=_cursor_params(cursor)
+            self.slug, self.project.id, card_id, params=_cursor_params(cursor)
         )))
 
     def activities(self, card: Any) -> list[Any]:
         """Return the complete immutable activity stream for one work item."""
+        card_id = getattr(card, "id", None) or (card["id"] if isinstance(card, dict) else str(card))
         return list(self._paged(lambda cursor: self.client.work_items.activities.list(
-            self.slug, self.project.id, card.id, params=_cursor_params(cursor)
+            self.slug, self.project.id, card_id, params=_cursor_params(cursor)
         )))
 
     # ---- checks --------------------------------------------------------

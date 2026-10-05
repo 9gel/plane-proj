@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -1095,20 +1096,12 @@ def sprints_readiness(obj: dict[str, Any], as_json: bool) -> None:
     emit(payload, as_json=as_json or obj["root"].as_json, render=render)
 
 
-@sprints.command("web")
-@click.option("--host", default="127.0.0.1", show_default=True,
-              help="Address to listen on.")
-@click.option("--port", default=8765, type=int, show_default=True,
-              help="Port to listen on.")
-@click.option("--plane-url",
-              help="Plane web app address for links; overrides "
-                   "defaults.web_url in plane-proj.json.")
-@click.pass_obj
-def sprints_web(
-    obj: dict[str, Any], host: str, port: int, plane_url: str | None,
-) -> None:
-    """Serve a read-only web view of current, planned, and past sprints."""
+def sprints_web_routes(
+    obj: dict[str, Any], plane_url: str | None = None,
+) -> dict[str, Callable[[], dict[str, Any]]]:
+    """Build the dictionary of JSON routes for sprints web."""
     plane_url = plane_url or obj["root"].config.web_url
+
     def load() -> dict[str, Any]:
         listing = _sprint_listing(obj, include_all=True)
         board = obj["root"].board
@@ -1124,6 +1117,16 @@ def sprints_web(
             sprint_id: web_module.with_blockers(members, facts)
             for sprint_id, members in facts["members"].items()
         }
+        with sprints_module.connect_database(obj["database"], writable=False) as connection:
+            for sprint_record in listing["payload"].get("current", []):
+                sprint_id = sprint_record["sprint"]
+                cycle_cards = facts["members"].get(sprint_id, [])
+                live_timing = sprint_timing.live_sprint_timing(
+                    connection, board, sprint_id, cycle_cards
+                )
+                sprint_record["timing"] = live_timing
+                listing["timings"][sprint_id] = live_timing
+
         # Each sprint links to its cycle page, which lists only its cards.
         # The register knows current and completed cycles; planned ones are
         # found by their `Sprint N` name.
@@ -1196,7 +1199,7 @@ def sprints_web(
             shared_paths=_board_shared_paths(board),
         )
 
-    server = web_module.make_server(host, port, {
+    return {
         "/api/sprints": load,
         "/api/sprints/local": load_local,
         "/api/version": lambda: {
@@ -1204,7 +1207,24 @@ def sprints_web(
         },
         "/api/dependencies": dependencies,
         "/api/readiness": readiness,
-    })
+    }
+
+
+@sprints.command("web")
+@click.option("--host", default="127.0.0.1", show_default=True,
+              help="Address to listen on.")
+@click.option("--port", default=8765, type=int, show_default=True,
+              help="Port to listen on.")
+@click.option("--plane-url",
+              help="Plane web app address for links; overrides "
+                   "defaults.web_url in plane-proj.json.")
+@click.pass_obj
+def sprints_web(
+    obj: dict[str, Any], host: str, port: int, plane_url: str | None,
+) -> None:
+    """Serve a read-only web view of current, planned, and past sprints."""
+    routes = sprints_web_routes(obj, plane_url=plane_url)
+    server = web_module.make_server(host, port, routes)
     click.echo(f"Serving sprints on http://{host}:{server.server_port}/ (Ctrl+C stops)")
     try:
         server.serve_forever()

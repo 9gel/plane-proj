@@ -799,6 +799,13 @@ session; `sprints list` took about 3.4 s after. Fetching the 18 planned
 cycles concurrently was also measured and gave no further gain, so reads
 remain sequential.
 
+### Live timer reads (measured 2026-10-06)
+
+Measured 2026-10-06 against the mapstats self-hosted Plane, in one
+long-lived process: connect 1.25 s once, a cycle's cards 0.10 s, and one
+card's comments 0.07-0.08 s each (5 cards). Ten open cards add about 0.8 s
+to the full payload.
+
 ## 7a. Intake is a separate resource
 
 `intake new` sends a nested `issue` request through the SDK's Intake create
@@ -978,7 +985,13 @@ and two JSON routes from `web.py`:
 - `/api/sprints` returns the `sprints list --json --all` payload, built by the
   same `_sprint_listing` code path, plus the project key and name, the Plane
   board link, and each current cycle's cards (reference, title, state,
-  points) from `Board.sprint_cycle_cards`. Every request reads afresh.
+  points) from `Board.sprint_cycle_cards`. For each open card (not Done or
+  Cancelled) in a current sprint's cycle, it reads comments from Plane and
+  derives timers live with the same code as `card stats`; settled cards keep
+  their latest register snapshot. The Timers panel, Open timers tile, and
+  Active time tile render from these live timers. While a Current page is
+  open, the client refetches timing about once a minute; the register-only
+  first paint stays instant. Every request reads afresh.
 - `/api/sprints/local` returns the same payload from the register alone,
   marked partial, without project name, board link, cards, planned totals, or
   live current counts. It answers in milliseconds where the full payload takes

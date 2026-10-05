@@ -1102,7 +1102,7 @@ function fitNav() {
   bar.classList.toggle('compact', room < navW);
 }
 new ResizeObserver(fitNav).observe($('.bar')); fitNav();
-addEventListener('hashchange', () => { if (DATA) { render(); scrollTo(0, 0); } });
+addEventListener('hashchange', () => { if (DATA) { render(); scrollTo(0, 0); if (isCurrentOpen() && Date.now() - lastTimingFetch >= 60000) { lastTimingFetch = Date.now(); refresh(); } } });
 $('#theme').onclick = () => { const r = document.documentElement;
   const dark = r.dataset.theme ? r.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark ? 'light' : 'dark'; };
 $('#app').innerHTML = `<div style="padding-top:4px">${sk('180px', 26)}</div><div style="margin:14px 0 18px">${sk('240px', 14)}</div>
@@ -1114,7 +1114,9 @@ const getJSON = url => fetch(url, { cache: 'no-store' })
 // The first paint uses the register alone (milliseconds); the full payload,
 // which reads Plane, replaces it. Later refreshes keep the current view until
 // the full payload arrives, so nothing flickers back to placeholders.
+// While a Current page is open, timing is refetched from Plane about once a minute.
 let version = null;
+let lastTimingFetch = Date.now();
 const busy = text => { $('#busy').textContent = text; };
 function show(data) {
   const y = scrollY; boot(data);
@@ -1126,10 +1128,25 @@ function refresh() {
   const first = DATA ? Promise.resolve() : getJSON('api/sprints/local').then(show);
   return first.then(() => getJSON('api/sprints')).then(data => { show(data); busy(''); });
 }
+function isCurrentOpen() {
+  const [, view, arg] = (location.hash || '#/').split('/');
+  return view === 'current' || (view === 'sprint' && byId[+arg]?.status === 'current');
+}
 function poll() {
   let wait = 2000;
   getJSON('api/version')
-    .then(v => { if (v.version !== version) { version = v.version; return refresh(); } })
+    .then(v => {
+      const now = Date.now();
+      if (v.version !== version) {
+        version = v.version;
+        lastTimingFetch = now;
+        return refresh();
+      }
+      if (isCurrentOpen() && now - lastTimingFetch >= 60000) {
+        lastTimingFetch = now;
+        return refresh();
+      }
+    })
     .catch(e => {
       // Retry later rather than every poll: a failing Plane read is slow.
       version = null; wait = 15000;
