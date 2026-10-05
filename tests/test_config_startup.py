@@ -206,9 +206,14 @@ def test_missing_project_cannot_write_to_any_board(config_path, live_client):
     assert {name for name, _, _ in live_client.calls} <= {"projects.list", "workspaces.get_members"}
 
 
-def test_cli_reads_credentials_beside_explicit_config(config_path, live_client, monkeypatch):
+def test_cli_reads_credentials_from_the_invocation_directory(
+    config_path, live_client, monkeypatch,
+):
+    # .env_plane lives in the invocation directory (DESIGN.md); run from
+    # a temporary one so a developer's real credentials are never read.
     for key in ("PLANE_API_HOST_URL", "PLANE_API_KEY", "PLANE_WORKSPACE_SLUG"):
         monkeypatch.delenv(key, raising=False)
+    monkeypatch.chdir(config_path.parent)
     config_path.with_name(".env_plane").write_text(
         "PLANE_API_HOST_URL=http://plane\nPLANE_API_KEY=not-a-secret\n", encoding="utf-8",
     )
