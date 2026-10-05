@@ -773,7 +773,7 @@ V.stats = () => {
     stacks: [{ label: 'pts/h', color: d => heatV(d.velocity), get: d => d.velocity }], ref: MEDV, refLabel: `median ${num(MEDV, 2)}`, tipFn: d => tipHead(d) + `${num(d.velocity, 2)} pts/h` })}</div>` : ''}
   <div class="card" style="margin-top:12px"><h3>Duration <span class="muted small">(log₂ scale)</span></h3>${colChart({ data: past, log: true, lo: 0.125, fmt: v => v < 1 ? Math.round(v * 60) + 'm' : num(v, 0) + 'h',
     stacks: [{ label: 'hours', color: 'var(--dur)', get: d => d.hours }], ref: ST.hours.median, refLabel: `median ${fmtH(ST.hours.median)}`, tipFn: d => tipHead(d) + d.elapsed })}</div>
-  <div class="card" style="margin-top:12px"><h3>Time spent by timer <span class="muted small">(${timed.length} sprints with timing)</span></h3>${colChart({ data: timed, fmt: v => num(v, 0) + 'h',
+  <div class="card" style="margin-top:12px"><h3>Time spent by timer <span class="muted small">(card-hours)</span></h3>${colChart({ data: timed, fmt: v => num(v, 0) + 'h',
     stacks: [...TIMERS.map((k, i) => ({ label: k, color: timerColor(k), get: d => (d.timing.execution_minutes[k] || 0) / 60 })),
       { label: 'other', color: 'var(--t-other)', get: d => Object.entries(d.timing.execution_minutes).filter(([k]) => !TIMERS.includes(k)).reduce((a, x) => a + x[1], 0) / 60 }],
     tipFn: d => tipHead(d) + Object.entries(d.timing.execution_minutes).map(([k, v]) => `${k} ${fmtMin(v)}`).join('<br>') })}</div>
