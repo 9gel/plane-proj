@@ -29,6 +29,7 @@ from plane_proj import board as board_module
 from plane_proj import dependencies as dependencies_module
 from plane_proj import execution as execution_module
 from plane_proj import operations as operations_module
+from plane_proj import register as register_module
 from plane_proj import sprint_timing
 from plane_proj import sprints as sprints_module
 from plane_proj import text as text_module
@@ -1079,6 +1080,55 @@ def sprints_stats(obj: dict[str, Any], as_json: bool) -> None:
 def _render_sprint_statistics(payload: dict[str, Any]) -> None:
     sprints_module.render_stats({key: value for key, value in payload.items() if key != "timing"})
     sprint_timing.render_statistics(payload["timing"])
+
+
+# ---- register -----------------------------------------------------------
+
+@cli.group("register")
+def register() -> None:
+    """Git merge driver and diff view for the sprint register.
+
+    No credentials, server, or binding: git runs these during merges.
+    """
+
+
+@register.command("merge")
+@click.argument("base", type=click.Path(dir_okay=False, path_type=Path))
+@click.argument("ours", type=click.Path(exists=True, dir_okay=False,
+                                        path_type=Path))
+@click.argument("theirs", type=click.Path(exists=True, dir_okay=False,
+                                          path_type=Path))
+def register_merge(base: Path, ours: Path, theirs: Path) -> None:
+    """Merge THEIRS into OURS (git passes %O %A %B); exit 1 on conflict."""
+    register_module.merge_registers(base, ours, theirs)
+
+
+@register.command("dump")
+@click.argument("file", type=click.Path(exists=True, dir_okay=False,
+                                        path_type=Path))
+def register_dump(file: Path) -> None:
+    """Print the register as sorted text for git diff textconv."""
+    click.echo(register_module.dump_register(file), nl=False)
+
+
+@register.command("git-setup")
+@click.pass_obj
+def register_git_setup(obj: Context) -> None:
+    """Wire the merge driver and textconv into this git work tree."""
+    configured = (
+        obj.config.state_file
+        if obj.config_path is not None or DEFAULT_CONFIG.is_file()
+        else None
+    )
+    database = configured or sprints_module.default_database_path()
+    _report_git_setup(register_module.setup_git(Path.cwd(), database))
+
+
+def _report_git_setup(changes: list[str]) -> None:
+    if not changes:
+        click.echo("Register git integration already set up.")
+    for change in changes:
+        click.echo(f"Set {change}")
 
 
 # ---- card ---------------------------------------------------------------
@@ -2553,6 +2603,18 @@ def init(obj: Context, project_key: str, slug: str | None, out: Path, force: boo
     click.echo(f"  {env_path} (secret; do not commit)")
     click.echo(f"  {out} (commit)")
     click.echo(f"  {database_path} (commit)")
+    # The project is initialized; git wiring is optional and retryable.
+    try:
+        changes = register_module.setup_git(
+            database_path.parent, database_path
+        )
+    except (register_module.RegisterSetupError, OSError) as error:
+        click.echo(
+            f"Skipped register git setup: {error}; run plane-proj "
+            "register git-setup once that is fixed."
+        )
+    else:
+        _report_git_setup(changes)
     if board.project.estimates_enabled:
         click.echo(
             "To fill the scale, create work items named Estimate 1, "

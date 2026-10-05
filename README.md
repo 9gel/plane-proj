@@ -169,12 +169,18 @@ creates:
 | `.env_plane` | Plane URL, workspace slug, and API key | **Never commit** |
 | `plane/plane-proj.json` | Project selection, estimate mapping, and rules | **Commit** |
 | `plane/SPRINTS.sqlite` | Sprint plans, history, and timing | **Commit** |
+| `.gitattributes` | Register merge driver and diff view (in a git repo) | **Commit** |
 
 ```sh
-git add plane/plane-proj.json plane/SPRINTS.sqlite
+git add plane/plane-proj.json plane/SPRINTS.sqlite .gitattributes
 git commit -m "Initialize plane-proj delivery"
 echo ".env_plane*" >> .gitignore
 ```
+
+Inside a git repository, `init` also sets up git to merge the sprint register
+when sprints run on different branches. In an existing project, or after a
+fresh clone, run `plane-proj register git-setup` once. Commit the
+`.gitattributes` change it makes.
 
 ### 2. Prepare Plane
 
@@ -256,6 +262,7 @@ for machine-readable output.
 | Command | Purpose |
 | --- | --- |
 | `init --project KEY` | Create credentials, config, and sprint register |
+| `register git-setup` | Let git merge and diff the register via `register merge` and `register dump` |
 | `projects [--all]` | List Plane projects |
 | `project states` | List workflow states |
 | `project modules` | List modules |

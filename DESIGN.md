@@ -266,6 +266,60 @@ be silently claimed by the first config used to read it. An existing binding
 cannot be overwritten, including by `bind` retries. A register without cycle
 evidence relies on the explicit bind declaration.
 
+### Merging the register in git (0.21.13)
+
+Each project commits `plane/SPRINTS.sqlite`, so sprints run on different
+branches change the same binary file. `plane-proj register` gives git a merge
+driver and a text view. Neither needs credentials, a server, or a binding,
+because git runs them during merges and diffs.
+
+`register merge BASE OURS THEIRS` (git's `%O %A %B`) opens all three
+read-only. A missing or empty BASE, as git passes without a common ancestor,
+is an empty register. It refuses under the register merge rule, naming the
+input, when a file is not a readable SQLite register (for example an LFS
+pointer), when its schema version differs (run `plane-proj sprints migrate`
+on each branch first), or when its tables or columns differ from the current
+schema. Rows merge per table:
+
+- `sprints` by `sprint_id`, `card_execution_snapshots` by its primary key, and
+  `operation_journal` by `operation_id`: equal sides win; a side equal to BASE
+  takes the other side, so a row added, changed, or removed on one branch only
+  is taken; anything else, including a removal against a change, conflicts.
+- `register_binding`: a branch may add the binding, but every bound input must
+  hold the same one; otherwise the merge is refused.
+
+The merged rows must then keep the application's invariants: unique aliases,
+no numeric alias naming another sprint, one current sprint per cycle, and no
+planned sprints sharing a position. A position collision already present on
+one branch is that branch's state and does not block; a new one asks for
+`plane-proj sprints reorder` after resolving. The driver builds the result in
+`<OURS>.plane-proj-merge.tmp` beside OURS with the current schema, so CHECK
+constraints apply on insert. It then runs `PRAGMA foreign_key_check`, which
+reports a snapshot whose sprint was removed on the other branch by snapshot
+key, and `PRAGMA integrity_check`, reads the rows back, fsyncs, and replaces
+OURS with `os.replace`. On any conflict OURS stays byte-for-byte unchanged,
+the temporary file is removed, every conflict (table, key, differing fields)
+goes to stderr, and the exit status 1 makes git report a conflict.
+
+`register dump FILE` prints the schema version, then each table sorted by key
+as one compact JSON line per row with sorted keys; git uses it as the diff
+textconv. `register git-setup` adds the `.gitattributes` line for the
+configured register (`state_file`, or `plane/SPRINTS.sqlite`) and the local
+`merge.plane-proj-register.*` and `diff.plane-proj-register.textconv` keys,
+then reads both back through `git check-attr` and `git config`. It is
+idempotent. It refuses before writing when git is unavailable, outside a git
+work tree, when the register file does not exist, or when its path holds
+whitespace or a `.gitattributes` pattern character. A readback failure, such
+as `*.sqlite binary` in `.git/info/attributes`, is refused with that hint.
+`init` runs it once the project is created; if setup is refused, `init` still
+succeeds and prints how to run `plane-proj register git-setup` later.
+
+SQLite remains the authoritative store. Writes need transactions for
+journal claims and multi-row reorders, the schema enforces CHECK, unique, and
+foreign-key constraints on every write, and `user_version` drives
+migrations. A text register would have to re-implement all three; the driver
+and textconv give git what it needs without moving the data out of SQLite.
+
 ### Plane/ layout and schema v9 (0.20.0)
 
 Version 0.20.0 restores the pre-Compose code (0.7.3 plus the
