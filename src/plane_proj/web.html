@@ -604,7 +604,7 @@ V.past = () => {
     oninput="pastQ=this.value.toLowerCase();render();const q=document.getElementById('q');q.focus();q.setSelectionRange(q.value.length,q.value.length)">
     <span class="muted">${rows.length} of ${past.length}</span><span class="sp"></span>${segLegend}</div>
   <div class="card scroll" style="padding:4px 6px"><table><thead><tr>${th('sprint', 'Sprint')}${th('title', 'Title')}${th('ended', 'Ended')}
-    ${th('cards_end', 'Cards', ' <span class="muted">· cards</span>')}${POINTS ? th('points_end', 'Points', ' <span class="muted">· pts</span>') : ''}${th('hours', 'Duration', ' <span class="muted">· h, log₂</span>')}${POINTS ? th('velocity', 'Velocity', ' <span class="muted">· pts/h, log₂</span>') : ''}</tr></thead><tbody>
+    ${th('cards_end', 'Cards')}${POINTS ? th('points_end', 'Points') : ''}${th('hours', 'Duration', ' <span class="muted">· log₂</span>')}${POINTS ? th('velocity', 'Velocity', ' <span class="muted">· pts/h, log₂</span>') : ''}</tr></thead><tbody>
   ${rows.map(s => `<tr class="link" ${goto(s.sprint)}><td style="white-space:nowrap">${label(s)}</td><td>${esc(s.title)}</td>
     <td class="t2 small" style="white-space:nowrap" data-tip="${esc(fullDate(s.ended))}">${ago(s.ended)}</td>
     <td style="min-width:120px">${cardRow(s.cards_start, s.cards_end)}<div class="muted small">${s.cards_start} → ${s.cards_end} cards</div></td>
