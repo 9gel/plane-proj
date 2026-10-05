@@ -11,44 +11,46 @@
   --bg: #f6f6f4; --surface: #fcfcfb; --surface-2: #f0efec; --border: #e2e1dc;
   --text: #0b0b0b; --text-2: #52514e; --muted: #85837d; --accent: #2f3a48;
   /* State colours mean card state and nothing else: blue, orange and green appear nowhere below. */
-  --st-todo: #9c9a93; --st-prog: #2a78d6; --st-verify: #eb6834; --st-done: #1baf7a; --st-cancel: #cfcdc6;
-  /* Timers in bar order, one fixed warm hue each (order validated for
-     colour-blind separation); grey folds the rest. */
-  --t1: #e34948; --t2: #eda100; --t3: #e87ba4; --t4: #7d6b00; --t5: #9b2257;
-  --t6: #c4864a; --t-other: #aab2bd;
+  --st-todo: #9c9a93; --st-prog: #2a78d6; --st-verify: #ffcc00; --st-done: #1baf7a; --st-cancel: #cfcdc6;
+  /* Timers in bar order, one lightness and saturation for all: green for
+     coding (value), red hues for time lost. The order is validated for
+     colour-blind separation; grey folds the rest. */
+  --t1: #b7698f; --t2: #7e903e; --t3: #a36faf; --t4: #b37736; --t5: #857ac4;
+  --t6: #bf696a; --t-other: #aab2bd;
   /* Neutral slate for counts and plans; violet means duration; hot pink
      is the average in stats strips. */
   --scope-o: #6f7b8a; --slate-2: #aab2bd; --dial-track: #d9dde3;
   --dur: #4a3aa7; --rework: #6f7b8a; --avg: #e0287d;
-  /* Velocity heat, slow to fast: yellow, amber, orange, red. */
-  --heat-0: #f2cf4a; --heat-1: #f0a03a; --heat-2: #e2593a; --heat-3: #b81f2f;
-  --warn: #9a6700; --grid: #e9e8e4; --track: #ecebe7; --sk-hi: #fcfcfb; --range: #6f6d67; --median: #4a3aa7;
+  /* Velocity heat, slow to fast: peach, orange, red, deep red. No yellow:
+     yellow means Verifying. */
+  --heat-0: #f2c4a4; --heat-1: #ee8636; --heat-2: #e2593a; --heat-3: #b81f2f;
+  --warn: #d13b3b; --grid: #e9e8e4; --track: #ecebe7; --sk-hi: #fcfcfb; --range: #6f6d67; --median: #4a3aa7;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --border: #33332f;
     --text: #fff; --text-2: #c3c2b7; --muted: #8d8b84; --accent: #d4d9e0;
-    --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #d95926; --st-done: #199e70; --st-cancel: #4a4945;
-    --t1: #d94848; --t2: #c98500; --t3: #d55181; --t4: #9c9a3a; --t5: #b8457a;
-    --t6: #c47f3a; --t-other: #59616c;
+    --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #ffd23f; --st-done: #199e70; --st-cancel: #4a4945;
+    --t1: #c4759c; --t2: #8a9c4a; --t3: #b07bbc; --t4: #c08343; --t5: #9186d1;
+    --t6: #cd7576; --t-other: #59616c;
     --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
     --dur: #9085e9; --rework: #8a94a1; --avg: #f0509a;
-    --heat-0: #d6b23a; --heat-1: #e3862c; --heat-2: #e5553c; --heat-3: #ff3b4a;
-    --warn: #d4a72c; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
+    --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
+    --warn: #ef6b6b; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #121211; --surface: #1a1a19; --surface-2: #232321; --border: #33332f;
   --text: #fff; --text-2: #c3c2b7; --muted: #8d8b84; --accent: #d4d9e0;
-  --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #d95926; --st-done: #199e70; --st-cancel: #4a4945;
-  --t1: #d94848; --t2: #c98500; --t3: #d55181; --t4: #9c9a3a; --t5: #b8457a;
-  --t6: #c47f3a; --t-other: #59616c;
+  --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #ffd23f; --st-done: #199e70; --st-cancel: #4a4945;
+  --t1: #c4759c; --t2: #8a9c4a; --t3: #b07bbc; --t4: #c08343; --t5: #9186d1;
+  --t6: #cd7576; --t-other: #59616c;
   --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
   --dur: #9085e9; --rework: #8a94a1; --avg: #f0509a;
-  --heat-0: #d6b23a; --heat-1: #e3862c; --heat-2: #e5553c; --heat-3: #ff3b4a;
-  --warn: #d4a72c; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
+  --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
+  --warn: #ef6b6b; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
@@ -122,7 +124,9 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci::after { content: ""; position: absolute; left: 3px; right: 3px; top: 4px; height: 2px; background: rgba(255,255,255,.65); box-shadow: 0 4px 0 rgba(255,255,255,.65); border-radius: 1px; }
 .ci.big { width: 22px; height: 30px; border-radius: 4px; }
 .ci.big::after { left: 4px; right: 4px; top: 6px; height: 3px; box-shadow: 0 6px 0 rgba(255,255,255,.65); }
-.ci.d { background: var(--st-done); } .ci.r { background: none; border: 1px dashed var(--muted); }
+.ci.d { background: var(--st-done); }
+.ci.v::after { background: rgba(0,0,0,.45); box-shadow: 0 4px 0 rgba(0,0,0,.45); }
+.ci.big.v::after { box-shadow: 0 6px 0 rgba(0,0,0,.45); } .ci.r { background: none; border: 1px dashed var(--muted); }
 .ci.r::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
@@ -368,7 +372,7 @@ function cardRow(start, end) {
     + (end > start ? ` (+${end - start} added)` : '');
   return `<div class="cicons" data-tip="${esc(tipT)}">${r}</div>`;
 }
-const cardIcons = (colors, big) => `<div class="cicons">${colors.map(c => c === 'plain' ? `<span class="ci plain ${big ? 'big' : ''}"></span>` : `<span class="ci ${big ? 'big' : ''}" style="background:${c}"></span>`).join('')}</div>`;
+const cardIcons = (colors, big) => `<div class="cicons">${colors.map(c => c === 'plain' ? `<span class="ci plain ${big ? 'big' : ''}"></span>` : `<span class="ci ${big ? 'big' : ''} ${c === stC.Verifying ? 'v' : ''}" style="background:${c}"></span>`).join('')}</div>`;
 
 // Points by state with numbers inside, total outside, dashed start marker.
 function stateBar(cards, start, unit) {
@@ -376,7 +380,7 @@ function stateBar(cards, start, unit) {
   const tot = cards.reduce((a, c) => a + val(c), 0), scale = Math.max(tot, start);
   const segs = PROGRESS.map(st => [st, cards.filter(c => c.state === st).reduce((a, c) => a + val(c), 0)]).filter(x => x[1]);
   return `<div class="sbar"><div class="segs">${segs.map(([st, n]) =>
-    `<span class="${st === 'Cancelled' ? 'light' : ''}" style="width:${n / scale * 100}%;background:${stC[st]}" data-tip="${st}: ${n} ${unit}">${n}</span>`).join('')}
+    `<span class="${st === 'Cancelled' || st === 'Verifying' ? 'light' : ''}" style="width:${n / scale * 100}%;background:${stC[st]}" data-tip="${st}: ${n} ${unit}">${n}</span>`).join('')}
     ${tot < scale ? `<span style="flex:1;background:none;border:1px dashed var(--muted)"></span>` : ''}
     <div class="start" style="left:calc(${start / scale * 100}% - 1px)"><b>start ${start}</b></div></div>
     <span class="tot">${tot} <span class="muted small">${unit}</span></span></div>`;
@@ -656,8 +660,8 @@ function reasonsCard(reasons) {
 }
 const statsRows = (o, fmt, order) => (order || Object.keys(o)).filter(k => o[k]).map(k => strip(k, o[k], fmt)).join('');
 // Bar order, fixed: the colours are validated as neighbours in this order.
-const TIMERS = ['user-ask', 'dependency-wait', 'blocking-run', 'coding',
-  'manual-qa', 'service-wait'];
+const TIMERS = ['blocking-run', 'coding', 'manual-qa', 'dependency-wait',
+  'service-wait', 'user-ask'];
 let statTab = 'charts';
 V.stats = () => {
   if (!past.length) return '<h1>Stats</h1><p class="muted">No completed sprints yet.</p>';
