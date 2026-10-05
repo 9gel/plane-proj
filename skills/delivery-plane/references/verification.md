@@ -6,6 +6,19 @@ The author MUST NOT issue the independent acceptance verdict. Documentation
 requires independent wording, reference, and instruction-consistency review.
 Executable changes require independent code review and behavior verification.
 
+A card's acceptance verdict has two parts, both recorded with
+`plane-proj card verdict` while the card is in Verifying:
+
+- a [QA](qa.md) verdict (`--role qa`) on behaviour, issued blind on the frozen
+  merged revision; and
+- a [Tech Lead](tech-lead.md) verdict (`--role tech-lead`) on design fit:
+  architecture, maintainability, and integration correctness.
+
+A card enters Done only when the latest QA and Tech Lead verdicts recorded
+since it last entered Verifying both pass, name the same revision, and have
+different authors. The QA author MUST differ from the Tech Lead and from the
+author of the acceptance tests. Implementers never record verdicts.
+
 ## 2. Delivery Sequence
 
 Expensive gates run once, after the judgment that is most likely to reject a
@@ -15,26 +28,33 @@ follow a long suite or pipeline run that it makes worthless.
 1. Before implementation, the Tech Lead writes executable acceptance tests for
    the acceptance matrix rows that a test can decide. The Implementer MUST NOT
    weaken or delete them; a change to one needs the Tech Lead's approval.
+   In parallel with this draft, QA checks that every acceptance criterion is
+   measurable; the card enters In Progress only after the Tech Lead resolves
+   QA's violations. A size-1 card MAY skip this sign-off.
 2. The Implementer loops locally until the acceptance tests and focused
    changed tests pass, then requests a draft review.
 3. Draft review: the Tech Lead reviews the diff, design, test design, and
    focused evidence. A rejection here sends the work back before any complete
-   suite or full pipeline run.
+   suite or full pipeline run. Meanwhile QA prepares hidden probes the
+   Implementer does not see.
 4. After draft review passes, the Implementer passes the complete ordinary
    suite and hands off for independent verification.
 5. The Tech Lead integrates accepted changes. Several accepted cards MAY be
    integrated before the next step, so one merged-tree run covers them.
 6. Freeze the merged tree and environment.
-7. The Tech Lead, or a named independent verifier, runs the complete required
-   merged-tree gates and targeted acceptance challenges.
-8. The Tech Lead records a verdict for each card; the Coordinator closes
-   accepted cards.
+7. QA runs the complete required merged-tree gates, the acceptance
+   challenges, and its hidden probes on the frozen revision, and records its
+   behaviour verdict blind.
+8. The Tech Lead reviews the same revision for design fit and records its
+   verdict. When both verdicts pass, the Coordinator closes the card.
 
-When review requires rework, the Tech Lead sends the defect, the verdict, and
-its reason (`spec`, `test-gap`, `defect`, `missed-gate`, or `environment`) to
-the Coordinator. Before correction resumes, the Coordinator records the
-send-back under [the rework transition rule](coordinator.md); the Tech Lead
-does not change tracker state.
+When review or a verdict requires rework, the Tech Lead or QA sends the
+defect, the verdict, and its reason (`spec`, `test-gap`, `defect`,
+`missed-gate`, or `environment`) to the Coordinator. Before correction
+resumes, the Coordinator records the send-back under
+[the rework transition rule](coordinator.md#3-allowed-card-state-transitions);
+neither the Tech Lead nor QA changes tracker state. Verdicts recorded before
+the card returns to Verifying judge an earlier candidate and do not count.
 
 On failure, preserve the result and return the defect for correction. The
 corrected candidate passes its acceptance tests and focused checks, then draft
@@ -47,9 +67,9 @@ set; a missing gate is invisible when the reported ones are green. Name each
 test lane by its canonical command and collected count; do not call a default
 lane "full".
 
-Blind re-verification receives the specification and test inputs without prior
-verdicts or mutation logs. It records its verdict before inspecting earlier
-reports.
+QA owns blind re-verification. It receives the specification and test inputs
+without prior verdicts, review logs, or mutation logs, and records its verdict
+before inspecting earlier reports.
 
 ## 3. Acceptance Instruments
 

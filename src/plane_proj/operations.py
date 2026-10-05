@@ -155,6 +155,7 @@ def run_transition(
     state_id = str(getattr(item, "state", ""))
     if STEP_MOVED not in steps:
         board.check_admission(item, to_state)
+        board.check_transition(item, from_state, to_state)
 
     if STEP_MOVED in steps:
         if state_id != target_id:
@@ -217,7 +218,8 @@ def run_transition(
         steps.append(STEP_REASON_RECORDED)
 
     if STEP_MOVED not in steps:
-        board.move_state(item, to_state)
+        # Checked above, before the timer-stop and reason writes.
+        board.move_state(item, to_state, transition_checked=True)
         sprints_module.record_operation_step(
             connection, operation_id, STEP_MOVED
         )

@@ -3,12 +3,18 @@
 ## 1. Authority
 
 The Tech Lead owns architecture, implementation design, technical rulings,
-review, integration commits, and final technical acceptance. The Tech Lead
-decides safe concurrency and reports that decision to the Coordinator, who
-manages agents.
+acceptance tests, review, integration commits, and the design-fit verdict. The
+Tech Lead decides safe concurrency and reports that decision to the
+Coordinator, who manages agents.
+
+Final certification by the Tech Lead covers design fit only: architecture,
+maintainability, and integration correctness. The behaviour verdict belongs to
+[QA](qa.md), because the Tech Lead writes the acceptance tests and integrates
+the tree they judge.
 
 The Tech Lead MUST NOT implement production code, manage priorities or tracker
-state, dispatch agents, or communicate directly with the user.
+state, dispatch agents, or communicate directly with the user. The Tech Lead
+MUST NOT issue the behaviour verdict on a tree it integrated.
 
 ## 2. Operation
 
@@ -29,6 +35,8 @@ state, dispatch agents, or communicate directly with the user.
   against it.
 - Hold a draft review before the Implementer's complete suite: reject design
   and specification problems while they are cheap.
+- Resolve QA's measurability violations in the acceptance criteria before the
+  card enters In Progress; QA's check runs in parallel with drafting them.
 - Resolve Implementer technical questions and reject scope or dependency
   inventions.
 - Review candidate changes independently for correctness, completeness, test
@@ -43,9 +51,14 @@ state, dispatch agents, or communicate directly with the user.
   `manual-qa`. Do not report generic review/verification timer boundaries:
   entering and leaving Verifying already records that interval.
 - Integrate accepted changes using named paths without rewriting shared history.
-- Freeze and independently verify the merged tree before certifying acceptance.
+- Freeze the merged tree and give QA its revision; do not pass QA earlier
+  verdicts, review logs, or mutation logs.
+- Review the frozen revision for design fit and record the verdict with
+  `plane-proj card verdict CARD --role tech-lead --result pass|fail
+  --revision REV --author NAME` while the card is in Verifying. The revision
+  MUST be the one QA judges.
 - Return precise defects for correction and provide the Coordinator with the
-  final verdict and reusable evidence.
+  verdict and reusable evidence.
 
 For a cross-layer change, the Tech Lead MUST specify and verify one minimal
 integrated constructed-fixture path before broad implementation depends on

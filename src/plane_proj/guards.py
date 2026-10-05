@@ -107,6 +107,26 @@ class EstimateTooLargeForCycle(GuardViolation):
     """
 
 
+class MissingIndependentVerdict(GuardViolation):
+    """A card was moved into Done without two independent passing verdicts.
+
+    Independent verdict rule: since the card last entered Verifying, the
+    latest qa verdict and the latest tech-lead verdict must both pass, name
+    the same revision, and come from different authors. An author must not
+    issue its own acceptance verdict, and two passes on different revisions
+    accept no single candidate.
+    """
+
+
+class TransitionNotAllowed(GuardViolation):
+    """A card move is outside the delivery transition table.
+
+    Transition table rule: a card moves only along the coordinator's table.
+    Every other move, such as skipping Verifying on the way to Done,
+    manufactures history the delivery process never produced.
+    """
+
+
 class ScaleContradiction(GuardViolation):
     """Captured board facts disagree with themselves.
 

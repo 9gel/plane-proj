@@ -7,6 +7,7 @@ writing anything twice.
 from __future__ import annotations
 
 import sqlite3
+from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,10 +15,15 @@ from typing import Any
 
 import pytest
 
-from plane_proj import execution, operations
+from plane_proj import execution, operations, verdicts
 from plane_proj import sprints as sprints_module
 from plane_proj.board import Board
-from plane_proj.guards import EstimateTooLargeForCycle, GuardViolation
+from plane_proj.guards import (
+    EstimateTooLargeForCycle,
+    GuardViolation,
+    MissingIndependentVerdict,
+    TransitionNotAllowed,
+)
 from tests.conftest import Card, FakeClient
 
 OP = "3e1f8f9c-0000-4000-8000-000000000001"
@@ -209,8 +215,8 @@ def test_a_retry_after_a_lost_move_response_does_not_replay(
     """The move landed; the crash hit before its journal step."""
     real_move = board.move_state
 
-    def move_then_crash(item: Any, state_name: str) -> None:
-        real_move(item, state_name)
+    def move_then_crash(item: Any, state_name: str, **options: Any) -> None:
+        real_move(item, state_name, **options)
         raise ConnectionError("response lost")
 
     monkeypatch.setattr(board, "move_state", move_then_crash)
@@ -437,6 +443,85 @@ def test_admitting_an_oversized_card_refuses_before_any_write(
 
     assert client.write_calls == []
     assert sprint_card.state == "state-backlog"
+
+
+def _with_rules(board: Board, **rules: bool) -> None:
+    board.project = replace(
+        board.project, rules=replace(board.project.rules, **rules)
+    )
+
+
+def test_done_without_independent_verdicts_refuses_before_any_write(
+    connection, board: Board, client: FakeClient, sprint_card: Card,
+):
+    _with_rules(board, require_independent_verdicts=True)
+    sprint_card.state = "state-verifying"
+    client.activities = [SimpleNamespace(
+        id="entered", field="state", old_value="In Progress",
+        new_value="Verifying", actor="worker-id",
+        created_at="2026-09-16T00:10:00Z",
+    )]
+    # The timer stop would otherwise be the first write.
+    client.comments.append(
+        _timer_comment("2026-09-16T00:30:00Z", "start", "coding")
+    )
+
+    with pytest.raises(MissingIndependentVerdict, match="no qa verdict"):
+        operations.run_transition(
+            connection, board, reference="DEMO-12",
+            from_state="Verifying", to_state="Done",
+            stop_activity=True, operation_id=OP,
+        )
+
+    assert client.write_calls == []
+    assert sprint_card.state == "state-verifying"
+
+
+def test_done_with_independent_verdicts_transitions(
+    connection, board: Board, client: FakeClient, sprint_card: Card,
+):
+    _with_rules(board, require_independent_verdicts=True,
+                require_transition_table=True)
+    sprint_card.state = "state-verifying"
+    client.comments.extend(
+        SimpleNamespace(
+            id=f"verdict-{role}", created_at="2026-09-16T00:40:00Z",
+            actor="worker-id",
+            comment_html=verdicts.verdict_html(verdicts.verdict_fields(
+                role=role, result="pass", revision="0123abc",
+                author=f"{role}-agent", note="", operation_id=role,
+            )),
+        )
+        for role in verdicts.ROLES
+    )
+
+    receipt = operations.run_transition(
+        connection, board, reference="DEMO-12",
+        from_state="Verifying", to_state="Done",
+        stop_activity=False, operation_id=OP,
+    )
+
+    assert receipt["completed"] is True
+    assert sprint_card.state == "state-done"
+
+
+def test_a_transition_outside_the_table_refuses_before_any_write(
+    connection, board: Board, client: FakeClient, sprint_card: Card,
+):
+    _with_rules(board, require_transition_table=True)
+    client.comments.append(
+        _timer_comment("2026-09-16T00:30:00Z", "start", "coding")
+    )
+
+    with pytest.raises(TransitionNotAllowed, match="Transition table rule"):
+        operations.run_transition(
+            connection, board, reference="DEMO-12",
+            from_state="In Progress", to_state="Done",
+            stop_activity=True, operation_id=OP,
+        )
+
+    assert client.write_calls == []
+    assert sprint_card.state == "state-progress"
 
 
 def test_settling_with_stop_activity_closes_the_timer(

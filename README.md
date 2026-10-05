@@ -65,7 +65,7 @@ clear and coherent:
   that always results after working in code for extended periods of time.
 - The tech lead handles overall tech design.
 - Implementors write code and deal with the minutiae of code syntax.
-- QA and adversarial reviwers check design and code for issues.
+- QA and adversarial reviewers check design and code for issues.
 
 These roles then hand the task off to each other to complete delivery, in a
 graph formation.
@@ -96,7 +96,7 @@ take hours.
 | Topic | Traditional Scrum | plane-proj |
 | --- | --- | --- |
 | Sprint | Fixed; often 2 weeks | Usually 1–8 hours |
-| Team | Stable roles and size | Coordinator and Tech Lead, with agents that come and go |
+| Team | Stable roles and size | Coordinator, Tech Lead, and QA, with agents that come and go |
 | Product Owner | Required | You |
 | Scrum Master | Full-time role | Coordinator agent |
 | Daily Scrum | Daily 15-minute event | None; the live board replaces it |
@@ -201,7 +201,9 @@ Once the scale is saved, delete the temporary cards in Plane.
 ### 4. Check project rules
 
 `plane/plane-proj.json` holds your project rules: cycle, module, estimate,
-work-in-progress, and card size limits. Check the board against them:
+work-in-progress, and card size limits, plus whether a card needs passing QA
+and Tech Lead verdicts before Done and may only move between states in the
+allowed order (`init` turns both on). Check the board against them:
 
 ```sh
 plane-proj project rules-check

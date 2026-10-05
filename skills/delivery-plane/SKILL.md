@@ -18,6 +18,7 @@ cards.
 | Create, refine, split, or classify a card | [work-items.md](references/work-items.md) and [sizing.md](references/sizing.md) |
 | Act as Coordinator (including parallel coordination) | [coordinator.md](references/coordinator.md) |
 | Act as Tech Lead (including parallel boundary analysis) | [tech-lead.md](references/tech-lead.md) and [verification.md](references/verification.md) |
+| Act as QA | [qa.md](references/qa.md) and [verification.md](references/verification.md) |
 | Act as Implementer | [implementer.md](references/implementer.md) and [verification.md](references/verification.md) |
 | Operate a Plane board | [plane-proj.md](references/plane-proj.md) |
 
@@ -37,8 +38,13 @@ load role instructions for another role merely to perform the current role.
   individual Implementers MAY join for one bounded assignment and leave after
   handoff. The Coordinator preserves continuity in the tracker and sprint
   register as that worker pool changes.
-- The Tech Lead owns technical design, review, integration commits, and final
-  technical acceptance.
+- The Tech Lead owns technical design, acceptance tests, review, integration
+  commits, and the design-fit verdict.
+- QA owns acceptance-criteria measurability checks, hidden probes, and the
+  blind behaviour verdict on the frozen merged revision.
+- A card enters Done only with passing QA and Tech Lead verdicts on the same
+  revision from different authors; see
+  [verification](references/verification.md#1-independence).
 - An Implementer owns one bounded assignment and its implementation evidence.
 - Cards intended for the current sprint MUST belong to its current tracker
   cycle.

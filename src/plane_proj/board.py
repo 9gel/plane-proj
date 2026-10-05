@@ -57,12 +57,15 @@ from plane_proj.guards import (
     GuardViolation,
     MissingCycle,
     MissingEstimate,
+    MissingIndependentVerdict,
     MissingModule,
     OrphanedCard,
     ReadbackFailed,
     ScaleContradiction,
+    TransitionNotAllowed,
 )
 from plane_proj.sprints import timestamps_equal
+from plane_proj.verdicts import require_independent_verdicts
 
 RELATION_TYPES = (
     "blocking",
@@ -86,6 +89,24 @@ INTAKE_STATUS_NAMES = {
 BATCH_CARD_MAXIMUM = 100
 _SPRINT_NAME = re.compile(r"^Sprint ([1-9][0-9]*)(?:\b|\s*[-—:])")
 SETTLED_STATES = frozenset({"done", "cancelled"})
+#: The coordinator's allowed card moves, as casefolded (from, to) pairs.
+ALLOWED_TRANSITIONS = frozenset({
+    ("backlog", "todo"),
+    ("todo", "in progress"),
+    ("in progress", "verifying"),
+    ("verifying", "in progress"),
+    ("verifying", "done"),
+    ("in progress", "todo"),
+    ("todo", "backlog"),
+    ("in progress", "backlog"),
+    ("verifying", "backlog"),
+    ("backlog", "cancelled"),
+    ("todo", "cancelled"),
+    ("in progress", "cancelled"),
+    ("verifying", "cancelled"),
+    ("done", "todo"),
+    ("cancelled", "backlog"),
+})
 
 _EVIDENCE_KIND = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 
@@ -806,6 +827,7 @@ class Board:
         self._check_estimate(assignee_id=assignee_id, estimate=estimate,
                              blank_estimate=blank_estimate)
         self.project.check_admission_estimate(estimate, state_name)
+        self._check_created_state(title, state_name)
 
 
         module_id = self.project.module_id(module_name) if module_name else None
@@ -952,8 +974,20 @@ class Board:
         self.update_card(card, self.project.estimate_fields(estimate))
         self._verify_card(card.id, estimate=estimate, state_name=None)
 
-    def move_state(self, card: Any, state_name: str) -> None:
+    def move_state(
+        self, card: Any, state_name: str, *, transition_checked: bool = False,
+    ) -> None:
+        """Move one card with readback.
+
+        `transition_checked` is for a caller that already ran
+        `check_transition` on this move before its own earlier writes.
+        """
         self.check_admission(card, state_name)
+        if not transition_checked:
+            self.check_transition(
+                card, self._state_name(getattr(card, "state", None)),
+                state_name,
+            )
         self.update_card(card, {"state": self.project.state_id(state_name)})
         self._verify_card(card.id, estimate=None, state_name=state_name)
 
@@ -1001,6 +1035,8 @@ class Board:
                 f"Batch selection changed: {details}; expected {from_state}. "
                 "No cards were updated."
             )
+        for card in selected:
+            self.check_transition(card, from_state, to_state)
 
         for card in selected:
             self.update_card(card, {"state": target_id})
@@ -1085,6 +1121,61 @@ class Board:
             self.project.estimate_value(getattr(card, "estimate_point", None)),
             state_name,
         )
+
+    def check_transition(
+        self, card: Any, from_state: str, to_state: str
+    ) -> None:
+        """Refuse a move the project's transition rules forbid.
+
+        Reads activities and comments only for a move into Done under the
+        independent verdict rule.
+        """
+        rules = self.project.rules
+        move = (from_state.casefold(), to_state.casefold())
+        if rules.require_transition_table and move not in ALLOWED_TRANSITIONS:
+            allowed = ", ".join(sorted(
+                target for source, target in ALLOWED_TRANSITIONS
+                if source == move[0]
+            )) or "nothing"
+            raise TransitionNotAllowed(
+                f"Transition table rule: {self._reference(card)} may not "
+                f"move {from_state} → {to_state}. From {from_state} a card "
+                f"may move only to: {allowed}. Resolve a move outside the "
+                "table with the user before changing state."
+            )
+        if rules.require_independent_verdicts and move[1] == "done":
+            if move[0] != "verifying":
+                raise MissingIndependentVerdict(
+                    f"Independent verdict rule: {self._reference(card)} "
+                    f"enters Done only from Verifying, not from "
+                    f"{from_state}; verdicts judge the candidate under "
+                    "review, so return the card to Verifying first."
+                )
+            require_independent_verdicts(
+                self._reference(card),
+                self.activities(card),
+                self.comments(card),
+            )
+
+    def _check_created_state(self, title: str, state_name: str | None) -> None:
+        """Under the transition rules, a card is born in Backlog or Todo.
+
+        Any later state is reached only through moves those rules check;
+        creating a card straight into Done would skip every one of them.
+        """
+        rules = self.project.rules
+        if state_name is None or state_name.casefold() in {"backlog", "todo"}:
+            return
+        detail = (
+            f"{title!r} may not be created in {state_name}; create it in "
+            "Backlog or Todo and move it through the checked transitions."
+        )
+        if rules.require_transition_table:
+            raise TransitionNotAllowed(f"Transition table rule: {detail}")
+        if rules.require_independent_verdicts:
+            raise MissingIndependentVerdict(
+                f"Independent verdict rule: {detail}"
+            )
 
     def check_cycle_entry(self, card: Any) -> None:
         """A card may join a cycle in any state it could hold there."""

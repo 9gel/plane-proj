@@ -21,6 +21,16 @@ cycle. The CLI verifies the new pending Intake record before reporting success.
 - Follow the
   [Coordinator transition table](coordinator.md#3-allowed-card-state-transitions).
   Move cards when reality changes; an idle card MUST NOT remain In Progress.
+- Enable the `require_transition_table` and `require_independent_verdicts`
+  project rules; `plane-proj init` writes both as on for new projects. With
+  them on, `card transition`, `card move`, and `card move-many` refuse a move
+  outside the transition table, and refuse a move into Done unless it comes
+  from Verifying and the latest qa and tech-lead verdicts posted since the
+  card last entered Verifying both pass, name the same revision, and have
+  different authors. With either rule on, `card new --state` accepts only
+  Backlog or Todo. `sprints start` and `sprints close` are lifecycle commands
+  outside the table: start moves admitted cards to Todo and unplanned open
+  cards to Backlog.
 - Use native dependency relations and configured estimate values.
 - Serialize board writes through the Coordinator and honor `Retry-After` or
   reported rate limits without polling.
@@ -152,7 +162,7 @@ subsequent waits.
   [--stop-activity] --operation-id ID` for single-card state changes: it
   runs inspect, optional timer stop, move, readback, and collection as
   one journaled operation, and a retry with the same id resumes without
-  replaying moves or timer events. On a Tech Lead rework verdict, the
+  replaying moves or timer events. On a QA or Tech Lead rework verdict, the
   Coordinator MUST transition Verifying → In Progress this way, with
   `--reason` set to the verdict's cause (`spec`, `test-gap`, `defect`,
   `missed-gate`, or `environment`), before redispatch. The native
@@ -190,6 +200,27 @@ Collection is observational: it MUST NOT move cards or replace technical
 evidence. The database retains successive snapshots so early implementation,
 waiting, QA, rework, and final totals remain available for later velocity
 analysis.
+
+### Acceptance verdicts
+
+QA and the Tech Lead record verdicts with `plane-proj card verdict CARD
+--role qa|tech-lead --result pass|fail --revision REV --author NAME
+[--note TEXT] [--operation-id ID]`. The revision is the git commit hash the
+verdict covers. The command accepts a verdict only on a card in Verifying and
+posts it as a visible `plane-proj-verdict/v1` comment. `--operation-id` is
+optional but SHOULD be given, so a retry finds the earlier comment and posts
+nothing instead of a second verdict; the same id with different fields is
+refused. A later verdict from the same role supersedes an earlier one, and a
+return to Verifying discards every earlier verdict for the Done check.
+
+The author is asserted by the caller with `--author`, not authenticated by
+Plane. Editing or deleting a comment in Plane is outside the guard, so the
+record holds only as far as workspace comment permissions keep it unchanged.
+`card comment` refuses a body starting with a plane-proj record prefix. A
+corrupt verdict comment blocks Done and later verdicts on its card, and the
+refusal names its comment id: delete or correct that comment in Plane, then
+retry. Implementers MUST NOT record verdicts, and the verdict command never
+moves a card; the Coordinator moves it.
 
 ### Evidence archives
 

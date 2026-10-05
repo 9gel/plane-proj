@@ -361,6 +361,23 @@ def _state_events(activities: Iterable[Any]) -> list[dict[str, Any]]:
     return sorted(events, key=lambda event: (event["when"], event["source_id"]))
 
 
+def last_entered(
+    activities: Iterable[Any], state_name: str
+) -> datetime | None:
+    """When the card most recently entered `state_name`; None if never."""
+    wanted = state_name.casefold()
+    entries = [
+        event["when"] for event in _state_events(activities)
+        if event["new"].casefold() == wanted
+    ]
+    return entries[-1] if entries else None
+
+
+def comment_time(comment: Any) -> datetime:
+    """A comment's server timestamp, strictly parsed."""
+    return _timestamp(getattr(comment, "created_at", None))
+
+
 def timeline(activities: Iterable[Any], comments: Iterable[Any]) -> list[dict[str, Any]]:
     """Return state transitions and timer boundaries in one chronological stream."""
     rows = [{

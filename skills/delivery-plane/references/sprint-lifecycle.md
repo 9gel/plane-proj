@@ -53,20 +53,22 @@ Capture the opening revision and baseline gate state before dispatch.
 ## 3. Closure
 
 A sprint MUST NOT close until every admitted card is Done or Cancelled, every
-Done card has independent acceptance, tracker membership matches the admitted
-set, the merged tree has passed the project-required complete verification,
-temporary work areas are removed, every settled card has a final execution
-snapshot in the sprint register, at least one accepted deliverable realizes the
-Sprint Goal, and the repository is at a clean verified commit. Run
-`sprints preflight N` before closing: it reports nonterminal cards, missing
-final snapshots, open timers, and the derived accounting without writing.
+Done card has passing QA and Tech Lead verdicts from different authors on one
+revision, tracker membership matches the admitted set, the merged tree has
+passed the project-required complete verification, temporary work areas are
+removed, every settled card has a final execution snapshot in the sprint
+register, at least one accepted deliverable realizes the Sprint Goal, and the
+repository is at a clean verified commit. Run `sprints preflight N` before
+closing: it reports nonterminal cards, missing final snapshots, open timers, and
+the derived accounting without writing.
 `sprints close N --ended TS --delivered TEXT` derives hours, closing totals, and
 velocity; do not hand-calculate them. The preflight verifies the presence and
-identity of closure facts, not their technical validity — acceptance stays
-human/agent-reviewed. Run `sprints check` beside the preflight: open timers on
-settled cards and Backlog cards left in the sprint both block closure. Record a
-retrospective grounded in the observed scope, timing, blockers, verification,
-and rework before closure.
+identity of closure facts, not their technical validity: acceptance rests on the
+QA behaviour verdict and the Tech Lead technical verdict recorded with
+`card verdict` before each card entered Done. Run `sprints check` beside the
+preflight: open timers on settled cards and Backlog cards left in the sprint
+both block closure. Record a retrospective grounded in the observed scope,
+timing, blockers, verification, and rework before closure.
 
 Where the project specifies a retrospective directory, longer
 retrospectives MUST be written there as `RETRO-<sprint #>.md`, opening

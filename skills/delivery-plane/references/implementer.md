@@ -42,3 +42,5 @@ that tracker operation.
   (assume and proceed).
 - Hand off a quiet committed tree; self-testing is evidence, not independent
   acceptance.
+- Never record a verdict with `plane-proj card verdict`; acceptance verdicts
+  belong to [QA](qa.md) and the Tech Lead. Do not seek QA's hidden probes.

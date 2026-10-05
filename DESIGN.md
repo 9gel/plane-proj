@@ -370,6 +370,83 @@ JSON retains the original closed `state_minutes`, `current_state_minutes` and
 closed and ongoing state intervals excluding Done; `active_minutes` selects In
 Progress and Verifying. Summary statistics expose these new groups as well.
 
+### Acceptance verdicts and the transition table
+
+`card verdict CARD --role {qa,tech-lead} --result {pass,fail} --revision REV
+--author NAME [--note TEXT] [--operation-id ID]` records one verdict as a
+visible comment: the prefix `plane-proj-verdict/v1` and compact JSON with
+`author`, `note`, `operation_id`, `result`, `revision`, and `role`. The
+revision is a git commit hash of 7 to 40 lowercase hex characters. A verdict is
+accepted only on a card in Verifying. The operation id is optional but should
+be given: a retry with the same id and the same fields finds the earlier
+comment and posts nothing, and the same id with different fields is refused.
+
+The author is asserted by the caller through `--author`; it is not
+authenticated, and the Plane actor that posts the comment is not compared with
+it. The guard reads the comments as they stand: editing or deleting a comment
+in Plane is outside it, so verdict comments are an audit trail only as far as
+the workspace's own comment permissions keep them unchanged.
+
+A comment whose text starts with the verdict prefix but does not parse refuses
+under the Verdict rule, naming the comment id, rather than being skipped; so
+does a verdict comment without a valid `created_at`. Until it is fixed, every
+move into Done and every later `card verdict` on that card refuses. Recovery is
+to delete or correct that comment in Plane and retry. `card comment` refuses a
+body whose text starts with the verdict, execution (v1 or v2), or rework
+prefix under the Structured comment rule, so a free comment cannot forge or
+corrupt a record.
+
+Two project rules use these records and the coordinator's transition table:
+
+- `require_independent_verdicts` (IndependentVerdictRule,
+  `MissingIndependentVerdict`): a move into Done through `card transition`,
+  `card move`, or `card move-many` must come from Verifying, and requires the
+  latest qa verdict and the latest tech-lead verdict, among those posted after
+  the card last entered Verifying in Plane's state history, to both pass, name
+  the same revision, and have different authors. An author must not issue its
+  own acceptance verdict, and two passes on different revisions accept no
+  single candidate. A verdict older than the last return to Verifying judged an
+  earlier candidate, so it does not count.
+- `require_transition_table` (TransitionTableRule, `TransitionNotAllowed`):
+  the same three commands refuse any move outside the delivery skill's allowed
+  card transitions, comparing state names case-insensitively. Sprint start and
+  close, and cycle membership commands, are outside this rule; `sprints start`
+  moves admitted cards to Todo and others to Backlog as a lifecycle step.
+
+With either rule on, `card new --state` accepts only Backlog or Todo, so a card
+cannot be created past the checked moves. Both rules refuse before the first
+write. Both default to off, so an existing config keeps its behaviour;
+`plane-proj init` writes both as on.
+
+The "since it last entered Verifying" cutoff compares comment `created_at`
+with the state activity's `created_at`, and assumes Plane writes the activity
+for a move before any verdict posted after it. That ordering has not been
+measured against a live server; a verdict stamped strictly after the entry
+counts, and one stamped at the same instant does not.
+
+### Guards enforce invariants, never sequencing
+
+A guard refuses a state that must never exist: a Done card without verified
+acceptance, a move outside the transition table, an open card in no sprint.
+Each refusal happens before the first write, so the board never holds the
+forbidden state even briefly. These are properties of every correct board,
+whatever the delivery path that reached it.
+
+The order of work is not such a property. Which card to dispatch next, when
+to send a card back, how to classify discovered scope, and when to escalate
+to the user are judgments, and they stay with the Coordinator agent following
+the delivery skill. A scripted sprint engine that encoded those branches would
+be rigid where delivery needs judgment, and it could fail on its own bugs in
+ways a guard cannot, because a wrong branch produces a legal but wrong state.
+
+Deterministic code is therefore reserved for four things: invariants checked
+by guards, journaled transitions that a retry resumes without replaying, the
+telemetry derived from them, and well-shaped fan-outs that return data, such
+as `sprints ready`, with a manual fallback when they cannot run. The
+[verdict rules](#acceptance-verdicts-and-the-transition-table) follow this
+split: the CLI refuses an unverified Done, while choosing reviewers,
+dispatching QA, and escalating after repeated failures stay with the agent.
+
 ## 7. Two server limits and one SDK defect
 
 All three measured, none inferred.

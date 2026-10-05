@@ -32,6 +32,7 @@ from plane_proj import operations as operations_module
 from plane_proj import sprint_timing
 from plane_proj import sprints as sprints_module
 from plane_proj import text as text_module
+from plane_proj import verdicts as verdicts_module
 from plane_proj import web as web_module
 from plane_proj.config import (
     DEFAULT_CONFIG,
@@ -1324,8 +1325,60 @@ def card_comment(obj: Context, reference: str, body: str, is_html: bool) -> None
     """Post a comment."""
     board = obj.board
     text = text_module.read_text(body) or ""
-    board.comment(board.find(reference), text_module.to_html(text, already_html=is_html))
+    comment_html = text_module.to_html(text, already_html=is_html)
+    verdicts_module.require_free_text(comment_html)
+    board.comment(board.find(reference), comment_html)
     click.echo(f"{reference} commented")
+
+
+@card.command("verdict")
+@click.argument("reference")
+@click.option("--role", required=True,
+              type=click.Choice(verdicts_module.ROLES))
+@click.option("--result", required=True,
+              type=click.Choice(verdicts_module.RESULTS))
+@click.option("--revision", required=True,
+              help="Git commit hash the verdict covers.")
+@click.option("--author", required=True, help="Who issued the verdict.")
+@click.option("--note", default="", help="Short free-text note.")
+@click.option("--operation-id",
+              help="Stable id; a retry finds the earlier verdict and "
+                   "posts nothing.")
+@click.pass_obj
+def card_verdict(obj: Context, reference: str, role: str, result: str,
+                 revision: str, author: str, note: str,
+                 operation_id: str | None) -> None:
+    """Record a qa or tech-lead verdict on a card in Verifying."""
+    board = obj.board
+    operation = operation_id or str(uuid.uuid4())
+    fields = verdicts_module.verdict_fields(
+        role=role, result=result, revision=revision, author=author,
+        note=note, operation_id=operation,
+    )
+    item = board.find(reference)
+    names = {state_id: name for name, state_id in board.project.states.items()}
+    current = names.get(str(getattr(item, "state", "")), "unknown")
+    if current.casefold() != "verifying":
+        raise GuardViolation(
+            f"Verdict rule: {reference} is {current}; a verdict is "
+            "recorded only on a card in Verifying."
+        )
+    posted = not verdicts_module.already_recorded(
+        board.comments(item), fields
+    )
+    if posted:
+        board.comment(item, verdicts_module.verdict_html(fields))
+    payload = {
+        "card": f"{board.project.key}-{getattr(item, 'sequence_id', '?')}",
+        "role": role, "result": result, "revision": revision,
+        "author": author, "operation_id": operation, "posted": posted,
+    }
+    emit(payload, as_json=obj.as_json, render=lambda data: click.echo(
+        f"{data['card']} {data['role']} {data['result']} on "
+        f"{data['revision']} by {data['author']}  operation "
+        f"{data['operation_id']}"
+        + ("" if data["posted"] else "  (already recorded)")
+    ))
 
 
 @card.command("comments")

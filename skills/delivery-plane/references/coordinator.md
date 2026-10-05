@@ -34,10 +34,22 @@ production code. Route technical rulings to the Tech Lead.
   before its blocker is Done. Keep the `blocked_by` relation; rework caused by
   an interface change is recorded with reason `spec`.
 - Reject scope expansion. Classify discovered work under the sprint lifecycle.
-- Close a card only after the Tech Lead certifies technical acceptance.
-- Follow the allowed transitions in §3. On a Tech Lead rework verdict, record
-  Verifying → In Progress with the verdict's reason and verify readback before
-  redispatch. Comments alone do not record a rework round.
+- Dispatch one [QA](qa.md) agent per card, whose author differs from the Tech
+  Lead and from the acceptance-test author. Dispatch its measurability check
+  while the Tech Lead drafts the card's specification and acceptance tests,
+  and admit the card to In Progress only after the violations are resolved
+  (a size-1 card MAY skip this sign-off). Dispatch QA again with only the
+  specification, acceptance criteria, and frozen revision for the blind
+  behaviour verdict.
+- Close a card only when the latest QA verdict and Tech Lead verdict since it
+  last entered Verifying both pass, name the same revision, and have different
+  authors. QA and the Tech Lead record verdicts; only the Coordinator changes
+  tracker state.
+- Follow the allowed transitions in §3. On a QA or Tech Lead rework verdict,
+  record Verifying → In Progress with the verdict's reason and verify readback
+  before redispatch. Comments alone do not record a rework round.
+- A card has at most three QA rounds. When the third QA verdict fails,
+  escalate to the user instead of redispatching.
 - Follow the Plane adapter's activity-timer procedure for reported coding,
   dependency-wait, service-wait, user-ask, blocking-run, and manual-QA
   boundaries. Use `user-ask` for work actually blocked on a user answer or
@@ -116,9 +128,9 @@ decision.
 |---|---|---|
 | Backlog | Todo | Admitted to the current sprint, executable, and assigned to its cycle |
 | Todo | In Progress | An Implementer starts the dispatched assignment |
-| In Progress | Verifying | The candidate and required implementation evidence are ready for Tech Lead review |
-| Verifying | In Progress | The Tech Lead requests corrections; record one rework round before redispatch |
-| Verifying | Done | The Tech Lead certifies technical acceptance and required verification evidence; the card's timer is stopped |
+| In Progress | Verifying | The candidate and required implementation evidence are ready for review and verdicts |
+| Verifying | In Progress | QA or the Tech Lead requests corrections; record one rework round before redispatch |
+| Verifying | Done | Passing QA (behaviour) and Tech Lead (design fit) verdicts on one revision from different authors are recorded; the card's timer is stopped |
 | In Progress | Todo | Work stops or becomes blocked while remaining admitted; record the blocker |
 | Todo, In Progress, Verifying | Backlog | The Coordinator defers the work out of the sprint, moves it to a planned sprint's cycle, and stops the assignment/review |
 | Backlog, Todo, In Progress, Verifying | Cancelled | The work is explicitly dropped; record why and stop any assignment/review |
@@ -132,6 +144,16 @@ a new card. A card in a past cycle is never reopened or moved to another cycle;
 create a new related card instead. If a required move falls outside this set,
 pause that card and resolve the workflow exception with the user before changing
 state.
+
+Projects MUST enable the `require_transition_table` and
+`require_independent_verdicts` project rules, which `plane-proj init` sets for
+new projects: the CLI then refuses a move outside this table, and a move into
+Done that does not come from Verifying with the two recorded verdicts, before
+the first write. With either rule on, `card new --state` accepts only Backlog
+or Todo. `sprints start` is a lifecycle command outside the table: it moves
+admitted cards to Todo and unplanned open cards to Backlog. The rules enforce
+these invariants only; the conditions and the order of work remain the
+Coordinator's judgment.
 
 Read the current state before moving, serialize writes, and verify readback.
 When a retry finds the intended state already present, do not replay
