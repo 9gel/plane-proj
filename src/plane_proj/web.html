@@ -553,7 +553,7 @@ V.currentOne = s => {
   </div>
   ${summaryCard(s, cards)}
   <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers</h3><span class="sp"></span>
-    <span class="muted small">${t.timed_cards ?? 0} timed · ${t.final_cards ?? 0} final of ${t.observed_cards ?? 0} observed cards</span></div>
+    <span class="muted small">${t.timed_cards ?? 0} cards timed · summed over all cards</span></div>
     <div class="row" style="flex-wrap:nowrap;margin:10px 0 6px"><div style="display:flex;height:14px;gap:2px;flex:1">${exec.map(([, v, tp, c]) => `<span style="flex:${v};background:${c};border-radius:2px" data-tip="${esc(tp)}"></span>`).join('')}</div>
       <span class="tot" style="font-weight:650;white-space:nowrap">${fmtMin(execTot)}</span></div>
     <div class="legend">${exec.map(([k, v, , c]) => `<span><i style="background:${c}"></i>${k} ${fmtMin(v)}</span>`).join('')}</div></div>
