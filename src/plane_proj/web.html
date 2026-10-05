@@ -209,6 +209,12 @@ span.sk.inline { display: inline-block; vertical-align: middle; }
 /* velocity dial */
 .dial { display: block; overflow: visible; }
 .gwrap { height: 34px; margin-top: 8px; }
+/* Current: the four tiles as 2 x 2 on the left, points and cards on the
+   right; one column on narrow screens. */
+.cur-top { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+.cur-top > .card { margin-top: 0 !important; }
+.quad { grid-template-columns: 1fr 1fr; }
+@media (max-width: 900px) { .cur-top { grid-template-columns: 1fr; } }
 .kpi.side { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi.side > :first-child { flex: none; }
 /* The dial shrinks in a narrow tile instead of overflowing it. */
@@ -607,7 +613,7 @@ V.currentOne = s => {
     <span class="muted small">Started ${fullDate(s.started)} · ${fmtH(el)} elapsed</span></div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
 
-  <div class="grid g4" style="margin-top:18px">
+  <div class="cur-top"><div class="grid quad">
     ${PARTIAL && POINTS ? `<div class="card kpi side"><div><div class="v">${skInline('90px', 24)}</div><div class="l">${skInline('60px', 12)}</div></div>
       ${sk('118px', 34)}</div>` : ''}
     ${vel != null ? `<div class="card kpi side"><div><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity</div></div>
@@ -618,7 +624,7 @@ V.currentOne = s => {
     <div class="card kpi side"><div><div class="v">${openT.length || 'None'}</div><div class="l">Open timers</div></div>
       ${miniTable(openT.sort((a, b) => b[1] - a[1]), fmtMin)}</div>
   </div>
-  ${summaryCard(s, cards)}
+  ${summaryCard(s, cards)}</div>
   <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers</h3><span class="sp"></span>
     <span class="muted small">${t.timed_cards ?? 0} cards timed · summed over all cards</span></div>
     <div class="row" style="flex-wrap:nowrap;margin:10px 0 6px"><div style="display:flex;height:14px;gap:2px;flex:1">${exec.map(([, v, tp, c]) => `<span style="flex:${v};background:${c};border-radius:2px" data-tip="${esc(tp)}"></span>`).join('')}</div>
