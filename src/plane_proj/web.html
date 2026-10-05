@@ -94,7 +94,6 @@ h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 10
 .kpi .l { color: var(--text-2); font-size: 12.5px; }
 .pill { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
 .alias { font-weight: 600; color: var(--text); }
-a.plane { font-size: 12px; color: var(--text-2); text-decoration: underline; text-decoration-color: var(--muted); margin-left: 4px; white-space: nowrap; }
 .state { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; white-space: nowrap; }
 .state::before { font-size: 26px; line-height: 1; }
 .state.start { color: var(--text); } .state.start::before { content: "🚀"; }
@@ -304,13 +303,10 @@ const PROGRESS = ['Done', 'Verifying', 'In Progress', 'Todo', 'Cancelled'];
 const byProgress = cards => [...cards].sort((a, b) => PROGRESS.indexOf(a.state) - PROGRESS.indexOf(b.state));
 const stC = { 'Todo': 'var(--st-todo)', 'In Progress': 'var(--st-prog)', 'Verifying': 'var(--st-verify)', 'Done': 'var(--st-done)', 'Cancelled': 'var(--st-cancel)' };
 // The sprint's own Plane cycle, which lists only its cards.
-const planeLink = (s, txt = 'Open in Plane ↗') => {
-  const id = s?.sprint ?? s?.sprint_id;
-  const url = DATA.cycle_urls?.[id];
-  if (!url) return '';
-  const cls = txt === 'Plane ↗' ? 'plane' : 'small';
-  const tip = txt === 'Plane ↗' ? ` title="Open Sprint ${id}'s cycle in Plane"` : '';
-  return `<a class="${cls}" href="${esc(url)}" target="_blank" rel="noopener"${tip}>${txt}</a>`;
+const planeLink = s => {
+  const url = DATA.cycle_urls?.[s.sprint ?? s.sprint_id];
+  return url ? `<a class="small" href="${esc(url)}" target="_blank"
+    rel="noopener">Open in Plane ↗</a>` : '';
 };
 const goto = id => `onclick="location.hash='#/sprint/${id}'"`;
 
@@ -805,13 +801,9 @@ V.planned = () => {
 </div>` : startable.length ? `
 <div class="grid g3">
   ${startable.map(s => `
-  <div class="card">
+  <div class="card link" ${goto(s.sprint_id)}>
     <div class="row"><span class="state start">Can start</span><span class="sp"></span><span class="pill">position ${s.position}</span></div>
-    <h3 style="margin:6px 0 2px">
-      <a href="#/sprint/${s.sprint_id}" style="color:inherit;text-decoration:none">
-        ${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> ${esc(s.title)}
-      </a> ${planeLink(s, 'Plane ↗')}
-    </h3>
+    <h3 style="margin:6px 0 2px">${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> ${esc(s.title)}</h3>
     <div class="small t2">${s.points} pts · ≈ ${fmtH(s.hours)} · no blockers outside the sprint</div>
     <div class="small" style="margin-top:8px">No overlap with running sprints.</div>
   </div>`).join('')}
@@ -826,15 +818,10 @@ V.planned = () => {
     <td class="hide-sm">${skIcons(4)}</td>
     <td class="hide-sm">${sk('100px', 14)}</td>
   </tr>`).join('') : queue.map(s => `
-  <tr>
+  <tr class="link" ${goto(s.sprint_id)}>
     <td class="pos">${s.position}</td>
     <td>
-      <div>
-        <a href="#/sprint/${s.sprint_id}" style="color:inherit;text-decoration:none">
-          ${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> <b>${esc(s.title)}</b>
-        </a>
-        ${planeLink(s, 'Plane ↗')}
-      </div>
+      <div>${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> <b>${esc(s.title)}</b></div>
       <div class="small t2">${esc(s.goal)}</div>
     </td>
     <td>${stateBadge(s.state)}</td>
