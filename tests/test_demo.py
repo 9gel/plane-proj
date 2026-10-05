@@ -41,6 +41,9 @@ def test_build_writes_the_page_and_every_response_it_requests(tmp_path):
     states = {row["state"] for row in readiness["queue"]}
     assert states == {"Can start", "Overlap", "Unverified", "Not ready"}
     assert len(readiness["overlap_pairs"]) == 3
+    assert len(readiness["graph"]["dependencies"]) > 0
+    assert len(readiness["graph"]["columns"]) == 9
+    assert len(readiness["graph"]["critical_path"]) > 0
 
 
 def test_the_invented_history_is_the_same_on_every_build(tmp_path):
