@@ -259,8 +259,13 @@ def past_sprints(rng, now):
                 "and the full test suite passed.",
                 "retrospective": "Scope held; review caught one edge case "
                 "before merge.",
-                # The oldest sprints predate timers, as in a real register.
-                "timing": timing(rng, cards_end, hours) if number > 6 else None,
+                # The oldest sprints predate timers, as in a real register,
+                # and two lack final snapshots for some cards.
+                "timing": (
+                    timing(rng, cards_end, hours, final=number not in (9, 15))
+                    if number > 6
+                    else None
+                ),
             }
             | text(title)
         )
@@ -479,8 +484,16 @@ def build(out: Path, now: datetime) -> None:
         target.write_text(json.dumps(body), encoding="utf-8")
 
 
+class QuietHandler(SimpleHTTPRequestHandler):
+    """Log requests, except the page's change poll every two seconds."""
+
+    def log_message(self, format, *args):  # noqa: A002 (http.server's name)
+        if not self.path.startswith("/api/version"):
+            super().log_message(format, *args)
+
+
 def serve(out: Path, host: str, port: int) -> None:
-    handler = functools.partial(SimpleHTTPRequestHandler, directory=out)
+    handler = functools.partial(QuietHandler, directory=out)
     with ThreadingHTTPServer((host, port), handler) as server:
         print(f"Wayfinder demo at http://{host}:{port}/ (Ctrl-C to stop)")
         print(f"Static site in {out}; upload it to any static host to publish.")

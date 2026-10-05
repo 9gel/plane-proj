@@ -20,7 +20,7 @@
   /* Neutral slate for counts and plans; violet means duration; hot pink
      is the average in stats strips. */
   --scope-o: #6f7b8a; --slate-2: #aab2bd; --dial-track: #d9dde3;
-  --dur: #4a3aa7; --rework: #6f7b8a; --avg: #e0287d;
+  --dur: #4a3aa7; --rework: #a3172b; --avg: #e0287d;
   /* Velocity heat, slow to fast: peach, orange, red, deep red. No yellow:
      yellow means Verifying. */
   --heat-0: #f2c4a4; --heat-1: #ee8636; --heat-2: #e2593a; --heat-3: #b81f2f;
@@ -35,7 +35,7 @@
     --t1: #c4759c; --t2: #8a9c4a; --t3: #b07bbc; --t4: #c08343; --t5: #9186d1;
     --t6: #cd7576; --t-other: #59616c;
     --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
-    --dur: #9085e9; --rework: #8a94a1; --avg: #f0509a;
+    --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
     --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
     --warn: #ef6b6b; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
   }
@@ -48,7 +48,7 @@
   --t1: #c4759c; --t2: #8a9c4a; --t3: #b07bbc; --t4: #c08343; --t5: #9186d1;
   --t6: #cd7576; --t-other: #59616c;
   --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
-  --dur: #9085e9; --rework: #8a94a1; --avg: #f0509a;
+  --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
   --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
   --warn: #ef6b6b; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
 }
@@ -186,6 +186,11 @@ span.sk.inline { display: inline-block; vertical-align: middle; }
 .gwrap { height: 34px; margin-top: 8px; }
 .gsm { display: flex; align-items: center; gap: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 12.5px; }
 /* original scope: a thin dashed line across the delivered row */
+/* timing coverage: one icon per sprint */
+.cov { display: inline-block; width: 14px; height: 14px; border-radius: 3px; cursor: pointer; vertical-align: -2px; }
+.cov.included { background: var(--dur); } .cov.incomplete { background: var(--slate-2); }
+.cov.none { border: 1px solid var(--muted); }
+.legend .cov { width: 10px; height: 10px; cursor: default; }
 .otick { align-self: stretch; width: 0; margin: -3px -2px; border-left: 1px dashed var(--text); }
 .legend i.heatlg { width: 40px; background: linear-gradient(90deg, var(--heat-0), var(--heat-1), var(--heat-2), var(--heat-3)); }
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -396,12 +401,13 @@ const stateLegend = legendOf('');
 
 const niceStep = v => { const r = v / 4 || 1, e = 10 ** Math.floor(Math.log10(r)); return [1, 2, 2.5, 5, 10].map(m => m * e).find(x => x >= r); };
 // Column chart: stacked linear, or single-series log. One axis, hover per column, click opens sprint.
-function colChart({ data, stacks, w = 1100, h = 220, fmt = v => num(v), log = false, lo = 0.25, ref, refLabel, tipFn, mark, markLabel }) {
+function colChart({ data, stacks, w = 1100, h = 220, fmt = v => num(v), log = false, lo = 0.25, ref, refLabel, tipFn, mark, markLabel, whole = false }) {
   if (!data.length) return '<p class="muted">No sprints to chart.</p>';
   h += 26; // room for vertical sprint numbers under the columns
   const pad = { l: 46, r: 12, t: 12, b: 52 }, iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
   const totals = data.map(d => stacks.reduce((a, s) => a + (s.get(d) || 0), 0));
-  const top = Math.max(...totals), step = niceStep(top), max = log ? 2 ** Math.ceil(Math.log2(top)) : Math.ceil(top / step) * step;
+  // Counts get whole-number ticks, so no label repeats after rounding.
+  const top = Math.max(...totals), step = whole ? Math.max(1, niceStep(top)) : niceStep(top), max = log ? 2 ** Math.ceil(Math.log2(top)) : Math.ceil(top / step) * step;
   const sy = v => log ? pad.t + ih - Math.log2(Math.max(v, lo) / lo) / Math.log2(max / lo) * ih : pad.t + ih - v / max * ih;
   const ticks = log ? Array.from({ length: Math.log2(max / lo) + 1 }, (_, i) => lo * 2 ** i) : Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step);
   const bw = iw / data.length, gap = bw > 6 ? 2 : 1;
@@ -598,7 +604,7 @@ V.past = () => {
     oninput="pastQ=this.value.toLowerCase();render();const q=document.getElementById('q');q.focus();q.setSelectionRange(q.value.length,q.value.length)">
     <span class="muted">${rows.length} of ${past.length}</span><span class="sp"></span>${segLegend}</div>
   <div class="card scroll" style="padding:4px 6px"><table><thead><tr>${th('sprint', 'Sprint')}${th('title', 'Title')}${th('ended', 'Ended')}
-    ${th('cards_end', 'Cards', ` <span class="muted">· max ${maxC}</span>`)}${POINTS ? th('points_end', 'Points', ` <span class="muted">· max ${maxP}</span>`) : ''}${th('hours', 'Duration', ` <span class="muted">· log₂, max ${fmtH(maxH)}</span>`)}${POINTS ? th('velocity', 'Velocity', ' <span class="muted">· pts/h</span>') : ''}</tr></thead><tbody>
+    ${th('cards_end', 'Cards', ' <span class="muted">· cards</span>')}${POINTS ? th('points_end', 'Points', ' <span class="muted">· pts</span>') : ''}${th('hours', 'Duration', ' <span class="muted">· h, log₂</span>')}${POINTS ? th('velocity', 'Velocity', ' <span class="muted">· pts/h, log₂</span>') : ''}</tr></thead><tbody>
   ${rows.map(s => `<tr class="link" ${goto(s.sprint)}><td style="white-space:nowrap">${label(s)}</td><td>${esc(s.title)}</td>
     <td class="t2 small" style="white-space:nowrap" data-tip="${esc(fullDate(s.ended))}">${ago(s.ended)}</td>
     <td style="min-width:120px">${cardRow(s.cards_start, s.cards_end)}<div class="muted small">${s.cards_start} → ${s.cards_end} cards</div></td>
@@ -681,9 +687,22 @@ V.stats = () => {
   if (!past.length) return '<h1>Stats</h1><p class="muted">No completed sprints yet.</p>';
   const T = ST.timing, timed = past.filter(s => s.timing);
   const minFmt = v => fmtMin(v), n2 = v => num(v, 2);
-  const cov = [[T.included_sprints, 'Included', 'var(--scope-o)', '#fff'], [T.excluded_without_timing, 'No timing', 'none', 'var(--text-2)'], [T.excluded_incomplete, 'Incomplete timing', 'var(--slate-2)', '#0b0b0b']];
-  const covBar = `<div style="display:flex;height:22px;gap:2px">${cov.filter(x => x[0]).map(([n, l, c, fg]) => `<span style="flex:${n};background:${c};color:${fg};${c === 'none' ? 'border:1px dashed var(--muted);' : ''}font-size:12px;font-weight:600;display:flex;align-items:center;justify-content:center;border-radius:3px" data-tip="${l}: ${n} sprints">${n}</span>`).join('')}</div>
-    <div class="legend" style="margin-top:6px">${cov.map(([n, l, c]) => `<span><i ${c === 'none' ? 'class="hollow"' : `style="background:${c}"`}></i>${l}</span>`).join('')}</div>`;
+  // One icon per completed sprint, classified as sprint_timing.statistics
+  // does: no timing (outline), incomplete (grey), included (coloured).
+  const coverage = s => {
+    const t = s.timing, n = s.cards_end;
+    if (!t || !t.timed_cards) return 'none';
+    const whole = t.observed_cards === n && t.timed_cards === n
+      && t.final_cards === n && !Object.keys(t.open_timer_minutes || {}).length;
+    return whole ? 'included' : 'incomplete';
+  };
+  const COV = { included: 'Included', incomplete: 'Incomplete timing',
+    none: 'No timing' };
+  const covIcon = k => `<span class="cov ${k}"></span>`;
+  const covBar = `<div class="cicons">${past.map(s => `<span class="cov ${coverage(s)}"
+      ${goto(s.sprint)} data-tip="${esc(`${s.alias || '#' + s.sprint}: ${COV[coverage(s)]}`)}"></span>`).join('')}</div>
+    <div class="legend" style="margin-top:8px">${Object.entries(COV).map(([k, l]) =>
+      `<span>${covIcon(k)} ${l} ${past.filter(s => coverage(s) === k).length}</span>`).join('')}</div>`;
   const tableRows = (title, o, fmt) => `<tr><th colspan="6" style="padding-top:16px">${title}</th></tr>` + Object.entries(o).filter(([, v]) => v).map(([k, v]) =>
     `<tr><td>${k}</td>${['average', 'median', 'min', 'max', 'sd'].map(f => `<td class="n">${fmt(v[f])}</td>`).join('')}</tr>`).join('');
   const one = (k, v) => ({ [k]: v });
@@ -726,7 +745,7 @@ V.stats = () => {
   <div class="card" style="margin-top:12px"><h3>Active time <span class="muted small">(card-hours)</span></h3>${colChart({ data: timed, fmt: v => num(v, 0) + 'h',
     stacks: [{ label: 'In Progress', color: 'var(--st-prog)', get: d => (d.timing.active_minutes['In Progress'] || 0) / 60 }, { label: 'Verifying', color: 'var(--st-verify)', get: d => (d.timing.active_minutes['Verifying'] || 0) / 60 }],
     tipFn: d => tipHead(d) + `In Progress ${fmtMin(d.timing.active_minutes['In Progress'])}<br>Verifying ${fmtMin(d.timing.active_minutes['Verifying'])}` })}</div>
-  <div class="card" style="margin-top:12px"><h3>Rework events</h3>${colChart({ data: timed, h: 160, fmt: v => num(v, 0),
+  <div class="card" style="margin-top:12px"><h3>Rework events</h3>${colChart({ data: timed, h: 160, fmt: v => num(v, 0), whole: true,
     stacks: [{ label: 'rework', color: 'var(--rework)', get: d => d.timing.rework_count }], tipFn: d => tipHead(d) + `${d.timing.rework_count} rework on ${d.timing.reworked_cards} cards` })}</div>
   <h2>Timing coverage</h2><div class="card"><h3>${past.length} completed sprints</h3>${covBar}</div>`;
   function head() { return `<h1>Stats</h1><p class="muted">Everything from <span class="mono">plane-proj sprints stats</span>, plus per-sprint series from <span class="mono">sprints list past</span>. Click a column to open its sprint.</p>
