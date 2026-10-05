@@ -126,21 +126,22 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .scroll { overflow-x: auto; }
 /* bars */
 .hb { display: flex; align-items: center; gap: 8px; min-width: 120px; }
-.hb .track { flex: 1; height: 10px; position: relative; background: var(--surface-2); border-radius: 0 3px 3px 0; }
+/* No track: these bars compare sizes; none of them is progress toward a total. */
+.hb .track { flex: 1; height: 10px; position: relative; }
 .hb .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 0 3px 3px 0; }
 .hb .lbl { font-size: 11.5px; color: var(--text-2); white-space: nowrap; min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; }
-.seg { display: block; width: 100%; height: 12px; }
-.seg rect.o { fill: var(--scope-o); } .seg rect.r { fill: none; stroke: var(--muted); stroke-dasharray: 1.5 1; stroke-width: .6; }
 /* state bar with embedded numbers */
 .sbar { display: flex; align-items: center; gap: 10px; }
-.sbar .segs { flex: 1; display: flex; gap: 2px; height: 26px; position: relative; }
-.sbar .segs span { display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 650; font-size: 12.5px; border-radius: 3px; min-width: 18px; }
-.sbar .segs span.light { color: #0b0b0b; }
 .sbar .tot { font-weight: 650; font-size: 18px; white-space: nowrap; }
-.sbar .start { position: absolute; top: -6px; bottom: -6px; border-left: 2px dashed var(--text); }
+/* Points as dots: one dot per point, never wider than 10 px. */
+.dots { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; min-width: 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.dot.hollow { border: 1px dashed var(--muted); }
+.dot.ring { border: 1.5px solid var(--scope-o); }
 .cstart { position: relative; align-self: stretch; margin: -6px 1px; border-left: 2px dashed var(--text); }
 .cstart b { position: absolute; top: -16px; left: 3px; font-size: 11px; font-weight: 600; white-space: nowrap; color: var(--text-2); }
-.sbar .start b { position: absolute; top: -16px; left: 3px; font-size: 11px; font-weight: 600; white-space: nowrap; color: var(--text-2); }
+.pmark { align-self: stretch; width: 0; margin: -4px 2px; border-left: 2px dashed var(--text); position: relative; }
+.pmark b { position: absolute; top: -17px; left: 3px; font-size: 11px; font-weight: 600; white-space: nowrap; color: var(--text-2); }
 /* card icons */
 .cicons { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 .ci { width: 14px; height: 19px; border-radius: 3px; border: 1px solid rgba(0,0,0,.18); position: relative; }
@@ -274,7 +275,7 @@ const cardsFor = s => DATA.cards[s.sprint] || [];
 const sk = (width, height, style = '') => `<span class="sk" style="width:${width};height:${height}px;${style}"></span>`;
 const skInline = (width, height = 12) => `<span class="sk inline" style="width:${width};height:${height}px"></span>`;
 const skIcons = (n, big) => `<div class="cicons">${`<span class="ci sk${big ? ' big' : ''}"></span>`.repeat(Math.max(n || 0, 1))}</div>`;
-const skStateBar = () => `<div class="sbar"><div class="segs">${sk('100%', 26)}</div><span class="tot">${skInline('52px', 20)}</span></div>`;
+const skStateBar = () => `<div class="sbar">${sk('60%', 10)}<span class="sp"></span><span class="tot">${skInline('52px', 20)}</span></div>`;
 // Open blockers of a card, shown only while the card itself is unfinished.
 function waitsOn(c) {
   const open = (c.blocked_by || []).filter(b => !TERMINAL.has(b.state));
@@ -324,38 +325,26 @@ function hbar(v, max, text, color = 'var(--scope-o)', { log = false, lo = 0.25, 
   if (v != null && v > 0) pct = log ? Math.log2(Math.max(v, lo) / lo) / Math.log2(max / lo) : v / max;
   return `<div class="hb" ${tipText ? `data-tip="${esc(tipText)}"` : ''}><div class="track"><div class="fill" style="width:${Math.max(pct * 100, v ? 1 : 0)}%;background:${color}"></div></div><span class="lbl">${text}</span></div>`;
 }
-// One segment per point: original (start, kept), added (end > start), removed (end < start, hollow).
-function segbar(start, end, scaleMax, unit = 'pts', cls = '') {
-  start = start || 0; end = end ?? start;
-  const kept = Math.min(start, end), added = Math.max(0, end - start), removed = Math.max(0, start - end);
-  let x = 0, r = '';
-  const put = (n, cls) => { for (let i = 0; i < n; i++, x++) r += `<rect class="${cls}" x="${x * 4 + .3}" y=".3" width="3.2" height="11.4" rx=".6"/>`; };
-  put(kept, 'o'); put(added, 'a'); put(removed, 'r');
-  return `<svg class="seg ${cls}" viewBox="0 0 ${scaleMax * 4} 12" preserveAspectRatio="none" data-tip="${esc(`${start} → ${end} ${unit}` + (added ? ` (+${added} added)` : '') + (removed ? ` (−${removed} removed)` : ''))}">${r}</svg>`;
-}
-// Delivered against the original scope: one green segment per delivered
-// point, a hollow one per point not delivered, a dashed line at the start.
+// Points not yet worked on: one outlined dot per point.
+const ringDots = (n, unit = 'pts') => `<div class="dots" data-tip="${n} ${unit}">${'<span class="dot ring"></span>'.repeat(n || 0)}</div>`;
+// Delivered against the original scope: one green dot per delivered point,
+// a hollow one per point not delivered, a dashed line after the start.
 function outcome(start, end, scaleMax, unit = 'pts') {
   start = start || 0; end = end ?? start;
-  let r = '';
-  for (let i = 0; i < Math.max(start, end); i++) r += i < end
-    ? `<rect x="${i * 4 + .3}" y="4.3" width="3.2" height="11.4" rx=".6"
-        fill="var(--st-done)"/>`
-    : `<rect x="${i * 4 + .6}" y="4.6" width="2.6" height="10.8" rx=".6"
-        fill="none" stroke="var(--muted)" stroke-width=".6"
-        stroke-dasharray="1.2 .9"/>`;
   const tipT = `${start} → ${end} ${unit}`
     + (end < start ? ` (${start - end} not delivered)` : '')
     + (end > start ? ` (+${end - start} added)` : '');
-  return `<svg class="seg" style="height:20px"
-    viewBox="0 0 ${Math.max(scaleMax, 1) * 4} 20" preserveAspectRatio="none"
-    data-tip="${esc(tipT)}">${r}<line x1="${start * 4}" x2="${start * 4}"
-    y1="0" y2="20" stroke="var(--text)" stroke-width="1"
-    stroke-dasharray="2.5 1.5" vector-effect="non-scaling-stroke"/></svg>`;
+  let r = '';
+  for (let i = 0; i < Math.max(start, end); i++) {
+    if (i === start) r += '<span class="pmark"></span>';
+    r += `<span class="dot ${i < end ? '' : 'hollow'}"${i < end ? ' style="background:var(--st-done)"' : ''}></span>`;
+  }
+  if (start >= end) r += '<span class="pmark"></span>';
+  return `<div class="dots" data-tip="${esc(tipT)}">${r}</div>`;
 }
 const segLegend = `<div class="legend">
-  <span><i style="background:var(--st-done)"></i>Delivered</span>
-  <span><i class="hollow"></i>Not delivered</span>
+  <span><i style="background:var(--st-done);border-radius:50%"></i>Delivered</span>
+  <span><i class="hollow" style="border-radius:50%"></i>Not delivered</span>
   <span><i style="background:none;width:0;height:12px;border-left:1px dashed
     var(--text);border-radius:0"></i>Original scope</span></div>`;
 // Velocity heat on the dial's log scale, 0.25–64 pts/h: yellow when slow,
@@ -444,15 +433,21 @@ function cardRow(start, end) {
 }
 const cardIcons = (colors, big) => `<div class="cicons">${colors.map(c => c === 'plain' ? `<span class="ci plain ${big ? 'big' : ''}"></span>` : `<span class="ci ${big ? 'big' : ''} ${c === stC.Verifying ? 'v' : ''}" style="background:${c}"></span>`).join('')}</div>`;
 
-// Points by state with numbers inside, total outside, dashed start marker.
+// Points by state, one dot per point, total outside, dashed start marker.
+// Points removed since the start show as hollow dots up to it.
 function stateBar(cards, start, unit, tipText = '') {
   const val = c => unit === 'pts' ? c.points : 1;
-  const tot = cards.reduce((a, c) => a + val(c), 0), scale = Math.max(tot, start);
-  const segs = PROGRESS.map(st => [st, cards.filter(c => c.state === st).reduce((a, c) => a + val(c), 0)]).filter(x => x[1]);
-  return `<div class="sbar"><div class="segs">${segs.map(([st, n]) =>
-    `<span class="${st === 'Cancelled' || st === 'Verifying' ? 'light' : ''}" style="width:${n / scale * 100}%;background:${stC[st]}" data-tip="${st}: ${n} ${unit}">${n}</span>`).join('')}
-    ${tot < scale ? `<span style="flex:1;background:none;border:1px dashed var(--muted)"></span>` : ''}
-    <div class="start" style="left:calc(${start / scale * 100}% - 1px)" ${tipText ? `data-tip="${esc(tipText)}"` : ''}><b>start ${start}</b></div></div>
+  const tot = cards.reduce((a, c) => a + val(c), 0);
+  const marker = `<span class="pmark" ${tipText ? `data-tip="${esc(tipText)}"` : ''}><b>start ${start}</b></span>`;
+  let r = '', n = 0;
+  const put = (html, count) => { for (let i = 0; i < count; i++, n++) { if (n === start) r += marker; r += html; } };
+  PROGRESS.forEach(st => {
+    const k = cards.filter(c => c.state === st).reduce((a, c) => a + val(c), 0);
+    put(`<span class="dot" style="background:${stC[st]}" data-tip="${st}: ${k} ${unit}"></span>`, k);
+  });
+  put('<span class="dot hollow" data-tip="Removed since the start"></span>', Math.max(0, start - tot));
+  if (n === start) r += marker;
+  return `<div class="sbar"><div class="dots">${r}</div><span class="sp"></span>
     <span class="tot">${tot} <span class="muted small">${unit}</span></span></div>`;
 }
 // Every state, always: the legend needs no data, so it is the same loading or loaded.
@@ -488,6 +483,46 @@ function colChart({ data, stacks, w = 1100, h = 220, fmt = v => num(v), log = fa
   const leg = stacks.length > 1 ? `<div class="legend" style="margin-bottom:6px">${stacks.map(s => `<span><i ${s.hollow ? 'class="hollow"' : `style="background:${s.color}"`}></i>${s.label}</span>`).join('')}${mark ? `<span><i style="background:none;
     width:12px;height:0;border-top:1px dashed var(--text);border-radius:0;
     vertical-align:3px"></i>${markLabel}</span>` : ''}</div>` : '';
+  return leg + `<svg class="chart" viewBox="0 0 ${w} ${h}">${out}</svg>`;
+}
+// Counts per sprint as stacked units: a dot per point or a card icon per
+// card, green when delivered and hollow when not, with a dashed tick at the
+// original scope. Units shrink only when many sprints or a tall stack would
+// not fit.
+function stackChart({ data, start, end, kind, tipFn, w = 1100, h = 220 }) {
+  if (!data.length) return '<p class="muted">No sprints to chart.</p>';
+  h += 26;
+  const pad = { l: 46, r: 12, t: 12, b: 52 }, iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+  const top = Math.max(1, ...data.map(d => Math.max(start(d), end(d))));
+  const bw = iw / data.length, card = kind === 'cards';
+  const unit = Math.min(card ? 16 : 10, ih / top, card ? bw * 1.1 : bw * .9);
+  const ys = k => pad.t + ih - k * unit;
+  const step = Math.max(1, niceStep(top));
+  let out = '';
+  for (let v = 0; v <= top; v += step) out += `<line class="gl" x1="${pad.l}" x2="${w - pad.r}" y1="${ys(v)}" y2="${ys(v)}"/><text x="${pad.l - 6}" y="${ys(v) + 4}" text-anchor="end">${v}</text>`;
+  data.forEach((d, i) => {
+    const cx = pad.l + (i + .5) * bw, s0 = start(d), e0 = end(d);
+    for (let k = 0; k < Math.max(s0, e0); k++) {
+      const y = ys(k + 1), on = k < e0;
+      if (card) {
+        const cw = unit * .75, ch = unit * .88, x = cx - cw / 2;
+        out += on ? `<rect x="${x}" y="${y + unit * .06}" width="${cw}" height="${ch}" rx="2" fill="var(--st-done)"/>`
+            + [.3, .55].map(f => `<line x1="${x + cw * .25}" x2="${x + cw * .75}" y1="${y + unit * f}" y2="${y + unit * f}" stroke="rgba(255,255,255,.7)" stroke-width="1.2"/>`).join('')
+          : `<rect x="${x + .5}" y="${y + unit * .06 + .5}" width="${cw - 1}" height="${ch - 1}" rx="2" fill="none" stroke="var(--muted)" stroke-dasharray="2 1.5"/>`;
+      } else {
+        const r = unit * .4, cy = y + unit / 2;
+        out += on ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--st-done)"/>`
+          : `<circle cx="${cx}" cy="${cy}" r="${r - .4}" fill="none" stroke="var(--muted)" stroke-dasharray="1.5 1.2"/>`;
+      }
+    }
+    const half = (card ? unit * .75 : unit * .8) / 2 + 3;
+    out += `<line x1="${cx - half}" x2="${cx + half}" y1="${ys(s0)}" y2="${ys(s0)}" stroke="var(--text)" stroke-dasharray="2 1.5"/>`;
+    out += `<text transform="translate(${cx + 3} ${pad.t + ih + 4}) rotate(-90)" text-anchor="end" style="font-size:${Math.min(10, bw * .8)}px">${d.sprint}</text>`;
+    out += `<rect x="${pad.l + i * bw}" y="${pad.t}" width="${bw}" height="${ih + 26}" fill="transparent" style="cursor:pointer" ${goto(d.sprint)} data-tip="${esc(tipFn(d))}"/>`;
+  });
+  out += `<text x="${pad.l}" y="${h - 7}">${esc(ago(data[0].started))}</text><text x="${w - pad.r}" y="${h - 7}" text-anchor="end">${esc(ago(data[data.length - 1].started))}</text>`;
+  const shape = card ? 'border-radius:2px' : '';
+  const leg = `<div class="legend" style="margin-bottom:6px"><span><i style="background:var(--st-done);${shape}"></i>Delivered</span><span><i class="hollow" style="${shape}"></i>Not delivered</span><span><i style="background:none;width:12px;height:0;border-top:1px dashed var(--text);border-radius:0;vertical-align:3px"></i>Original scope</span></div>`;
   return leg + `<svg class="chart" viewBox="0 0 ${w} ${h}">${out}</svg>`;
 }
 const tipHead = d => `<b>${esc(d.alias || '#' + d.sprint)}</b> ${esc(d.title)}<br>`;
@@ -816,6 +851,7 @@ V.planned = () => {
     <td>${sk('90px', 16)}</td>
     <td>${sk('70%', 14)}</td>
     <td class="hide-sm">${skIcons(4)}</td>
+    ${POINTS ? `<td class="hide-sm">${sk('70px', 10)}</td>` : ''}
     <td class="hide-sm">${sk('100px', 14)}</td>
   </tr>`).join('') : queue.map(s => `
   <tr class="link" ${goto(s.sprint_id)}>
@@ -830,6 +866,7 @@ V.planned = () => {
       <div class="cicons">${cardIconsHtml(s.cards_count, s.undeclared)}</div>
       <div class="small muted" style="margin-top:3px">${s.cards_count} card${s.cards_count === 1 ? '' : 's'}</div>
     </td>
+    ${POINTS ? `<td class="hide-sm">${ringDots(s.points)}<div class="small muted" style="margin-top:3px">${s.points} pts</div></td>` : ''}
     <td class="hide-sm" style="min-width:150px">
       ${hbar(s.hours, maxHours, fmtH(s.hours), 'var(--slate-2)')}
     </td>
@@ -866,7 +903,8 @@ V.planned = () => {
   <span class="state notready">Not ready</span><span>waits on unfinished cards in another sprint</span></span></span></th>
     <th>Why</th>
     <th class="hide-sm">Cards</th>
-    <th class="hide-sm">Estimate</th>
+    ${POINTS ? '<th class="hide-sm">Points</th>' : ''}
+    <th class="hide-sm">Estimated completion time</th>
   </tr></thead>
   <tbody>${rowsHtml}</tbody>
   </table></div>
@@ -878,7 +916,7 @@ V.plannedDetail = s => `<p><a href="#/planned">← Planned</a></p>
   <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span>${planeLink(s)}</div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
   <div class="card" style="margin-top:16px"><div class="row">${s.cards == null ? skIcons(4, true) : `${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span>`}</div>
-    ${POINTS ? `<div style="margin:12px 0 4px;max-width:${s.points * 14}px">${segbar(s.points, s.points, Math.max(1, s.points))}</div><span class="t2">${s.points} pts${MEDV ? ` · ≈ ${fmtH(s.points / MEDV)} at ${num(MEDV, 2)} pts/h` : ''}</span>` : ''}</div>
+    ${POINTS ? `<div style="margin:12px 0 4px;max-width:${s.points * 14}px">${ringDots(s.points)}</div><span class="t2">${s.points} pts${MEDV ? ` · ≈ ${fmtH(s.points / MEDV)} at ${num(MEDV, 2)} pts/h` : ''}</span>` : ''}</div>
   <h2>Execution guidance</h2><div class="card prose">${esc(s.execution) || '—'}</div>
   <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>`;
 
@@ -1016,15 +1054,9 @@ V.stats = () => {
     ${reasonsCard(T.rework.reasons)}</div>
   </div>
   <h2>Per sprint, oldest to newest</h2>
-  ${POINTS ? `  <div class="card"><h3>Points: delivered against the original scope</h3>${colChart({ data: past, stacks: [
-      { label: 'Delivered', color: 'var(--st-done)', get: d => d.points_end },
-      { label: 'Not delivered', hollow: true, get: d => Math.max(0, d.points_start - d.points_end) }],
-    mark: d => d.points_start, markLabel: 'Original scope',
+  ${POINTS ? `  <div class="card"><h3>Points: delivered against the original scope</h3>${stackChart({ data: past, start: d => d.points_start, end: d => d.points_end, kind: 'points',
     tipFn: d => tipHead(d) + `${d.points} pts · cards ${d.cards}` })}</div>
-` : ''}  <div class="card" style="margin-top:12px"><h3>Cards: delivered against the original scope</h3>${colChart({ data: past, stacks: [
-      { label: 'Delivered', color: 'var(--st-done)', get: d => d.cards_end },
-      { label: 'Not delivered', hollow: true, get: d => Math.max(0, d.cards_start - d.cards_end) }],
-    mark: d => d.cards_start, markLabel: 'Original scope',
+` : ''}  <div class="card" style="margin-top:12px"><h3>Cards: delivered against the original scope</h3>${stackChart({ data: past, start: d => d.cards_start, end: d => d.cards_end, kind: 'cards',
     tipFn: d => tipHead(d) + `${d.cards} cards${POINTS ? ` · ${d.points} pts` : ''}` })}</div>
   ${POINTS ? `  <div class="card" style="margin-top:12px"><h3>Velocity <span class="muted small">(pts/h, log₂ scale)</span></h3>${heatLegend}${colChart({ data: past, log: true, fmt: v => num(v, 2),
     stacks: [{ label: 'pts/h', color: d => heatV(d.velocity), get: d => d.velocity }], ref: MEDV, refLabel: `median ${num(MEDV, 2)}`, tipFn: d => tipHead(d) + `${num(d.velocity, 2)} pts/h` })}</div>` : ''}
