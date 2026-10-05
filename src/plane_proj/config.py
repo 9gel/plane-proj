@@ -199,6 +199,7 @@ class Config:
     state_file: Path | None = None
     # The Plane web app for links; the API host is not it on Plane Cloud.
     web_url: str = DEFAULT_WEB_URL
+    integration_branch: str | None = None
     document: Mapping[str, object] = field(repr=False, default_factory=dict)
 
     def project(self, key: str | None) -> Project:
@@ -328,9 +329,9 @@ def load_config(explicit: str | Path | None = None) -> Config:
     state_file = document.get("state_file")
     if state_file is not None and (not isinstance(state_file, str) or not state_file.strip()):
         raise ConfigError(f"{path}: state_file must be a nonempty path string.")
-    if defaults.keys() - {"workspace", "project", "web_url"}:
+    if defaults.keys() - {"workspace", "project", "web_url", "integration_branch"}:
         raise ConfigError(
-            f"{path}: defaults accepts only workspace, project and web_url."
+            f"{path}: defaults accepts only workspace, project, web_url and integration_branch."
         )
     for key, value in defaults.items():
         if not isinstance(value, str) or not value.strip():
@@ -372,6 +373,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
             if state_file is not None else None
         ),
         web_url=web_url,
+        integration_branch=defaults.get("integration_branch"),
         document=document,
     )
 

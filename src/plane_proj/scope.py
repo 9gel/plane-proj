@@ -8,11 +8,28 @@ its declared paths.
 from __future__ import annotations
 
 import subprocess
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from plane_proj import delivery_plan as delivery_plan_module
 from plane_proj.guards import ScopeRule
+
+
+def repo_root(board: Any = None, cwd: Path | None = None) -> Path | None:
+    """Resolve repository root directory from explicit cwd or board config."""
+    if cwd is not None:
+        return cwd
+    if board is not None:
+        config = getattr(board, "config", None)
+        config_path = getattr(config, "path", None)
+        if config_path is not None:
+            p = Path(config_path).resolve()
+            if p.parent.name == "plane":
+                return p.parent.parent
+            return p.parent
+    return None
 
 
 def _require_git_repo(cwd: Path | None = None) -> None:
@@ -50,16 +67,13 @@ def path_covered(declaration: str | delivery_plan_module.TouchedPath, file_path:
     return clean_file == decl_path
 
 
-def card_change_set(
+def card_commits(
     card_ref: str,
     revision: str,
     *,
     cwd: Path | None = None,
-) -> frozenset[str]:
-    """Union of files changed by non-merge commits reachable from revision
-
-    whose Card: trailers name card_ref.
-    """
+) -> list[str]:
+    """Return commit hashes reachable from revision whose Card: trailers name card_ref."""
     _require_git_repo(cwd)
     proc = subprocess.run(
         [
@@ -103,6 +117,21 @@ def card_change_set(
             if matches:
                 matching_commits.append(commit_hash)
                 break
+
+    return matching_commits
+
+
+def card_change_set(
+    card_ref: str,
+    revision: str,
+    *,
+    cwd: Path | None = None,
+) -> frozenset[str]:
+    """Union of files changed by non-merge commits reachable from revision
+
+    whose Card: trailers name card_ref.
+    """
+    matching_commits = card_commits(card_ref, revision, cwd=cwd)
 
     changed_files: set[str] = set()
     for commit in matching_commits:
@@ -160,3 +189,152 @@ def check_verdict_scope(
             f"Scope rule: change set for {reference} from {revision} contains path(s) outside "
             f"declared scope: {', '.join(sorted(uncovered))}."
         )
+
+
+def scope_report(
+    board: Any,
+    cards: Sequence[Any],
+    *,
+    sprint_started_at: str | None = None,
+    sprint_ended_at: str | None = None,
+    cwd: Path | None = None,
+) -> dict[str, Any]:
+    """Generate a scope report against defaults.integration_branch."""
+    target_cwd = repo_root(board, cwd)
+    config = getattr(board, "config", None)
+    branch = getattr(config, "integration_branch", None) if config is not None else None
+    if not branch:
+        return {
+            "configured": False,
+            "message": "defaults.integration_branch is not configured",
+        }
+
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--is-inside-work-tree"],
+            cwd=target_cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0 or proc.stdout.strip() != "true":
+            return {
+                "configured": False,
+                "branch": branch,
+                "message": "project directory is not a git repository",
+            }
+    except (FileNotFoundError, OSError):
+        return {
+            "configured": False,
+            "branch": branch,
+            "message": "project directory is not a git repository",
+        }
+
+    verify_proc = subprocess.run(
+        ["git", "rev-parse", "--verify", branch],
+        cwd=target_cwd,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if verify_proc.returncode != 0:
+        return {
+            "configured": False,
+            "branch": branch,
+            "message": f"integration branch {branch!r} does not exist",
+        }
+
+    unmerged_cards: list[str] = []
+    out_of_scope: list[dict[str, Any]] = []
+
+    for card in cards:
+        seq = getattr(card, "sequence_id", None)
+        ref = f"{board.project.key}-{seq}" if seq is not None else str(getattr(card, "id", "?"))
+        commits = card_commits(ref, branch, cwd=target_cwd)
+        if not commits:
+            unmerged_cards.append(ref)
+            continue
+
+        desc = getattr(card, "description_html", None) or ""
+        plan = delivery_plan_module.parse_delivery_plan(desc)
+        if plan.touches is None:
+            continue
+
+        changes = card_change_set(ref, branch, cwd=target_cwd)
+        if plan.is_touches_none:
+            if changes:
+                out_of_scope.append({"card": ref, "paths": sorted(changes)})
+        else:
+            uncovered = [
+                p for p in sorted(changes)
+                if not any(path_covered(decl, p) for decl in plan.touches)
+            ]
+            if uncovered:
+                out_of_scope.append({"card": ref, "paths": uncovered})
+
+    unnamed_commits: list[str] = []
+    if sprint_started_at:
+        log_proc = subprocess.run(
+            [
+                "git",
+                "log",
+                "-z",
+                "--no-merges",
+                "--format=%H%x1f%cI%x1f%(trailers:key=Card,valueonly=true,separator=%x1f)",
+                branch,
+            ],
+            cwd=target_cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if log_proc.returncode == 0:
+            start_dt = datetime.fromisoformat(sprint_started_at)
+            end_dt = datetime.fromisoformat(sprint_ended_at) if sprint_ended_at else None
+            for record in log_proc.stdout.split("\0"):
+                if not record.strip():
+                    continue
+                parts = record.strip().split("\x1f")
+                commit_hash = parts[0].strip()
+                commit_date_str = parts[1].strip() if len(parts) > 1 else ""
+                if not commit_date_str:
+                    continue
+                try:
+                    commit_dt = datetime.fromisoformat(commit_date_str)
+                except ValueError:
+                    continue
+
+                if start_dt.tzinfo is None and commit_dt.tzinfo is not None:
+                    start_dt = start_dt.replace(tzinfo=UTC)
+                elif commit_dt.tzinfo is None and start_dt.tzinfo is not None:
+                    commit_dt = commit_dt.replace(tzinfo=UTC)
+
+                if commit_dt < start_dt:
+                    continue
+
+                if end_dt is not None:
+                    if end_dt.tzinfo is None and commit_dt.tzinfo is not None:
+                        end_dt = end_dt.replace(tzinfo=UTC)
+                    elif commit_dt.tzinfo is None and end_dt.tzinfo is not None:
+                        commit_dt = commit_dt.replace(tzinfo=UTC)
+                    if commit_dt > end_dt:
+                        continue
+
+                tokens: list[str] = []
+                for raw in parts[2:]:
+                    for piece in raw.replace(",", " ").split():
+                        if piece.strip():
+                            tokens.append(piece.strip())
+                if not tokens:
+                    unnamed_commits.append(commit_hash)
+
+    out_of_scope_paths = [p for item in out_of_scope for p in item.get("paths", [])]
+
+    return {
+        "configured": True,
+        "branch": branch,
+        "unmerged_cards": unmerged_cards,
+        "out_of_scope": out_of_scope,
+        "out_of_scope_paths": out_of_scope_paths,
+        "unnamed_commits": unnamed_commits,
+    }

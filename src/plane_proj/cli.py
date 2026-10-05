@@ -435,6 +435,17 @@ def sprints_preflight(obj: dict[str, Any], sprint_id: str) -> None:
             connection, obj["root"].board, sprint_id,
             now=datetime.now(UTC).isoformat(timespec="seconds"),
         )
+        current = sprints_module.fetch_sprint(connection, sprint_id)
+        cards = (
+            obj["root"].board.cycle_cards(current.cycle_id)
+            if current and current.cycle_id else []
+        )
+        payload["scope_report"] = scope_module.scope_report(
+            obj["root"].board,
+            cards,
+            sprint_started_at=current.started if current else None,
+            sprint_ended_at=str(payload.get("as_of")),
+        )
 
     def render(data: dict[str, Any]) -> None:
         click.echo(
@@ -457,6 +468,20 @@ def sprints_preflight(obj: dict[str, Any], sprint_id: str) -> None:
             f"{derived['points_done']}  velocity "
             f"{sprints_module.format_velocity(derived['velocity'])}/h"
         )
+        scope = data.get("scope_report")
+        if scope:
+            if not scope.get("configured"):
+                click.echo(f"  scope: {scope.get('message', 'not configured')}")
+            else:
+                branch = scope.get("branch", "unknown")
+                click.echo(f"  scope against {branch}:")
+                for item in scope.get("unmerged_cards", []):
+                    click.echo(f"    unmerged card: {item}")
+                for item in scope.get("out_of_scope", []):
+                    paths_str = ", ".join(item.get("paths", []))
+                    click.echo(f"    out-of-scope path: {item['card']} touches {paths_str}")
+                for commit in scope.get("unnamed_commits", []):
+                    click.echo(f"    unnamed commit: {commit}")
 
     emit(payload, as_json=obj["root"].as_json, render=render)
 
@@ -506,6 +531,12 @@ def sprints_close(obj: dict[str, Any], sprint_id: str, ended: str,
                 "final execution snapshot missing; run sprints collect for: "
                 + ", ".join(references)
             )
+        scope = scope_module.scope_report(
+            board,
+            cycle_cards,
+            sprint_started_at=current.started,
+            sprint_ended_at=ended,
+        )
         cycle_name = board.close_sprint_cycle(sprint.cycle_id, ended)
         sprints_module.close_sprint(
             connection, sprint_id, ended, derived["hours"],
@@ -518,6 +549,19 @@ def sprints_close(obj: dict[str, Any], sprint_id: str, ended: str,
         f"{derived['hours']:.2f}h, {derived['points_done']} done points, "
         f"velocity {sprints_module.format_velocity(derived['velocity'])}/h."
     )
+    if scope:
+        if not scope.get("configured"):
+            click.echo(f"Scope: {scope.get('message', 'not configured')}")
+        else:
+            branch = scope.get("branch", "unknown")
+            click.echo(f"Scope against {branch}:")
+            for item in scope.get("unmerged_cards", []):
+                click.echo(f"  unmerged card: {item}")
+            for item in scope.get("out_of_scope", []):
+                paths_str = ", ".join(item.get("paths", []))
+                click.echo(f"  out-of-scope path: {item['card']} touches {paths_str}")
+            for commit in scope.get("unnamed_commits", []):
+                click.echo(f"  unnamed commit: {commit}")
 
 
 @sprints.command("collect")
