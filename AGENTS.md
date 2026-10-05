@@ -52,8 +52,11 @@ workflow rules. Agents SHOULD read [`README.md`](README.md) for usage and
 
 ## Versioning and Git
 
-- Every change, including documentation, MUST increment the version in
-  `pyproject.toml` and refresh `uv.lock` in the same commit.
+- Builders MUST NOT change the version. The integrator MUST increment the
+  version in `pyproject.toml` and refresh `uv.lock` once per card, in the
+  commit that merges the card's work into the shared branch.
+- A change made outside card delivery, including documentation, MUST
+  increment the version and refresh `uv.lock` in its own commit.
 - Non-breaking changes MUST increment the patch version without a patch
   ceiling. Breaking changes MUST increment the minor version and reset the
   patch to zero. The major version MUST change only when the user directs it.
