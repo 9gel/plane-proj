@@ -614,6 +614,17 @@ Dependencies: assessed
   undeclared in that respect. Undeclared cards are reported, never refused,
   so an existing board can be backfilled at any pace.
 
+Some files change on almost every card for mechanical reasons, such as a
+version line or a lock file. Declared on every card, they would make every
+pair of sprints overlap. `plane-proj.json` therefore takes a top-level
+`shared_paths` list (for example `["pyproject.toml", "uv.lock"]`). A shared
+path need not be declared, is always within a card's scope, and never counts
+as overlap; the close-time report still lists it. A collision on one is
+settled at integration by regenerating it, which is why it is safe to
+ignore. A card that changes a shared path for a reason that matters, such
+as a new dependency, MAY list it in `Touches`, and an explicitly listed
+shared path counts as overlap again.
+
 `card new --touches PATH` (repeatable, or `--touches none`) and
 `--deps-assessed` write the section. `card plan CARD` replaces only that
 section of an existing card and leaves the rest of the description as it
