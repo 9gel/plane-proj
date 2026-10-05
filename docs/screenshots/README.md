@@ -1,7 +1,7 @@
 # Sprint dashboard screenshots
 
 `plane-proj sprints web` serves these screens. They show an invented project,
-Wayfinder, an offline museum guide app.
+Wayfinder, an offline museum guide app, served by `demo/run_demo.py serve`.
 
 - [Overview](#overview)
 - [Current sprints](#current-sprints)

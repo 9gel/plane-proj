@@ -252,6 +252,23 @@ server's address.
 
 See [all dashboard screenshots](docs/screenshots/README.md).
 
+### Try the dashboard without Plane
+
+`demo/run_demo.py` shows the dashboard for Wayfinder, an invented museum
+guide project, without Plane, a register, or credentials. Run it from a
+clone, in the development shell (see [Development](#development)):
+
+```sh
+python demo/run_demo.py serve
+```
+
+Open <http://127.0.0.1:8780>. To publish the demo on any static web host,
+such as GitHub Pages, write a static copy and upload the folder:
+
+```sh
+python demo/run_demo.py build site
+```
+
 ## Commands
 
 Run `plane-proj COMMAND --help` for options. Put `--json` before the command
