@@ -221,6 +221,12 @@ span.sk.inline { display: inline-block; vertical-align: middle; }
 .clock { text-align: right; }
 .clock .t { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 22px; font-weight: 600; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
 .clock .d { font-size: 12px; color: var(--text-2); }
+/* Boxes inside a box, such as Overview's sprints and charts. */
+.card.sub { background: var(--bg); }
+/* In flight: up to three sprints side by side, more scroll sideways; a
+   phone stacks them. */
+.flight { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(calc((100% - 24px) / 3), 1fr); gap: 12px; overflow-x: auto; }
+@media (max-width: 760px) { .flight { grid-auto-flow: row; grid-auto-columns: auto; } }
 .kpi.side { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi.side > :first-child { flex: none; }
 /* The dial shrinks in a narrow tile instead of overflowing it. */
@@ -552,12 +558,12 @@ V.overview = () => {
     <div class="card kpi link" onclick="location.hash='#/past'"><div class="v">${past.length}</div><div class="l">Completed${POINTS ? ` · ${past.reduce((a, s) => a + (s.points_end || 0), 0)} pts` : ''}</div></div>
     ${MEDV ? `<div class="card kpi link" onclick="location.hash='#/stats'"><div class="v">${num(MEDV, 2)}<span class="muted small"> pts/h</span></div><div class="l">Median velocity</div></div>` : ''}
   </div>
-  <h2>In flight</h2><div class="grid g2">${current.map(s => { const cards = cardsFor(s);
-    return `<div class="card link" ${goto(s.sprint)}><div class="row">${label(s)}<span class="pill">${fmtH(elapsedH(s))} elapsed</span><span class="sp"></span>${legendOf('compact')}</div>
+  <div class="card" style="margin-top:12px"><h3>In flight</h3><div class="flight">${current.map(s => { const cards = cardsFor(s);
+    return `<div class="card sub link" ${goto(s.sprint)}><div class="row">${label(s)}<span class="pill">${fmtH(elapsedH(s))} elapsed</span><span class="sp"></span>${legendOf('compact')}</div>
       <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${PARTIAL ? `${POINTS ? skStateBar() : ''}
       <div class="row" style="margin-top:10px">${skIcons(s.cards_start)}<span class="sp"></span>${skInline('110px')}</div>` : `${POINTS ? stateBar(cards, s.points_start, 'pts') : ''}
       <div class="row" style="margin-top:10px">${cardIcons(byProgress(cards).map(c => stC[c.state]))}<span class="sp"></span>
-      <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div>`}</div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div>
+      <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div>`}</div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div></div>
   <div class="grid g2" style="margin-top:12px">
     <div class="card"><div class="row"><h3>Up next</h3><span class="sp"></span><a href="#/planned">All ${planned.length} →</a></div>
       ${planned.length ? '' : '<p class="muted">No planned sprints.</p>'}${planned.slice(0, 4).map(s => `<div class="row link" style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" ${goto(s.sprint)}>
@@ -567,9 +573,18 @@ V.overview = () => {
       ${POINTS ? `<div style="margin:8px 0;max-width:${Math.max(last.points_start, last.points_end) * 14}px">${outcome(last.points_start, last.points_end, Math.max(last.points_start, last.points_end))}</div>` : ''}
       <div class="prose small" style="max-height:72px;overflow:hidden">${esc(last.delivered)}</div></div>` : '<div class="card"><h3>Last completed</h3><p class="muted">No completed sprints.</p></div>'}
   </div>
-  ${MEDV && recent.length ? `<h2>Velocity, last ${recent.length} sprints <span class="muted small">(pts/h, log₂ scale)</span></h2>
-  <div class="card">${heatLegend}${colChart({ data: recent, log: true, h: 200, fmt: v => num(v, 2), stacks: [{ label: 'pts/h', color: d => heatV(d.velocity), get: d => d.velocity }],
-    ref: MEDV, refLabel: `median ${num(MEDV, 2)}`, tipFn: d => tipHead(d) + `${num(d.velocity, 2)} pts/h · ${d.elapsed}` })}</div>` : ''}`;
+  ${recent.length ? `<div class="card" style="margin-top:12px"><h3>Statistics</h3>
+    ${MEDV ? `<div class="card sub"><h3>Velocity, last ${recent.length} sprints <span class="muted small">(pts/h, log₂ scale)</span></h3>
+      ${heatLegend}${colChart({ data: recent, log: true, h: 200, fmt: v => num(v, 2), stacks: [{ label: 'pts/h', color: d => heatV(d.velocity), get: d => d.velocity }],
+      ref: MEDV, refLabel: `median ${num(MEDV, 2)}`, tipFn: d => tipHead(d) + `${num(d.velocity, 2)} pts/h · ${d.elapsed}` })}</div>` : ''}
+    ${POINTS ? `<div class="card sub" style="margin-top:12px"><h3>Points, last ${recent.length} sprints</h3>
+      ${stackChart({ data: recent, start: d => d.points_start, end: d => d.points_end, kind: 'points',
+        tipFn: d => tipHead(d) + `${d.points} pts · cards ${d.cards}` })}</div>` : ''}
+    <div class="card sub" style="margin-top:12px"><h3>Durations, last ${recent.length} sprints <span class="muted small">(log₂ scale)</span></h3>
+      ${colChart({ data: recent, log: true, lo: 0.125, h: 200, fmt: v => v < 1 ? Math.round(v * 60) + 'm' : num(v, 0) + 'h',
+        stacks: [{ label: 'hours', color: 'var(--dur)', get: d => d.hours }], ref: ST.hours?.median, refLabel: `median ${fmtH(ST.hours?.median)}`,
+        tipFn: d => tipHead(d) + d.elapsed })}</div>
+  </div>` : ''}`;
 };
 
 // Parallel sprints get one tab each; the tab is in the URL, so it survives
