@@ -327,7 +327,7 @@ function summaryCard(s, cards) {
   const count = PARTIAL ? skInline('70px', 22)
     : `<span class="tot" style="font-weight:650;font-size:18px">${cards.length} <span class="muted small">cards</span></span>`;
   const icons = PARTIAL ? skIcons(s.cards_start, true) : cardIcons(byProgress(cards).map(c => stC[c.state]), true);
-  return `<div class="card" style="margin-top:18px">
+  return `<div class="card" style="margin-top:12px">
     ${POINTS ? `${header('Points')}<div style="margin-top:22px">${PARTIAL ? skStateBar() : stateBar(cards, s.points_start, 'pts')}</div>
     <h3 style="margin:20px 0 8px">Cards</h3>` : header('Cards')}
     <div class="row" style="align-items:flex-start">${icons}<span class="sp"></span>
@@ -346,7 +346,20 @@ V.currentOne = s => {
     <span class="muted small">Started ${fullDate(s.started)} · ${fmtH(el)} elapsed</span></div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
 
+  <div class="grid g4" style="margin-top:18px">
+    ${PARTIAL && POINTS ? `<div class="card kpi"><div class="v">${skInline('90px', 24)}</div><div class="l">${skInline('70%', 12)}</div>
+      ${`<div class="hb"><div class="track">${sk('60%', 10)}</div><span class="lbl">&#8203;</span></div>`.repeat(2)}</div>` : ''}
+    ${vel != null ? `<div class="card kpi"><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity${MEDV ? ` · median ${num(MEDV, 2)}` : ''}</div>
+      ${hbar(vel, Math.max(vel, MEDV || 0) * 1.2 || 1, 'now', 'var(--c1)')}${MEDV ? hbar(MEDV, Math.max(vel, MEDV) * 1.2, 'median', 'var(--muted)') : ''}</div>` : ''}
+    <div class="card kpi"><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events · ${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}${reasonText(t.rework_reasons) ? `<br>${reasonText(t.rework_reasons)}` : ''}</div></div>
+    <div class="card kpi"><div class="v">${fmtMin(active)}</div><div class="l">Active time (In Progress ${fmtMin(t.active_minutes?.['In Progress'])} · Verifying ${fmtMin(t.active_minutes?.['Verifying'])})</div></div>
+    <div class="card kpi"><div class="v">${openT.length || 'None'}</div><div class="l">Open timers ${openT.map(([k, v]) => `· ${k} ${fmtMin(v)}`).join(' ')}</div></div>
+  </div>
   ${summaryCard(s, cards)}
+  <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers · ${fmtMin(execTot)} total</h3><span class="sp"></span>
+    <span class="muted small">${t.timed_cards ?? 0} timed · ${t.final_cards ?? 0} final of ${t.observed_cards ?? 0} observed cards</span></div>
+    <div style="display:flex;height:14px;gap:2px;margin:10px 0 6px">${exec.map(([k, v], i) => `<span style="flex:${v};background:${execColors[i % 6]};border-radius:2px" data-tip="${k}: ${fmtMin(v)}"></span>`).join('')}</div>
+    <div class="legend">${exec.map(([k, v], i) => `<span><i style="background:${execColors[i % 6]}"></i>${k} ${fmtMin(v)}</span>`).join('')}</div></div>
   ${PARTIAL ? `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2><span class="sp"></span><a style="visibility:hidden">Open in Plane ↗</a></div>
   <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st}</div>`).join('')}
     ${STATES.map((st, i) => `<div class="colb">${i < 4 ? `<div class="wi" style="border-left-color:${stC[st]}">${sk('40%', 14)}<div style="margin-top:8px">${sk('85%', 14)}</div></div>` : ''}</div>`).join('')}</div>` : `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2><span class="sp"></span>${PLANE_BOARD ? `<a href="${esc(PLANE_BOARD)}" target="_blank" rel="noopener">Open in Plane ↗</a>` : ''}</div>
@@ -354,20 +367,6 @@ V.currentOne = s => {
     ${STATES.map(st => `<div class="colb">${cards.filter(c => c.state === st).map(c => `<div class="wi" style="border-left-color:${stC[st]}">
       <div class="row"><a class="mono" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.ref)}</a><span class="sp"></span>${POINTS ? `<span class="pill">${c.points} pt</span>` : ''}</div>
       <div>${esc(c.title)}</div>${waitsOn(c)}</div>`).join('')}</div>`).join('')}</div>`}
-
-  <h2>Status</h2>
-  <div class="grid g4">
-    ${PARTIAL && POINTS ? `<div class="card kpi">${sk('90px', 30)}<div style="margin-top:6px">${sk('70%', 12)}</div><div style="margin-top:10px">${sk('100%', 10)}</div><div style="margin-top:6px">${sk('80%', 10)}</div></div>` : ''}
-    ${vel != null ? `<div class="card kpi"><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity${MEDV ? ` · median ${num(MEDV, 2)}` : ''}</div>
-      ${hbar(vel, Math.max(vel, MEDV || 0) * 1.2 || 1, 'now', 'var(--c1)')}${MEDV ? hbar(MEDV, Math.max(vel, MEDV) * 1.2, 'median', 'var(--muted)') : ''}</div>` : ''}
-    <div class="card kpi"><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events · ${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}${reasonText(t.rework_reasons) ? `<br>${reasonText(t.rework_reasons)}` : ''}</div></div>
-    <div class="card kpi"><div class="v">${fmtMin(active)}</div><div class="l">Active time (In Progress ${fmtMin(t.active_minutes?.['In Progress'])} · Verifying ${fmtMin(t.active_minutes?.['Verifying'])})</div></div>
-    <div class="card kpi"><div class="v">${openT.length || 'None'}</div><div class="l">Open timers ${openT.map(([k, v]) => `· ${k} ${fmtMin(v)}`).join(' ')}</div></div>
-  </div>
-  <div class="card" style="margin-top:12px"><div class="row"><h3 style="margin:0">Timers · ${fmtMin(execTot)} total</h3><span class="sp"></span>
-    <span class="muted small">${t.timed_cards ?? 0} timed · ${t.final_cards ?? 0} final of ${t.observed_cards ?? 0} observed cards</span></div>
-    <div style="display:flex;height:14px;gap:2px;margin:10px 0 6px">${exec.map(([k, v], i) => `<span style="flex:${v};background:${execColors[i % 6]};border-radius:2px" data-tip="${k}: ${fmtMin(v)}"></span>`).join('')}</div>
-    <div class="legend">${exec.map(([k, v], i) => `<span><i style="background:${execColors[i % 6]}"></i>${k} ${fmtMin(v)}</span>`).join('')}</div></div>
 
   <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>
   <details style="margin-top:12px"><summary>Execution guidance</summary><div class="card prose" style="margin-top:8px">${esc(s.execution)}</div></details>`;
