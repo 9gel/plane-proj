@@ -548,7 +548,7 @@ V.currentOne = s => {
       ${sk('118px', 34)}</div>` : ''}
     ${vel != null ? `<div class="card kpi side"><div><div class="v">${num(vel, 2)}<span class="muted small"> pts/h</span></div><div class="l">Velocity</div></div>
       ${dial(vel, true, [[MEDV, 'var(--median)', 'median'], [ST.velocity?.average, 'var(--avg)', 'average']])}</div>` : ''}
-    <div class="card kpi side" data-tip="${esc(`${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}`)}"><div><div class="v">${t.rework_count ?? 0}</div><div class="l">Rework events</div></div>
+    <div class="card kpi side" data-tip="${esc(`${t.reworked_cards ?? 0} of ${t.rework_observed_cards ?? 0} cards reworked${t.rework_minutes ? ` · ${fmtMin(t.rework_minutes)} reworking` : ''}`)}"><div><div class="v">${t.rework_count || 'None'}</div><div class="l">Rework events</div></div>
       ${miniTable(Object.entries(t.rework_reasons || {}).sort((a, b) => b[1] - a[1]), String)}</div>
     <div class="card kpi"><div class="row" style="flex-wrap:nowrap"><div class="v">${fmtMin(active)}</div>${active ? activeSplit(t.active_minutes) : ''}</div><div class="l">Active time</div></div>
     <div class="card kpi side"><div><div class="v">${openT.length || 'None'}</div><div class="l">Open timers</div></div>
