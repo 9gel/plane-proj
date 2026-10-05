@@ -582,6 +582,100 @@ as `sprints ready`, with a manual fallback when they cannot run. The
 split: the CLI refuses an unverified Done, while choosing reviewers,
 dispatching QA, and escalating after repeated failures stay with the agent.
 
+### Declared card scope and dependency assessment
+
+Two things a planner knows and the board cannot infer are declared on each
+card: which files the card will change, and that its dependencies were
+assessed. Without them, a sprint with no `blocked_by` relations is
+indistinguishable from one whose relations were never entered, and two
+sprints that change the same code look independent.
+
+Both live in one section of the card's Plane description, so they travel
+with the card and need no paid Plane feature:
+
+```markdown
+## Delivery plan
+Touches:
+- src/api/members.ts
+- src/shop/pickup.ts (new)
+Dependencies: assessed
+```
+
+- `Touches` lists repository paths relative to the root, with `/`
+  separators. A path ending in `/` is a directory and covers everything
+  below it. A file the card will create is listed by its intended path; the
+  `(new)` mark is informational. A card that changes no code declares
+  `Touches: none`.
+- `Dependencies: assessed` records that someone checked what the card waits
+  on. The dependencies themselves stay Plane `blocked_by` relations, the only
+  copy; the marker never lists them. Assessed with no relations means the
+  card is independent; no marker means unknown, whatever relations exist.
+- A card without the section, or without one of its two lines, is
+  undeclared in that respect. Undeclared cards are reported, never refused,
+  so an existing board can be backfilled at any pace.
+
+`card new --touches PATH` (repeatable, or `--touches none`) and
+`--deps-assessed` write the section. `card plan CARD` replaces only that
+section of an existing card and leaves the rest of the description as it
+was. Both read the description back and parse the section from the stored
+HTML before reporting success. With `require_delivery_plan` on, `card new`
+refuses a card without both declarations before the first request; the rule
+defaults to off and `plane-proj init` writes it as on.
+
+#### Commits name their card
+
+Every commit that implements a card carries a git trailer naming it, such as
+`Card: PLANEPROJ-12`; a commit for two cards carries two trailers. A card's
+change set is the union of files changed by the non-merge commits reachable
+from a given revision whose trailers name it. This depends only on commit
+content, not on branch names, so it holds for feature branches, trunk-based
+work, rebases, and merges alike. A squash merge must keep the trailers in the
+squashed message.
+
+With `require_declared_scope` on, `card verdict --revision REV` refuses
+(`ScopeRule`) when the card declares `Touches` and its change set from REV
+contains a path the declaration does not cover, or when a `Touches: none`
+card has any change. The fix is to correct the declaration with
+`card plan`, which keeps the change of scope visible. An undeclared card is
+not checked. The rule needs the project directory to be a git repository and
+refuses without one rather than skip the check. It defaults to off and
+`init` writes it as on. Git is run locally as a subprocess; it is not a
+network access.
+
+`sprints preflight` and `sprints close` add a scope report against
+`defaults.integration_branch`, the shared branch that delivery merges into
+(for example `dev`). For each card it lists paths outside its declaration,
+and cards with no commit reachable from that branch yet, meaning unmerged
+work. It also lists commits on the branch, made while the sprint ran, that
+name no card. The report never refuses closure: merging may follow close,
+and judging the findings stays with the Coordinator.
+
+#### Sprint readiness
+
+The Planned page and `sprints readiness` give each planned sprint one state,
+using only cross-sprint facts; blockers inside a sprint are handled during
+it. In precedence order:
+
+| State | Meaning |
+| --- | --- |
+| Not ready | A card waits on an unfinished card in another sprint |
+| Overlap | Shares a declared path with a running sprint, or with an earlier sprint in the queue that can also start |
+| Unverified | Some card lacks a `Touches` declaration or the assessed marker |
+| Can start | None of the above |
+
+Two cards overlap when one declared path equals or lies under the other.
+Overlap counts only between sprints that could run at the same time, so the
+first of two overlapping planned sprints can start and the later one shows
+the overlap. The sprints in Can start therefore never share code with each
+other or with a running sprint, and can all start at once.
+
+Times use the median velocity of completed sprints, or an assumed 3.5
+points per hour, marked as such, when there is none. The serial time is all
+planned points divided by velocity. The parallel time is the longest chain
+of sprint durations along cross-sprint dependencies, with a running sprint
+counting its remaining points; it is a lower bound that ignores overlap and
+assumes enough agents.
+
 ## 7. Two server limits and one SDK defect
 
 All three measured, none inferred.
@@ -887,9 +981,11 @@ and two JSON routes from `web.py`:
 - Each current card carries its blockers' references and states, read
   through `Board.dependency_facts` for the current cycles only, so a refresh
   costs one relations request per open current card.
-- `/api/dependencies` runs the `sprints ready` and `sprints critical-path`
-  reports. It reads every planned card's relations, so the page calls it only
-  when the user asks.
+- `/api/readiness` returns the `sprints readiness` report: each planned
+  sprint's state and reasons, overlapping card pairs, the sprint dependency
+  graph, and the serial and parallel times. It reads every open card's
+  relations and description, so the Planned page requests it on opening and
+  shows placeholders until it arrives.
 - `/api/version` returns the register file's (and WAL's) modification time
   and size. The page polls it every 2 seconds and refetches `/api/sprints`
   only when it changes, so an idle page makes no Plane requests. A change made
@@ -908,8 +1004,10 @@ same. The API host (`PLANE_API_HOST_URL`) is not used because on Plane Cloud
 it is not the web host. A self-hosted project sets its own address, and
 `--plane-url` overrides it for one run. The board
 link is `<web>/<workspace>/projects/<project id>/issues/`; a card link appends
-the work-item UUID. The card link form has not been measured against every
-Plane version.
+the work-item UUID. A sprint links to its cycle at
+`<web>/<workspace>/projects/<project id>/cycles/<cycle id>`, the route Plane's
+web app defines (read from its source on 2026-10-05). Neither link form has
+been measured against every Plane version.
 
 ## 9. Secrets
 
