@@ -31,6 +31,7 @@ from plane_proj import dependencies as dependencies_module
 from plane_proj import execution as execution_module
 from plane_proj import operations as operations_module
 from plane_proj import register as register_module
+from plane_proj import scope as scope_module
 from plane_proj import sprint_timing
 from plane_proj import sprints as sprints_module
 from plane_proj import text as text_module
@@ -1482,6 +1483,10 @@ def card_verdict(obj: Context, reference: str, role: str, result: str,
             f"Verdict rule: {reference} is {current}; a verdict is "
             "recorded only on a card in Verifying."
         )
+    if board.project.rules.require_declared_scope:
+        seq = getattr(item, "sequence_id", None)
+        canonical_ref = f"{board.project.key}-{seq}" if seq is not None else reference
+        scope_module.check_verdict_scope(item, canonical_ref, revision)
     posted = not verdicts_module.already_recorded(
         board.comments(item), fields
     )

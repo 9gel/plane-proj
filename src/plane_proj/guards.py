@@ -187,3 +187,13 @@ class DeliveryPlanRule(GuardViolation):
     to the repository root without '..' or backslashes.
     """
 
+
+class ScopeRule(GuardViolation):
+    """A commit change set contains paths outside the card's declared scope.
+
+    Scope rule: with require_declared_scope on, every changed path in commits
+    naming a card must be covered by its Touches declaration, and a card
+    declaring Touches: none must not change any code.
+    """
+
+
