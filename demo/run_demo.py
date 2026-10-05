@@ -496,7 +496,6 @@ def serve(out: Path, host: str, port: int) -> None:
     handler = functools.partial(QuietHandler, directory=out)
     with ThreadingHTTPServer((host, port), handler) as server:
         print(f"Wayfinder demo at http://{host}:{port}/ (Ctrl-C to stop)")
-        print(f"Static site in {out}; upload it to any static host to publish.")
         with contextlib.suppress(KeyboardInterrupt):
             server.serve_forever()
 
