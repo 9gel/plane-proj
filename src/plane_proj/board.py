@@ -501,12 +501,26 @@ class Board:
         nothing and reports a write that in fact landed. Only the related
         card's id is available here; anything else a caller wants to display
         comes from `card_index`.
+
+        plane.so answers each bucket with bare card ids instead (measured
+        2026-10-06), so both shapes are read.
         """
         raw = self.client.work_items.relations._get(  # noqa: SLF001 — see docstring
             f"{self.slug}/projects/{self.project.id}/work-items/{card_id}/relations"
         )
+
+        def related_id(entry: Any) -> str | None:
+            if isinstance(entry, str):
+                return entry
+            if isinstance(entry, Mapping) and "issue_id" in entry:
+                return str(entry["issue_id"])
+            return None
+
         return {
-            name: [str(entry["issue_id"]) for entry in (raw.get(name) or []) if "issue_id" in entry]
+            name: [
+                found for entry in (raw.get(name) or [])
+                if (found := related_id(entry)) is not None
+            ]
             for name in RELATION_TYPES
         }
 
