@@ -72,12 +72,17 @@ class TouchedPath:
 
     @classmethod
     def parse(cls, text: str) -> TouchedPath:
-        """Parse a path string with an optional (new) suffix."""
+        """Parse a path string with an optional (new) suffix.
+
+        The path may be a Markdown code span, as `render_section` writes it.
+        """
         cleaned = text.strip()
         is_new = False
         if cleaned.lower().endswith("(new)"):
             is_new = True
             cleaned = cleaned[:-5].rstrip()
+        if len(cleaned) > 1 and cleaned[0] == cleaned[-1] == "`":
+            cleaned = cleaned[1:-1].strip()
         return cls(path=cleaned, is_new=is_new)
 
     def __str__(self) -> str:
@@ -144,7 +149,9 @@ def render_section(
         lines.append("Touches:")
         for item in touches:
             p = TouchedPath.parse(item) if isinstance(item, str) else item
-            lines.append(f"- {p}")
+            # A code span, so Markdown keeps the path literal: otherwise
+            # `__init__.py` is stored as a bold "init.py".
+            lines.append(f"- `{p.path}`" + (" (new)" if p.is_new else ""))
 
     if deps_assessed:
         lines.append("Dependencies: assessed")

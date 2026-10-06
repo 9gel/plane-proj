@@ -1,6 +1,6 @@
 [project]
 name = "plane-proj"
-version = "0.23.0"
+version = "0.23.1"
 description = "A visible, governed multi-agent delivery framework for Plane."
 readme = "README.md"
 license = "MIT"

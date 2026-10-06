@@ -614,8 +614,8 @@ with the card and need no paid Plane feature:
 ```markdown
 ## Delivery plan
 Touches:
-- src/api/members.ts
-- src/shop/pickup.ts (new)
+- `src/api/members.ts`
+- `src/shop/pickup.ts` (new)
 Dependencies: assessed
 ```
 
@@ -629,6 +629,9 @@ Dependencies: assessed
   request, refusing under `DeliveryPlanRule`; so they run inside the
   project's repository. A card that changes no code declares
   `Touches: none`.
+- Each path is written as a Markdown code span. Plane stores HTML converted
+  from Markdown, and without the span `__init__.py` was stored as a bold
+  "init.py". The parser accepts paths with or without the span.
 - A card on the board that still declares a directory or pattern is
   undeclared: readiness reports it as `Unverified` and its broad entries take
   no part in overlap. The scope check at verdict time still lets a directory

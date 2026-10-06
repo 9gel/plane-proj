@@ -28,9 +28,9 @@ def test_roundtrip_render_html_parse() -> None:
 
     rendered_md = render_section(plan)
     assert "## Delivery plan" in rendered_md
-    assert "- src/api/members.ts" in rendered_md
-    assert "- src/shop/pickup.ts (new)" in rendered_md
-    assert "- skills/delivery-plane/" in rendered_md
+    assert "- `src/api/members.ts`" in rendered_md
+    assert "- `src/shop/pickup.ts` (new)" in rendered_md
+    assert "- `skills/delivery-plane/`" in rendered_md
     assert "Dependencies: assessed" in rendered_md
 
     html = to_html(rendered_md)
@@ -218,3 +218,19 @@ def test_valid_paths() -> None:
     p3 = TouchedPath.parse("skills/delivery-plane/")
     assert p3.path == "skills/delivery-plane/"
     assert p3.is_new is False
+
+
+def test_paths_with_markdown_characters_survive_storage() -> None:
+    """Underscores and asterisks in a path are not Markdown emphasis:
+    __init__.py must not come back as a bold "init.py"."""
+    paths = (
+        TouchedPath("src/pkg/__init__.py"),
+        TouchedPath("src/_private/_util_.py", is_new=True),
+        TouchedPath("docs/*star*.md"),
+    )
+    plan = DeliveryPlan(touches=paths, dependencies_assessed=True)
+
+    for stored in (to_html(render_section(plan)), render_section(plan)):
+        parsed = parse_delivery_plan(stored)
+        assert parsed.paths == tuple(p.path for p in paths)
+        assert [p.is_new for p in parsed.touches] == [False, True, False]

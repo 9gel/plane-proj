@@ -45,9 +45,9 @@ dependencies were assessed:
 ## Delivery plan
 
 Touches:
-- src/path/to/file.py
-- src/path/to/other.py
-- src/new_file.py (new)
+- `src/path/to/file.py`
+- `src/path/__init__.py`
+- `src/new_file.py` (new)
 Dependencies: assessed
 ```
 
@@ -58,6 +58,8 @@ Dependencies: assessed
   directory overlap only if they change the same file in it, so a directory
   hides real overlap and invents false overlap. A card that changes no code
   declares `Touches: none`.
+- Each path is a Markdown code span, so characters such as the underscores
+  in `__init__.py` are kept literally; `card new` and `card plan` write it so.
 - When the files are not yet known, find them before declaring; a card whose
   files cannot be named is not ready to plan.
 - Planners MUST assess whether the card waits on any prerequisite cards, and
