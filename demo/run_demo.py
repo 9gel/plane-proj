@@ -10,6 +10,11 @@ writes a static site to DIR (default demo/site), then serves that folder
 as a plain static web host would. To publish the demo, upload DIR to any
 static host.
 
+With --plane-url (e.g. https://app.plane.so), the board, cycle and card
+links open the real Wayfinder project that build_plane_demo.py filled,
+using the ids it recorded in demo/plane-ids.json. Without it the links
+are placeholders.
+
 The site is the unchanged dashboard page plus the JSON it reads. The
 page requests api/sprints and api/sprints/local, so a path is both a
 response and a directory; each response is therefore written as the
@@ -20,6 +25,7 @@ way.
 
 import argparse
 import contextlib
+import dataclasses
 import functools
 import json
 import random
@@ -770,8 +776,8 @@ def sprint_stats(past):
     return stats
 
 
-def demo_responses(now):
-    """Every response the dashboard reads, keyed by its request path."""
+def demo_data(now):
+    """The invented project: sprints, running cards and planned card facts."""
     rng = random.Random(7)  # the same invented history on every run
     past = past_sprints(rng, now)
     current, cards = current_sprints(rng, now)
@@ -779,10 +785,60 @@ def demo_responses(now):
     planned, planned_facts, _ = planned_sprints(
         rng, {s.sprint_id: s.cards for s in running}, 400
     )
+    return past, current, cards, running, planned, planned_facts
+
+
+def with_plane(cards, running, planned_facts, plane):
+    """Swap invented card numbers and links for those on a real board.
+
+    `plane` holds the board's web address and the ids that
+    demo/build_plane_demo.py recorded for each invented card.
+    """
+    real = plane["ids"]["cards"]
+
+    def ref(card_id, fallback):
+        return real.get(card_id, {}).get("ref", fallback)
+
+    def url(card_id):
+        found = real.get(card_id)
+        return plane["board"] + found["id"] if found else CARD_URL
+
+    for members in cards.values():
+        for card in members:
+            card["url"], card["ref"] = (
+                url(card["id"]),
+                ref(card["id"], card["ref"]),
+            )
+
+    def swap(facts):
+        return [
+            dataclasses.replace(
+                sprint,
+                cards=tuple(
+                    dataclasses.replace(c, ref=ref(c.id, c.ref))
+                    for c in sprint.cards
+                ),
+            )
+            for sprint in facts
+        ]
+
+    return swap(running), swap(planned_facts)
+
+
+def demo_responses(now, plane=None):
+    """Every response the dashboard reads, keyed by its request path.
+
+    With `plane`, links and card numbers point at the real demo board.
+    """
+    past, current, cards, running, planned, planned_facts = demo_data(now)
+    if plane:
+        running, planned_facts = with_plane(
+            cards, running, planned_facts, plane
+        )
     payload = {
         "generated_at": now.isoformat(),
         "project": {"key": "WAY", "name": "Wayfinder"},
-        "board_url": None,
+        "board_url": plane["board"] if plane else None,
         "estimates": True,
         "listing": {
             "current": current,
@@ -793,15 +849,16 @@ def demo_responses(now):
         "cards": cards,
     }
     all_sprints = current + planned + past
-    payload["cycle_urls"] = {
-        str(s["sprint"]): web.cycle_url(
-            "https://plane.example",
-            "wayfinder",
-            "proj-uuid",
-            f"cycle-{s['sprint']}",
-        )
-        for s in all_sprints
-    }
+    payload["cycle_urls"] = (
+        {
+            str(s["sprint"]): plane["cycles"]
+            + plane["ids"]["cycles"][str(s["sprint"])]
+            for s in all_sprints
+            if str(s["sprint"]) in plane["ids"]["cycles"]
+        }
+        if plane
+        else {}
+    )
     chain = (
         ("WAY-303", 39),
         ("WAY-305", 39),
@@ -844,10 +901,21 @@ def demo_responses(now):
     }
 
 
-def build(out: Path, now: datetime) -> None:
+def plane_links(plane_url: str, ids_file: Path) -> dict:
+    """Link targets on the real demo board that build_plane_demo.py filled."""
+    ids = json.loads(ids_file.read_text(encoding="utf-8"))
+    workspace, project = ids["workspace"], ids["project_id"]
+    return {
+        "board": web.board_url(plane_url, workspace, project),
+        "cycles": web.cycle_url(plane_url, workspace, project, ""),
+        "ids": ids,
+    }
+
+
+def build(out: Path, now: datetime, plane: dict | None = None) -> None:
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.html").write_text(web.page(), encoding="utf-8")
-    for path, body in demo_responses(now).items():
+    for path, body in demo_responses(now, plane).items():
         target = out / path.lstrip("/") / "index.html"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(body), encoding="utf-8")
@@ -879,8 +947,22 @@ def main() -> None:
         default=Path(__file__).parent / "site",
         help="where to write the static site",
     )
+    parser.add_argument(
+        "--plane-url",
+        help="Plane web app holding the demo board, e.g. https://app.plane.so; "
+        "links then open its board, cycles and cards",
+    )
+    parser.add_argument(
+        "--plane-ids",
+        type=Path,
+        default=Path(__file__).parent / "plane-ids.json",
+        help="ids recorded by build_plane_demo.py",
+    )
     args = parser.parse_args()
-    build(args.out, datetime.now(UTC).replace(microsecond=0))
+    plane = (
+        plane_links(args.plane_url, args.plane_ids) if args.plane_url else None
+    )
+    build(args.out, datetime.now(UTC).replace(microsecond=0), plane)
     serve(args.out.resolve(), args.host, args.port)
 
 

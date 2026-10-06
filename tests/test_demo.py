@@ -51,3 +51,26 @@ def test_build_writes_the_page_and_every_response_it_requests(tmp_path):
 def test_the_invented_history_is_the_same_on_every_build(tmp_path):
     demo, now = load_demo(), datetime(2026, 10, 5, tzinfo=UTC)
     assert demo.demo_responses(now) == demo.demo_responses(now)
+
+
+def test_plane_links_point_cycles_and_cards_at_the_real_board(tmp_path):
+    demo, now = load_demo(), datetime(2026, 10, 5, tzinfo=UTC)
+    ids = tmp_path / "ids.json"
+    ids.write_text(json.dumps({
+        "workspace": "ws",
+        "project_id": "proj",
+        "cycles": {"1": "cycle-one"},
+        "cards": {"card-301": {"id": "real-card", "ref": "WAY-77"}},
+    }))
+    plane = demo.plane_links("https://plane.test/", ids)
+    payload = demo.demo_responses(now, plane)["/api/sprints"]
+
+    assert payload["cycle_urls"] == {
+        "1": "https://plane.test/ws/projects/proj/cycles/cycle-one"
+    }
+    linked = [c for ms in payload["cards"].values() for c in ms
+              if c["ref"] == "WAY-77"]
+    assert [c["url"] for c in linked] == [
+        "https://plane.test/ws/projects/proj/issues/real-card"
+    ]
+    assert demo.demo_responses(now)["/api/sprints"]["cycle_urls"] == {}
