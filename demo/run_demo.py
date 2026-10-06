@@ -239,6 +239,10 @@ SHARED_CODE = [
     "src/i18n/strings.json",
     "src/ui/nav.tsx",
 ]
+# The planned position that starts an unassessed second branch.
+UNVERIFIED_ROOT = 8
+# A sprint that waits on nothing but shares a file with a running sprint.
+OVERLAP_ROOT = 13
 # Files that only planned sprints share, so they collide with each other.
 PLANNED_SHARED = [
     "src/ui/theme.css",
@@ -489,30 +493,55 @@ def planned_sprints(rng, current_cards, first_ref):
     """
     planned, facts, ref = [], [], first_ref
     earlier_cards = [c for cards in current_cards.values() for c in cards]
+    previous_cards: list = []
+    root_cards: list = []
     for position, (alias, area, title, goal) in enumerate(PLANNED_AREAS, 1):
         number = len(PAST) + len(CURRENT) + position
         count = rng.choice([1, 2, 3, 3, 4, 4, 4, 5, 5, 6, 7, 8, 10, 11])
-        undeclared = position > 2 and rng.random() < 0.3
+        # Position 8 starts a second branch whose dependencies are not yet
+        # assessed, so the queue always shows an Unverified sprint.
+        undeclared = position == UNVERIFIED_ROOT or (
+            position > 2 and rng.random() < 0.3
+        )
         cards = []
         for k in range(count):
             ref += 1
             touches = [f"src/{area}/{rng.choice(AREA_FILES)}.ts"]
-            if rng.random() < 0.12:
+            # The two roots keep to their own area, so nothing they touch
+            # is shared and their state shows the dependency picture alone.
+            root = position in (1, UNVERIFIED_ROOT)
+            if position == OVERLAP_ROOT and k == 0:
+                touches.append("src/api/client.ts")
+            elif not root and rng.random() < 0.12:
                 touches.append(rng.choice(SHARED_CODE))
             # Planned sprints also collide with each other: on shared screens,
             # and on a whole area directory that another sprint works in.
-            if rng.random() < 0.08:
+            if not root and rng.random() < 0.08:
                 touches.append(rng.choice(PLANNED_SHARED))
-            if area in AREA_OWNERS and k == 0:
+            if not root and area in AREA_OWNERS and k == 0:
                 touches.append(f"src/{AREA_OWNERS[area]}/")
             if rng.random() < 0.3:
                 touches.append(f"src/{area}/{step_file(k)}.ts (new)")
             blocked = []
-            # The first sprint stays clear to start; later ones may wait on
-            # earlier planned work or on a running sprint.
-            if position > 1 and k == 0 and rng.random() < 0.45:
+            # As in a real plan, few sprints can start at once. Position 1
+            # is clear to start and several later sprints build on it;
+            # most others build on the sprint just before them, a long
+            # chain; some cards also wait on any earlier work, running
+            # sprints included. Position 8 waits on nothing.
+            if position not in (1, UNVERIFIED_ROOT, OVERLAP_ROOT) and k == 0:
+                roll = rng.random()
+                if roll < 0.3 and root_cards:
+                    blocked.append(rng.choice(root_cards))
+                elif roll < 0.85 and previous_cards:
+                    blocked.append(rng.choice(previous_cards))
+                else:
+                    blocked.append(rng.choice(earlier_cards))
+            independent = position in (1, UNVERIFIED_ROOT, OVERLAP_ROOT)
+            if not independent and k == 1 and rng.random() < 0.3:
                 blocked.append(rng.choice(earlier_cards))
-            missing = undeclared and rng.random() < 0.5
+            missing = undeclared and (
+                rng.random() < 0.5 or (position == UNVERIFIED_ROOT and k == 0)
+            )
             plan = delivery_plan.DeliveryPlan(
                 touches=None
                 if missing and rng.random() < 0.5
@@ -536,6 +565,9 @@ def planned_sprints(rng, current_cards, first_ref):
             )
             cards.append(card)
         earlier_cards += cards
+        previous_cards = cards
+        if position == 1:
+            root_cards = cards
         facts.append(
             readiness.SprintFact(
                 sprint_id=number,
