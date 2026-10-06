@@ -792,14 +792,27 @@ function renderDagSvg() {
     g += `<g class="link" data-a="${a}" data-b="${b}"><path d="M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"><title>Shares ${esc(path)}</title></path></g>`;
   });
 
-  // Dependencies
+  // Dependencies. Arrows leaving or entering one sprint fan out along its
+  // edge, ordered by the other end's height, so they never share a line;
+  // the longest chain is drawn last, so nothing covers it.
   const critical = new Set(READINESS.graph.critical_edges || []);
-  (READINESS.graph.dependencies || []).forEach(dep => {
+  const deps = (READINESS.graph.dependencies || []).filter(d => pos[d.from] && pos[d.to]);
+  const port = (list, key, other) => {
+    const at = {};
+    deps.forEach(d => (at[d[key]] = at[d[key]] || []).push(d));
+    Object.values(at).forEach(group => {
+      group.sort((p, q) => pos[p[other]][1] - pos[q[other]][1]);
+      group.forEach((d, i) => { d[list] = (i - (group.length - 1) / 2) * Math.min(8, (H - 12) / group.length); });
+    });
+  };
+  port('outY', 'from', 'to');
+  port('inY', 'to', 'from');
+  deps.sort((p, q) => critical.has(`${p.from}-${p.to}`) - critical.has(`${q.from}-${q.to}`));
+  deps.forEach(dep => {
     const a = dep.from, b = dep.to, why = dep.reason;
-    if (!pos[a] || !pos[b]) return;
     const [x1, y1] = pos[a], [x2, y2] = pos[b];
     const crit = critical.has(`${a}-${b}`);
-    const sx = x1 + W, sy = y1 + H / 2, ex = x2 - 8, ey = y2 + H / 2;
+    const sx = x1 + W, sy = y1 + H / 2 + dep.outY, ex = x2 - 8, ey = y2 + H / 2 + dep.inY;
     const aName = S[a]?.[0] || '#' + a, bName = S[b]?.[0] || '#' + b;
     // The longest chain is told by colour, so thickness can mean "hovered".
     const ink = crit ? 'var(--chain)' : 'var(--text-2)';
