@@ -293,12 +293,20 @@ a.pill.clash { border-color: var(--warn); color: var(--warn); font-weight: 600; 
 a.pill.run { background: var(--st-prog); border-color: var(--st-prog); color: #fff; font-weight: 600; }
 .mark { font-size: 30px; font-weight: 700; line-height: 1; margin-right: 8px; }
 .mark.yes { color: var(--st-done); } .mark.no, .mark.maybe { color: var(--warn); }
-.clist .crow { padding: 10px 0; border-bottom: 1px solid var(--border); }
-.clist .crow:last-child { border-bottom: 0; } .clist .crow:first-child { padding-top: 0; }
-.clist .ctop { display: flex; gap: 8px; align-items: baseline; } .clist .ctop .mono { white-space: nowrap; }
-.clist .ctop .pts { margin-left: auto; white-space: nowrap; color: var(--text-2); font-size: 13px; }
-.clist .cmeta { display: grid; grid-template-columns: 70px 1fr; gap: 4px 8px; margin-top: 6px; font-size: 12.5px; }
-.clist .cmeta .k { color: var(--muted); }
+.clist { padding: 4px 6px; }
+.clist td { vertical-align: top; padding: 10px; font-size: 13px; }
+.clist tbody tr:last-child td { border-bottom: 0; }
+.clist td.ref { white-space: nowrap; }
+.clist ul { margin: 0; padding-left: 16px; } .clist li { margin: 1px 0; }
+/* On a phone each card is a block: its title, then labelled lines. */
+@media (max-width: 760px) {
+  .clist thead { display: none; }
+  .clist tr { display: block; padding: 10px 4px; border-bottom: 1px solid var(--border); }
+  .clist tbody tr:last-child { border-bottom: 0; }
+  .clist td { display: block; padding: 2px 0; border: 0; }
+  .clist td.empty { display: none; }
+  .clist td[data-k]::before { content: attr(data-k); display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+}
 .clist .flag { color: var(--warn); font-size: 12px; font-weight: 600; margin-right: 10px; }
 ul.paths { margin: 0; padding-left: 16px; }
 ul.paths li { overflow-wrap: anywhere; }
@@ -902,24 +910,28 @@ function readinessPanels(q) {
 }
 
 function cardListHtml(q) {
+  if (!q.cards.length) return '<div class="card muted">No open cards.</div>';
   const link = c => DATA.board_url ? `<a href="${esc(DATA.board_url + c.id)}" target="_blank" rel="noopener">${esc(c.ref)}</a>` : esc(c.ref);
-  const where = (sprint, ref) => sprint == null ? esc(ref) : `<a href="${sprintHref(sprint)}">${sprintName(sprint)}</a>: ${esc(ref)}`;
-  return `<div class="card clist">${q.cards.map(c => {
+  const sprintLink = sid => `<a href="${sprintHref(sid)}">${sprintName(sid)}</a>`;
+  const rows = q.cards.map(c => {
     // Per path, the other cards grouped by sprint: "EVT-10 #49: WAY-235, WAY-236".
     const byPath = new Map();
     c.shares.forEach(x => x.paths.forEach(p => {
       const sprints = byPath.get(p) || byPath.set(p, new Map()).get(p);
       (sprints.get(x.sprint_id) || sprints.set(x.sprint_id, []).get(x.sprint_id)).push(esc(x.ref));
     }));
-    return `<div class="crow">
-      <div class="ctop"><span class="mono small">${link(c)}</span><b>${esc(c.title)}</b><span class="pts">${POINTS ? `${c.points} pt${c.points === 1 ? '' : 's'}` : ''}</span></div>
-      ${!c.declared || !c.assessed ? `<div style="margin-top:4px">${!c.declared ? '<span class="flag">scope not declared</span>' : ''}${!c.assessed ? '<span class="flag">dependencies not assessed</span>' : ''}</div>` : ''}
-      ${c.waits_on.length || byPath.size ? `<div class="cmeta">
-        ${c.waits_on.length ? `<span class="k">Waits on</span><span>${c.waits_on.map(w => where(w.sprint_id, w.ref) + (w.state ? ` <span class="muted">(${esc(w.state)})</span>` : '')).join(', ')}</span>` : ''}
-        ${byPath.size ? `<span class="k">Shares</span><ul class="paths">${[...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span> <span class="muted">with</span> ${[...with_].map(([sid, refs]) => `<a href="${sprintHref(sid)}">${sprintName(sid)}</a>: ${refs.join(', ')}`).join('; ')}</li>`).join('')}</ul>` : ''}
-      </div>` : ''}
-    </div>`;
-  }).join('') || '<p class="muted" style="margin:0">No open cards.</p>'}</div>`;
+    const flags = [!c.declared && 'scope not declared', !c.assessed && 'dependencies not assessed'].filter(Boolean);
+    const waits = c.waits_on.map(w => `<li>${w.sprint_id == null ? '' : `${sprintLink(w.sprint_id)}: `}${esc(w.ref)}${w.state ? ` <span class="muted">(${esc(w.state)})</span>` : ''}</li>`).join('');
+    const shares = [...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span><br><span class="muted">with</span> ${[...with_].map(([sid, refs]) => `${sprintLink(sid)}: ${refs.join(', ')}`).join('; ')}</li>`).join('');
+    return `<tr>
+      <td class="ref mono small">${link(c)}</td>
+      <td><b>${esc(c.title)}</b>${flags.length ? `<div>${flags.map(f => `<span class="flag">${f}</span>`).join('')}</div>` : ''}</td>
+      ${POINTS ? `<td style="min-width:90px">${ringDots(c.points)}<div class="small muted" style="margin-top:3px">${c.points} pt${c.points === 1 ? '' : 's'}</div></td>` : ''}
+      <td data-k="Waits on" class="${waits ? '' : 'empty'}">${waits ? `<ul>${waits}</ul>` : '<span class="muted">—</span>'}</td>
+      <td data-k="Shares code" class="${shares ? '' : 'empty'}">${shares ? `<ul>${shares}</ul>` : '<span class="muted">—</span>'}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="card clist"><table><thead><tr><th>Card</th><th>Title</th>${POINTS ? '<th>Points</th>' : ''}<th>Waits on</th><th>Shares code</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function renderDagSvg() {
