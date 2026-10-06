@@ -74,10 +74,14 @@ button { font: inherit; color: var(--text); background: var(--surface-2); border
 nav { display: flex; gap: 2px; flex: none; }
 #navsel { display: none; flex: none; font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
 .bar.compact nav { display: none; } .bar.compact #navsel { display: block; }
-/* Out of the row, so its text never moves the header; it hangs under the bar's right edge. */
-.busy { position: absolute; top: calc(100% + 6px); right: 16px; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  background: var(--surface); border: 1px solid var(--border); border-radius: 99px; padding: 2px 10px; font-size: 12px; color: var(--text-2); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+/* Beside the page heading while Plane is being read, with a spinner. */
+.busy { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; vertical-align: middle; white-space: nowrap;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 99px; padding: 2px 10px; font-size: 12px; font-weight: 400; color: var(--text-2); }
+.busy::before { content: ""; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--border); border-top-color: var(--text-2); animation: spin .8s linear infinite; }
+.busy.failed { color: var(--warn); } .busy.failed::before { display: none; }
 .busy:empty { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .busy::before { animation: none; } }
 nav a { padding: 6px 10px; border-radius: 6px; color: var(--text-2); white-space: nowrap; }
 nav a.on { background: var(--surface-2); color: var(--text); font-weight: 600; }
 nav a:hover { text-decoration: none; background: var(--surface-2); }
@@ -346,7 +350,23 @@ const planeLink = s => {
   return url ? `<a class="small" href="${esc(url)}" target="_blank"
     rel="noopener">Open in Plane ↗</a>` : '';
 };
-const goto = id => `onclick="location.hash='#/sprint/${id}'"`;
+// Routes are #/view/arg?from=/origin. A sprint opened from a page carries
+// that page in `from`, so its back link returns there.
+const route = () => {
+  const [path, query = ''] = (location.hash || '#/').slice(1).split('?');
+  const [, view = '', arg] = path.split('/');
+  return { path: path || '/', view, arg, from: new URLSearchParams(query).get('from') };
+};
+const sprintHref = id => `#/sprint/${id}?from=${encodeURIComponent(route().from && route().view === 'sprint' ? route().from : route().path)}`;
+window.openSprint = id => { location.hash = sprintHref(id); };
+const goto = id => `onclick="openSprint(${id})"`;
+const PAGE_NAMES = { '': 'Overview', current: 'Current', planned: 'Planned', past: 'Past', stats: 'Stats' };
+// The way back: the page the sprint was opened from, else its own list.
+function backLink(s) {
+  const fallback = { planned: '/planned', completed: '/past' }[s.status] || '/current';
+  const from = route().from || fallback;
+  return `<a href="#${esc(from)}">← ${PAGE_NAMES[from.split('/')[1] || ''] || 'Back'}</a>`;
+}
 
 const tip = $('#tip');
 document.addEventListener('mousemove', e => {
@@ -696,6 +716,7 @@ let READINESS = null, readinessState = 'idle', readinessError = null;
 function loadReadiness() {
   if (readinessState === 'loading') return;
   readinessState = 'loading';
+  busyStart();
   getJSON('api/readiness')
     .then(d => {
       READINESS = d;
@@ -706,7 +727,8 @@ function loadReadiness() {
       readinessState = 'error';
     })
     .finally(() => {
-      if ((location.hash || '').startsWith('#/planned')) {
+      busyEnd();
+      if (route().view === 'planned') {
         render();
       }
     });
@@ -830,7 +852,7 @@ function renderDagSvg() {
   // Sprints
   Object.entries(pos).forEach(([id, [x, y]]) => {
     const [alias, mark, kind, unclear] = S[id] || ['', '', '', false];
-    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--warn)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
+    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--warn)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
       ${unclear ? `<text x="${x + W / 2}" y="${y + H + 12}" font-size="10.5" text-anchor="middle" fill="var(--warn)" font-weight="600">dependencies unclear</text>` : ''}
       <text x="${x + 10}" y="${y + H / 2 + 5}" font-size="13" fill="var(--text)"><tspan font-weight="600">${esc(alias)}</tspan>${alias ? ' ' : ''}<tspan fill="${alias ? 'var(--muted)' : 'var(--text)'}">#${id}</tspan></text>
       <text x="${x + W - 10}" y="${y + H / 2 + 6}" font-size="${kind === 'run' ? 11 : 18}" text-anchor="end" fill="var(--text-2)">${mark}</text></a>`;
@@ -1003,7 +1025,7 @@ V.planned = () => {
   ${renderOverlapTable()}`;
 };
 
-V.plannedDetail = s => `<p><a href="#/planned">← Planned</a></p>
+V.plannedDetail = s => `<p>${backLink(s)}</p>
   <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span>${planeLink(s)}</div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
   <div class="card" style="margin-top:16px"><div class="row">${s.cards == null ? skIcons(4, true) : `${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span>`}</div>
@@ -1044,8 +1066,8 @@ V.pastDetail = s => {
   const res = t ? Object.entries(t.residence_minutes || {}).filter(([k]) => !TERMINAL.has(k)) : [], exec = t ? Object.entries(t.execution_minutes || {}).filter(([, v]) => v > 0)
     .sort((a, b) => b[1] - a[1]) : [];
   const mx = Math.max(1, ...res.map(x => x[1]), ...exec.map(x => x[1]));
-  return `<div class="row"><a href="#/past">← Past</a><span class="sp"></span>
-    ${prev ? `<a href="#/sprint/${prev.sprint}">‹ ${esc(prev.alias || '#' + prev.sprint)}</a>` : ''}${next ? `<a href="#/sprint/${next.sprint}">${esc(next.alias || '#' + next.sprint)} ›</a>` : ''}</div>
+  return `<div class="row">${backLink(s)}<span class="sp"></span>
+    ${prev ? `<a href="${sprintHref(prev.sprint)}">‹ ${esc(prev.alias || '#' + prev.sprint)}</a>` : ''}${next ? `<a href="${sprintHref(next.sprint)}">${esc(next.alias || '#' + next.sprint)} ›</a>` : ''}</div>
   <div class="row" style="margin-top:10px">${label(s)}<span class="pill" style="color:var(--st-done)">✓ completed</span>${planeLink(s)}<span class="sp"></span>
     <span class="muted small" data-tip="${esc(fullDate(s.started) + ' → ' + fullDate(s.ended))}">ended ${ago(s.ended)} · ran ${s.elapsed}</span></div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
@@ -1064,7 +1086,7 @@ V.pastDetail = s => {
 };
 
 V.sprint = id => { const s = byId[id]; if (!s) return '<p>Unknown sprint.</p>';
-  return s.status === 'planned' ? V.plannedDetail(s) : s.status === 'completed' ? V.pastDetail(s) : `<p><a href="#/current">← Current</a></p>` + V.currentOne(s); };
+  return s.status === 'planned' ? V.plannedDetail(s) : s.status === 'completed' ? V.pastDetail(s) : `<p>${backLink(s)}</p>` + V.currentOne(s); };
 
 // ----- stats -----
 // Range strip: min–max track, ±1 SD band around the average, median tick, average dot.
@@ -1173,13 +1195,15 @@ V.stats = () => {
 
 // ===== router =====
 function render() {
-  const [, view, arg] = (location.hash || '#/').split('/');
+  const { view, arg, from } = route();
   const fn = { '': V.overview, current: () => V.current(+arg), planned: V.planned, past: V.past, stats: V.stats, sprint: () => V.sprint(+arg) }[view || ''] || V.overview;
   $('#app').innerHTML = fn();
   updateScrollers();
+  placeBusy();
   // A narrow screen scrolls the sprint tabs; keep the open one in view.
   document.querySelector('.stabs a.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  const sec = view === 'sprint' ? { current: 'current', planned: 'planned', completed: 'past' }[byId[+arg]?.status] : (view || '');
+  // A sprint page highlights the page it was opened from.
+  const sec = view === 'sprint' ? (from ? from.split('/')[1] || '' : { current: 'current', planned: 'planned', completed: 'past' }[byId[+arg]?.status]) : (view || '');
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.getAttribute('href').split('/')[1] === sec));
   $('#navsel').value = '#/' + (sec || '');
 }
@@ -1228,19 +1252,33 @@ const getJSON = url => fetch(url, { cache: 'no-store' })
 // While a Current page is open, timing is refetched from Plane about once a minute.
 let version = null;
 let lastTimingFetch = Date.now();
-const busy = text => { $('#busy').textContent = text; };
+// "Updating from Plane…" shows beside the page heading while any Plane
+// read is outstanding, including the Planned page's readiness report.
+const busyEl = $('#busy');
+let pending = 0, failure = '';
+function showBusy() {
+  busyEl.classList.toggle('failed', !pending && Boolean(failure));
+  busyEl.textContent = pending ? 'Updating from Plane…' : failure;
+}
+const busyStart = () => { pending++; failure = ''; showBusy(); };
+const busyEnd = () => { pending = Math.max(0, pending - 1); showBusy(); };
+const busyFail = message => { failure = message; showBusy(); };
+function placeBusy() {
+  const heading = $('#app h1');
+  if (heading) heading.append(busyEl); else $('#app').prepend(busyEl);
+}
 function show(data) {
   const y = scrollY; boot(data);
   if (document.activeElement?.id !== 'q') { render(); scrollTo(0, y); }
 }
 function refresh() {
-  busy('Updating from Plane…');
+  busyStart();
   READINESS = null; readinessState = 'idle';
   const first = DATA ? Promise.resolve() : getJSON('api/sprints/local').then(show);
-  return first.then(() => getJSON('api/sprints')).then(data => { show(data); busy(''); });
+  return first.then(() => getJSON('api/sprints')).then(show).finally(busyEnd);
 }
 function isCurrentOpen() {
-  const [, view, arg] = (location.hash || '#/').split('/');
+  const { view, arg } = route();
   return view === 'current' || (view === 'sprint' && byId[+arg]?.status === 'current');
 }
 function poll() {
@@ -1261,7 +1299,7 @@ function poll() {
     .catch(e => {
       // Retry later rather than every poll: a failing Plane read is slow.
       version = null; wait = 15000;
-      if (DATA) busy(`Plane update failed: ${e.message}`);
+      if (DATA) busyFail(`Plane update failed: ${e.message}`);
       else $('#app').innerHTML = `<div class="note">Could not load sprints: ${esc(e.message)}</div>`;
     })
     .finally(() => setTimeout(poll, wait));
