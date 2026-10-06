@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import subprocess
 from dataclasses import replace
+from pathlib import Path
 
+import pytest
 from click.testing import CliRunner
 
 from plane_proj.cli import Context, cli
@@ -9,6 +12,21 @@ from plane_proj.config import Rules
 from plane_proj.delivery_plan import parse_delivery_plan
 from plane_proj.guards import DeliveryPlanRule
 from tests.conftest import Card, FakeClient
+
+TRACKED = ("src/api/members.ts", "src/shop/pickup.ts", "src/foo.py", "old.py")
+
+
+@pytest.fixture(autouse=True)
+def project_repo(tmp_path: Path, monkeypatch) -> Path:
+    """The CLI runs inside a git repository tracking the declared files."""
+    repo = tmp_path / "repo"
+    for name in TRACKED:
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
+        (repo / name).write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", *TRACKED], check=True)
+    monkeypatch.chdir(repo)
+    return repo
 
 
 def test_card_new_and_plan_roundtrip_with_fake_client(board, client: FakeClient, monkeypatch):
@@ -181,3 +199,61 @@ def test_existing_config_without_require_delivery_plan_keeps_old_behaviour(
     ])
     assert result.exit_code == 0, result.output
     assert any(call[0] == "work_items.create" for call in client.calls)
+
+
+@pytest.mark.parametrize(
+    ("declared", "reason"),
+    [
+        ("src/api/", "not directories or patterns"),
+        ("src/api", "is a directory"),
+        ("src/*.py", "not directories or patterns"),
+        ("src/shop (new)", "is a directory"),
+        ("src/missing.ts", "is not a file git tracks"),
+    ],
+)
+@pytest.mark.parametrize("command", ["new", "plan"])
+def test_touches_must_be_single_files_with_no_board_request(
+    board, client: FakeClient, monkeypatch, command, declared, reason
+):
+    """Touches naming a directory, a pattern or an untracked file is refused
+    under DeliveryPlanRule before the board is even reached.
+    """
+    def no_board(self):
+        raise AssertionError("the board was reached")
+
+    monkeypatch.setattr(Context, "board", property(no_board))
+    args = (
+        ["card", "new", "--title", "Broad", "--description", "x",
+         "--assignee", "automation", "--cycle", "Sprint 1",
+         "--module", "pipeline", "--estimate", "2"]
+        if command == "new"
+        else ["card", "plan", "DEMO-1"]
+    )
+    result = CliRunner().invoke(
+        cli, [*args, "--touches", "src/foo.py", "--touches", declared,
+              "--deps-assessed"],
+    )
+
+    assert isinstance(result.exception, DeliveryPlanRule), result.output
+    assert reason in str(result.exception)
+    assert client.calls == []
+
+
+def test_touches_are_checked_from_inside_a_git_repository(
+    board, client: FakeClient, monkeypatch, tmp_path
+):
+    """Outside a git repository the files cannot be checked, so the
+    declaration is refused rather than trusted."""
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
+    monkeypatch.setattr(Context, "board", property(lambda self: board))
+
+    result = CliRunner().invoke(
+        cli, ["card", "plan", "DEMO-1", "--touches", "src/foo.py"],
+    )
+
+    assert isinstance(result.exception, DeliveryPlanRule)
+    assert "git repository" in str(result.exception)
+    assert client.calls == []

@@ -888,7 +888,7 @@ function readinessPanels(q) {
   const verdict = {
     'Can start': 'Clear to start now.',
     Overlap: 'Shares code with a sprint that could run at the same time.',
-    Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} without a declared scope`, unassessed && `${unassessed} without assessed dependencies`].filter(Boolean).join(', ')}.`,
+    Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} without files declared`, unassessed && `${unassessed} without assessed dependencies`].filter(Boolean).join(', ')}.`,
     'Not ready': 'Waits on unfinished cards in another sprint.',
   }[q.state];
   const depMark = others.size || outside
@@ -920,7 +920,7 @@ function cardListHtml(q) {
       const sprints = byPath.get(p) || byPath.set(p, new Map()).get(p);
       (sprints.get(x.sprint_id) || sprints.set(x.sprint_id, []).get(x.sprint_id)).push(esc(x.ref));
     }));
-    const flags = [!c.declared && 'scope not declared', !c.assessed && 'dependencies not assessed'].filter(Boolean);
+    const flags = [c.broad?.length ? `declares ${c.broad.map(esc).join(', ')}, not files` : !c.declared && 'scope not declared', !c.assessed && 'dependencies not assessed'].filter(Boolean);
     const waits = c.waits_on.map(w => `<li>${w.sprint_id == null ? '' : `${sprintLink(w.sprint_id)}: `}${esc(w.ref)}${w.state ? ` <span class="muted">(${esc(w.state)})</span>` : ''}</li>`).join('');
     const shares = [...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span><br><span class="muted">with</span> ${[...with_].map(([sid, refs]) => `${sprintLink(sid)}: ${refs.join(', ')}`).join('; ')}</li>`).join('');
     return `<tr>

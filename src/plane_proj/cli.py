@@ -1545,6 +1545,25 @@ def card_show(obj: Context, reference: str) -> None:
     emit(payload, as_json=obj.as_json, render=render)
 
 
+def parse_touches(
+    touches: tuple[str, ...],
+) -> tuple[tuple[delivery_plan_module.TouchedPath, ...] | None, bool]:
+    """The declared Touches and whether they are `none`, refused under
+    DeliveryPlanRule before any request unless every path is one file git
+    tracks or a file the card creates, marked (new)."""
+    if not touches:
+        return None, False
+    if len(touches) == 1 and touches[0].lower() == "none":
+        return (), True
+    if any(t.lower() == "none" for t in touches):
+        raise DeliveryPlanRule(
+            "Delivery plan rule: cannot specify both 'none' and paths in --touches."
+        )
+    parsed = tuple(delivery_plan_module.TouchedPath.parse(t) for t in touches)
+    scope_module.require_tracked_files(parsed)
+    return parsed, False
+
+
 @card.command("new")
 @click.option("--title", required=True, help="One bounded instruction.")
 @click.option("--description", default="-", show_default="stdin",
@@ -1568,21 +1587,9 @@ def card_new(obj: Context, title: str, description: str, is_html: bool, module_n
              state_name: str | None, labels: tuple[str, ...], priority: str | None,
              touches: tuple[str, ...], deps_assessed: bool) -> None:
     """Create a work item, place it in its cycle and module, and verify all three."""
+    plan_touches, touches_none = parse_touches(touches)
     board = obj.board
     body = text_module.read_text(description) or ""
-
-    touches_none = False
-    plan_touches: tuple[delivery_plan_module.TouchedPath, ...] | None = None
-    if touches:
-        if len(touches) == 1 and touches[0].lower() == "none":
-            touches_none = True
-            plan_touches = ()
-        elif any(t.lower() == "none" for t in touches):
-            raise DeliveryPlanRule(
-                "Delivery plan rule: cannot specify both 'none' and paths in --touches."
-            )
-        else:
-            plan_touches = tuple(delivery_plan_module.TouchedPath.parse(t) for t in touches)
 
     plan_deps = True if deps_assessed else None
     if plan_touches is not None or touches_none or plan_deps is not None:
@@ -2038,25 +2045,12 @@ def card_set(obj: Context, reference: str, title: str | None, description: str |
 def card_plan(obj: Context, reference: str, touches: tuple[str, ...],
               deps_assessed: bool) -> None:
     """Replace only the Delivery plan section of an existing card."""
-    board = obj.board
-    item = board.find(reference)
-
-    touches_none = False
-    parsed_touches: tuple[delivery_plan_module.TouchedPath, ...] | None = None
-    if touches:
-        if len(touches) == 1 and touches[0].lower() == "none":
-            touches_none = True
-            parsed_touches = ()
-        elif any(t.lower() == "none" for t in touches):
-            raise DeliveryPlanRule(
-                "Delivery plan rule: cannot specify both 'none' and paths in --touches."
-            )
-        else:
-            parsed_touches = tuple(delivery_plan_module.TouchedPath.parse(t) for t in touches)
-
+    parsed_touches, touches_none = parse_touches(touches)
     deps = True if deps_assessed else None
     if parsed_touches is None and not touches_none and deps is None:
         raise GuardViolation("Nothing to update.")
+    board = obj.board
+    item = board.find(reference)
 
     updated_plan = board.plan_card(
         item,

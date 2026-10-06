@@ -295,7 +295,7 @@ PLANNED_SHARED = [
     "src/ui/nav.tsx",
     "src/ui/onboarding.tsx",
 ]
-# Areas whose cards reach into another area's whole directory.
+# Areas whose cards change a file in another area.
 AREA_OWNERS = {
     "family": "routes",
     "a11y": "ui",
@@ -568,11 +568,11 @@ def planned_sprints(rng, current_cards, first_ref):
             elif not root and rng.random() < 0.12:
                 touches.append(rng.choice(SHARED_CODE))
             # Planned sprints also collide with each other: on shared screens,
-            # and on a whole area directory that another sprint works in.
+            # and on a file in an area that another sprint works in.
             if not root and rng.random() < 0.08:
                 touches.append(rng.choice(PLANNED_SHARED))
             if not root and area in AREA_OWNERS and k == 0:
-                touches.append(f"src/{AREA_OWNERS[area]}/")
+                touches.append(f"src/{AREA_OWNERS[area]}/store.ts")
             if rng.random() < 0.3:
                 touches.append(f"src/{area}/{step_file(k)}.ts (new)")
             blocked = []
@@ -664,7 +664,7 @@ def planned_sprints(rng, current_cards, first_ref):
 CURRENT_TOUCHES = {
     "OFF-4": [
         "src/offline/cache.ts",
-        "src/offline/",
+        "src/offline/store.ts",
         "src/offline/editor.tsx",
         "src/offline/sync.ts",
         "src/api/client.ts",
@@ -681,7 +681,7 @@ CURRENT_TOUCHES = {
         "src/catalog/viewer.tsx",
         "src/catalog/cache.ts",
         "src/i18n/strings.json",
-        "src/catalog/",
+        "src/catalog/store.ts",
     ],
     "NOT-2": [
         "src/notify/optin.ts",

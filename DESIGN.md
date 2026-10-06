@@ -619,11 +619,21 @@ Touches:
 Dependencies: assessed
 ```
 
-- `Touches` lists repository paths relative to the root, with `/`
-  separators. A path ending in `/` is a directory and covers everything
-  below it. A file the card will create is listed by its intended path; the
-  `(new)` mark is informational. A card that changes no code declares
+- `Touches` lists every file the card changes, by its path from the root
+  with `/` separators. Each entry is one file: a file git tracks, or a file
+  the card will create, listed by its intended path and marked `(new)`.
+  Directories and patterns are refused. Two cards that declare the same
+  directory overlap only if they change the same file in it, so a directory
+  would report overlap that is not there and hide overlap that is. `card new`
+  and `card plan` check each path against `git ls-files` before the first
+  request, refusing under `DeliveryPlanRule`; so they run inside the
+  project's repository. A card that changes no code declares
   `Touches: none`.
+- A card on the board that still declares a directory or pattern is
+  undeclared: readiness reports it as `Unverified` and its broad entries take
+  no part in overlap. The scope check at verdict time still lets a directory
+  cover the files below it, so such a card's commits are not refused while
+  it is being corrected.
 - `Dependencies: assessed` records that someone checked what the card waits
   on. The dependencies themselves stay Plane `blocked_by` relations, the only
   copy; the marker never lists them. Assessed with no relations means the

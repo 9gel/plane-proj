@@ -228,8 +228,9 @@ You direct the agents; the `delivery-plane` skill tells them how to work.
 1. **Gather work.** Use a research write-up for a new feature, or file bugs
    and suggestions with `plane-proj intake new` and accept the ones you want.
 2. **Plan.** Ask the Coordinator and Tech Lead agents to break the work into
-   small, estimated cards and group them into sprints. Every card declares the
-   files it touches (`--touches`) and that dependencies were assessed
+   small, estimated cards and group them into sprints. Every card declares
+   each file it touches (`--touches`, one file per flag; mark files it creates
+   `(new)`; directories are refused) and that dependencies were assessed
    (`--deps-assessed`) via `card new` or `card plan`.
 3. **Approve.** Review the planned sprints with `plane-proj sprints list
    planned` or the dashboard, and reorder them as you like.

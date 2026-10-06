@@ -29,6 +29,9 @@ cycle. The CLI verifies the new pending Intake record before reporting success.
     QA and Tech Lead verdicts on the same revision.
   - `card new` accepts only Backlog or Todo, and requires `--touches PATH`
     (or `--touches none`) and `--deps-assessed`.
+  - Each `--touches PATH`, on `card new` or `card plan`, must be one file git
+    tracks or a file the card creates, given as `PATH (new)`; directories and
+    patterns are refused. Run from inside the project's git repository.
   - `card plan CARD --touches PATH --deps-assessed` replaces only the Delivery
     plan section of an existing card with readback verification.
   - `card verdict --revision REV` verifies that non-merge commits naming the

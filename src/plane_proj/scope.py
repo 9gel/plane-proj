@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from plane_proj import delivery_plan as delivery_plan_module
-from plane_proj.guards import ScopeRule
+from plane_proj.guards import DeliveryPlanRule, ScopeRule
 
 
 def repo_root(board: Any = None, cwd: Path | None = None) -> Path | None:
@@ -46,6 +46,55 @@ def _require_git_repo(cwd: Path | None = None) -> None:
             raise ScopeRule("Scope rule: project directory must be a git repository.")
     except (FileNotFoundError, OSError):
         raise ScopeRule("Scope rule: project directory must be a git repository.") from None
+
+
+def require_tracked_files(
+    touches: Sequence[delivery_plan_module.TouchedPath],
+    cwd: Path | None = None,
+) -> None:
+    """Refuse under DeliveryPlanRule unless every declared path is one file.
+
+    Each path must be a file git tracks, or a file the card creates, marked
+    `(new)`. Directories and patterns are refused: two cards declaring the
+    same directory overlap only if they change the same file in it, so only
+    files make overlap measurable. Runs git locally, before any request.
+    """
+    for touched in touches:
+        if delivery_plan_module.is_broad(touched.path):
+            raise DeliveryPlanRule(
+                "Delivery plan rule: Touches lists files, not directories or "
+                f"patterns; got {touched.path!r}. List each file the card "
+                "changes, and mark files it creates (new)."
+            )
+    proc = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=cwd, capture_output=True, text=True, check=False,
+    )
+    if proc.returncode != 0:
+        raise DeliveryPlanRule(
+            "Delivery plan rule: run from inside the project's git repository, "
+            "so declared files can be checked against the files git tracks."
+        )
+    root = Path(proc.stdout.strip())
+    listed = subprocess.run(
+        ["git", "ls-files", "-z", "--",
+         *(f":(literal){t.path.removeprefix('./')}" for t in touches)],
+        cwd=root, capture_output=True, text=True, check=True,
+    ).stdout
+    tracked = set(filter(None, listed.split("\0")))
+    for touched in touches:
+        path = touched.path.removeprefix("./")
+        if (root / path).is_dir():
+            raise DeliveryPlanRule(
+                "Delivery plan rule: Touches lists files, not directories; "
+                f"{path!r} is a directory. List each file the card changes."
+            )
+        if not touched.is_new and path not in tracked:
+            raise DeliveryPlanRule(
+                f"Delivery plan rule: {path!r} is not a file git tracks. "
+                "Declare tracked files by their path from the repository "
+                "root, and mark files the card creates (new)."
+            )
 
 
 def path_covered(declaration: str | delivery_plan_module.TouchedPath, file_path: str) -> bool:

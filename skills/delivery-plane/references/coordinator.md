@@ -195,7 +195,7 @@ Before starting a new sprint or admitting any card to `Todo`, the new sprint's
 Coordinator, assisted by its Tech Lead, MUST analyze potential conflicts with
 every running sprint across:
 
-- Target file paths and directories to be modified.
+- Target files to be modified, as each card's `Touches` declares them.
 - Shared database schemas, migrations, and persistent models.
 - Shared API contracts, protocol formats, and internal interfaces.
 - Shared fixtures, test suites, and temporary test resources.
@@ -215,7 +215,7 @@ approval:
 1. **When potential conflicts are detected:**
    - The new Coordinator sends a structured coordination proposal containing:
      - Admitted scope summary and estimated cards.
-     - Files, directories, and schemas expected to be touched.
+     - Files and schemas expected to be touched.
      - Specific conflict points identified.
      - Proposed resolution (e.g., path partitioning, frozen shared contracts,
        or sequenced merge order).

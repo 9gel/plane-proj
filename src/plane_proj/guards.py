@@ -184,7 +184,9 @@ class DeliveryPlanRule(GuardViolation):
 
     Delivery plan rule: every new card declares the repository paths it
     touches and that its dependencies were assessed. Paths must be relative
-    to the repository root without '..' or backslashes.
+    to the repository root without '..' or backslashes, and each must be one
+    file: a file git tracks, or a file the card creates, marked (new).
+    Directories and patterns are refused.
     """
 
 

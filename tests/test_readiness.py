@@ -642,3 +642,35 @@ def test_queue_rows_list_each_cards_waits_and_shared_code() -> None:
     assert queue[1]["cards"][0]["shares"] == [
         {"ref": "D-2", "sprint_id": 2, "paths": ["src/b.py"]}
     ]
+
+
+def test_directory_declarations_are_undeclared_scope_not_overlap() -> None:
+    """Two cards declaring the same directory need not touch the same file,
+    so they do not overlap; each is Unverified until it lists its files."""
+    broad = (
+        "<div><h2>Delivery plan</h2><p>Touches:<br>- src/events/<br>"
+        "Dependencies: assessed</p></div>"
+    )
+    running = SprintFact(
+        sprint_id=1, title="Running", is_current=True,
+        cards=(CardFact(id="r", ref="D-1", title="R", state="In Progress",
+                        points=1, sprint_id=1, description_html=broad),),
+    )
+    planned = SprintFact(
+        sprint_id=2, title="Planned", position=1,
+        cards=(CardFact(id="p", ref="D-2", title="P", state="Backlog",
+                        points=1, sprint_id=2, description_html=broad),),
+    )
+
+    report = evaluate_readiness([running], [planned], {})
+    (row,) = report["queue"]
+
+    assert report["overlap_pairs"] == []
+    assert row["state"] == STATE_UNVERIFIED
+    assert row["unverified"] == [
+        "D-2 declares directories or patterns, not files: src/events/"
+    ]
+    (card,) = row["cards"]
+    assert card["declared"] is False
+    assert card["broad"] == ["src/events/"]
+    assert card["shares"] == []

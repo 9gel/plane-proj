@@ -144,9 +144,13 @@ def card_shared_paths(
     if not plan_a.touches or not plan_b.touches:
         return []
 
+    # Only files count: a directory or pattern says nothing about which
+    # files a card changes, so it is reported as undeclared instead.
+    files_a = [p for p in plan_a.touches if not delivery_plan_module.is_broad(p.path)]
+    files_b = [p for p in plan_b.touches if not delivery_plan_module.is_broad(p.path)]
     shared: list[str] = []
-    for p_a in plan_a.touches:
-        for p_b in plan_b.touches:
+    for p_a in files_a:
+        for p_b in files_b:
             if paths_overlap(p_a, p_b):
                 clean_a = p_a.path.removeprefix("./").rstrip()
                 if clean_a.lower().endswith("(new)"):
@@ -369,12 +373,20 @@ def evaluate_readiness(
         unverified_reasons: list[str] = []
         for card in sprint.open_cards:
             plan = card.parsed_plan
-            card_undeclared = plan.touches is None and not plan.is_touches_none
+            broad = _broad_paths(plan)
+            card_undeclared = (
+                plan.touches is None and not plan.is_touches_none
+            ) or bool(broad)
             card_unassessed = not plan.dependencies_assessed
 
             if card_undeclared:
                 undeclared_count += 1
-                msg = f"{card.ref} lacks declared scope"
+                msg = (
+                    f"{card.ref} declares directories or patterns, not files: "
+                    + ", ".join(broad)
+                    if broad
+                    else f"{card.ref} lacks declared scope"
+                )
                 if msg not in unverified_reasons:
                     unverified_reasons.append(msg)
             if card_unassessed:
@@ -587,15 +599,25 @@ def _card_rows(
             ))
         ]
         plan = card.parsed_plan
+        broad = _broad_paths(plan)
         rows.append({
             "id": card.id,
             "ref": card.ref,
             "title": card.title,
             "points": card.points,
             "state": card.state,
-            "declared": plan.touches is not None or plan.is_touches_none,
+            "declared": (
+                plan.touches is not None or plan.is_touches_none
+            ) and not broad,
+            "broad": broad,
             "assessed": plan.dependencies_assessed,
             "waits_on": waits_on,
             "shares": shares,
         })
     return rows
+
+
+def _broad_paths(plan: delivery_plan_module.DeliveryPlan) -> list[str]:
+    return [
+        p.path for p in (plan.touches or ()) if delivery_plan_module.is_broad(p.path)
+    ]

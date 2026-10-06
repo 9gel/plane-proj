@@ -46,15 +46,20 @@ dependencies were assessed:
 
 Touches:
 - src/path/to/file.py
-- src/dir/
+- src/path/to/other.py
 - src/new_file.py (new)
 Dependencies: assessed
 ```
 
-- Planners MUST declare `Touches` listing repository paths relative to the
-  repository root, with `/` separators. A path ending in `/` is a directory and
-  covers all files below it. Newly created files MAY carry the informational
-  `(new)` marker. A card that changes no code declares `Touches: none`.
+- Planners MUST declare `Touches` listing every file the card changes, each by
+  its path from the repository root with `/` separators. Each entry MUST be a
+  single file that git tracks, or a file the card creates, marked `(new)`.
+  Directories and patterns MUST NOT be declared: two cards declaring the same
+  directory overlap only if they change the same file in it, so a directory
+  hides real overlap and invents false overlap. A card that changes no code
+  declares `Touches: none`.
+- When the files are not yet known, find them before declaring; a card whose
+  files cannot be named is not ready to plan.
 - Planners MUST assess whether the card waits on any prerequisite cards, and
   record `Dependencies: assessed`. Card dependencies themselves remain native
   Plane `blocked_by` relations; `Dependencies: assessed` proves that the check
@@ -66,6 +71,11 @@ Dependencies: assessed
   --deps-assessed`.
 - With the `require_delivery_plan` project rule enabled, `card new` refuses
   cards lacking either declaration before the first network request.
+- `card new` and `card plan` refuse, under `DeliveryPlanRule`, a directory, a
+  pattern, or a path git does not track unless marked `(new)`. Run them from
+  inside the project's git repository. Readiness reports an existing card
+  that declares a directory or pattern as `Unverified` until its files are
+  listed.
 
 Verify every factual assertion in a card description (that a file cites
 something, that a check exercises something) when the card is written; do not

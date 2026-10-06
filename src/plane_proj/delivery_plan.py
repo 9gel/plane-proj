@@ -23,6 +23,20 @@ _MD_HEADING = re.compile(
 )
 
 
+PATTERN_CHARACTERS = frozenset("*?[")
+
+
+def is_broad(path: str) -> bool:
+    """True when a declared path names a directory or a pattern, not one file.
+
+    Two cards that declare the same directory need not change the same file,
+    so a broad declaration says nothing about overlap; Touches lists files.
+    """
+    return path.rstrip().endswith("/") or any(
+        c in PATTERN_CHARACTERS for c in path
+    )
+
+
 def validate_path(path: str) -> None:
     """Validate a path declaration relative to repository root.
 
