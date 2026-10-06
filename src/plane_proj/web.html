@@ -227,6 +227,14 @@ span.sk.inline { display: inline-block; vertical-align: middle; }
    phone stacks them. */
 .flight { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(calc((100% - 24px) / 3), 1fr); gap: 12px; overflow-x: auto; }
 @media (max-width: 760px) { .flight { grid-auto-flow: row; grid-auto-columns: auto; } }
+/* Graph focus: a hovered sprint's links stand out, the others fade. */
+.dag a, .dag a:hover { text-decoration: none; }
+.dag .link { transition: opacity .12s; }
+.dag.focus .link { opacity: .15; }
+.dag.focus .link.hl { opacity: 1; }
+.dag.focus .link.hl path:first-child { stroke-width: 4; }
+.dag.focus .link.dep.hl path:first-child { stroke: var(--text); }
+.dag.focus .link.dep.hl path + path { fill: var(--text); transform-box: fill-box; transform-origin: left center; transform: scale(1.5); }
 .kpi.side { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi.side > :first-child { flex: none; }
 /* The dial shrinks in a narrow tile instead of overflowing it. */
@@ -777,7 +785,7 @@ function renderDagSvg() {
     const ax = same ? x1 : x1 + W / 2, ay = same ? y1 + H / 2 : y1 + H;
     const bx = same ? x2 : x2 + W / 2, by = same ? y2 + H / 2 : y2 + H;
     const cx = same ? x1 - 40 : (ax + bx) / 2, cy = same ? (ay + by) / 2 : Math.max(ay, by) + 30;
-    g += `<path d="M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"><title>Shares ${esc(path)}</title></path>`;
+    g += `<g class="link" data-a="${a}" data-b="${b}"><path d="M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"><title>Shares ${esc(path)}</title></path></g>`;
   });
 
   // Dependencies
@@ -789,21 +797,32 @@ function renderDagSvg() {
     const crit = critical.has(`${a}-${b}`);
     const sx = x1 + W, sy = y1 + H / 2, ex = x2 - 8, ey = y2 + H / 2;
     const aName = S[a]?.[0] || '#' + a, bName = S[b]?.[0] || '#' + b;
-    g += `<path d="M${sx} ${sy} C${sx + GX / 2} ${sy} ${ex - GX / 2} ${ey} ${ex} ${ey}" fill="none" stroke="${crit ? 'var(--text)' : 'var(--text-2)'}" stroke-width="${crit ? 3 : 1.5}"><title>${esc(bName)} waits on ${esc(aName)}: ${esc(why)}</title></path>
-      <path d="M${ex} ${ey - 5} L${ex + 8} ${ey} L${ex} ${ey + 5} Z" fill="${crit ? 'var(--text)' : 'var(--text-2)'}"/>`;
+    g += `<g class="link dep" data-a="${a}" data-b="${b}"><path d="M${sx} ${sy} C${sx + GX / 2} ${sy} ${ex - GX / 2} ${ey} ${ex} ${ey}" fill="none" stroke="${crit ? 'var(--text)' : 'var(--text-2)'}" stroke-width="${crit ? 3 : 1.5}"><title>${esc(bName)} waits on ${esc(aName)}: ${esc(why)}</title></path>
+      <path d="M${ex} ${ey - 5} L${ex + 8} ${ey} L${ex} ${ey + 5} Z" fill="${crit ? 'var(--text)' : 'var(--text-2)'}"/></g>`;
   });
 
   // Sprints
   Object.entries(pos).forEach(([id, [x, y]]) => {
     const [alias, mark, kind, unclear] = S[id] || ['', '', '', false];
-    g += `<a href="#/sprint/${id}"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--warn)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
+    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--warn)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
       ${unclear ? `<text x="${x + W / 2}" y="${y + H + 12}" font-size="10.5" text-anchor="middle" fill="var(--warn)" font-weight="600">dependencies unclear</text>` : ''}
       <text x="${x + 10}" y="${y + H / 2 + 5}" font-size="13" fill="var(--text)"><tspan font-weight="600">${esc(alias)}</tspan>${alias ? ' ' : ''}<tspan fill="${alias ? 'var(--muted)' : 'var(--text)'}">#${id}</tspan></text>
       <text x="${x + W - 10}" y="${y + H / 2 + 6}" font-size="${kind === 'run' ? 11 : 18}" text-anchor="end" fill="var(--text-2)">${mark}</text></a>`;
   });
 
-  return `<svg style="display:block" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${g}</svg>`;
+  return `<svg class="dag" style="display:block" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${g}</svg>`;
 }
+// Hovering a sprint in the graph brings forward the links into and out of
+// it, thicker, and fades the rest. The graph is re-rendered, so listen once
+// on the document.
+document.addEventListener('mouseover', e => {
+  const node = e.target.closest?.('.dag .node'), dag = e.target.closest?.('.dag');
+  document.querySelectorAll('.dag.focus').forEach(d => { if (d !== dag || !node) d.classList.remove('focus'); });
+  if (!node) return;
+  const sid = node.dataset.sid;
+  dag.classList.add('focus');
+  dag.querySelectorAll('.link').forEach(l => l.classList.toggle('hl', l.dataset.a === sid || l.dataset.b === sid));
+});
 
 function renderOverlapTable() {
   if (!READINESS) {

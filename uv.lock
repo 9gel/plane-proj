@@ -327,7 +327,7 @@ wheels = [
 
 [[package]]
 name = "plane-proj"
-version = "0.22.43"
+version = "0.22.44"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
