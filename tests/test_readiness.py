@@ -551,3 +551,41 @@ def test_two_sprints_sharing_only_undeclared_shared_path_not_in_overlap_explicit
     assert len(report_overlap["overlap_pairs"]) == 1
     assert "pyproject.toml" in report_overlap["overlap_pairs"][0]["paths"]
 
+
+
+def test_queue_rows_carry_every_reason_not_only_the_winning_state() -> None:
+    """A blocked sprint whose card is also undeclared reports both, so the
+    sprint page can say everything that stands in its way.
+    """
+    running = SprintFact(
+        sprint_id=1,
+        title="Running",
+        is_current=True,
+        cards=(
+            CardFact(
+                id="c-run", ref="DEMO-1", title="Run", state="In Progress",
+                points=1, sprint_id=1,
+            ),
+        ),
+    )
+    planned = SprintFact(
+        sprint_id=2,
+        title="Planned",
+        position=1,
+        cards=(
+            CardFact(
+                id="c-wait", ref="DEMO-2", title="Wait", state="Todo",
+                points=1, sprint_id=2, blocked_by=("c-run",),
+                description_html="<p>No delivery plan</p>",
+            ),
+        ),
+    )
+
+    (row,) = evaluate_readiness([running], [planned], {})["queue"]
+
+    assert row["state"] == STATE_NOT_READY
+    assert row["blockers"] == ["Waits on running #1: DEMO-2 needs DEMO-1"]
+    assert row["unverified"] == [
+        "DEMO-2 lacks declared scope",
+        "DEMO-2 dependencies not assessed",
+    ]

@@ -258,6 +258,8 @@ def evaluate_readiness(
     sprint_undeclared: dict[int, int] = {}
     sprint_unassessed: dict[int, int] = {}
     sprint_overlaps: dict[int, list[str]] = {}
+    sprint_blockers: dict[int, list[str]] = {}
+    sprint_unverified: dict[int, list[str]] = {}
     overlap_pairs: list[dict[str, Any]] = []
 
     sprint_deps: list[tuple[int, int, str]] = []
@@ -399,6 +401,8 @@ def evaluate_readiness(
         sprint_undeclared[sprint.sprint_id] = undeclared_count
         sprint_unassessed[sprint.sprint_id] = unassessed_count
         sprint_overlaps[sprint.sprint_id] = overlaps_list
+        sprint_blockers[sprint.sprint_id] = reasons
+        sprint_unverified[sprint.sprint_id] = unverified_reasons
 
     # Serial and parallel durations
     total_planned_points = sum(s.points for s in ordered_planned)
@@ -494,6 +498,8 @@ def evaluate_readiness(
             "undeclared": sprint_undeclared[s.sprint_id],
             "unassessed": sprint_unassessed[s.sprint_id],
             "overlaps": sprint_overlaps[s.sprint_id],
+            "blockers": sprint_blockers[s.sprint_id],
+            "unverified": sprint_unverified[s.sprint_id],
         })
 
     return {

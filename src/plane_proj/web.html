@@ -107,7 +107,6 @@ h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 10
 .state.overlap { color: var(--warn); } .state.overlap::before { content: "⚠️"; }
 .state.unknown { color: var(--warn); } .state.unknown::before { content: "❓"; }
 .state.notready { color: var(--muted); } .state.notready::before { content: "⏳"; }
-td.why div { font-size: 12.5px; color: var(--text-2); margin: 1px 0; }
 .unknown { color: var(--text); font-weight: 600; } .unknown::before { content: "? "; color: var(--warn); font-weight: 700; }
 .plan-table th, .plan-table td { vertical-align: top; padding: 10px; }
 .plan-table td.pos { font-family: ui-monospace, monospace; color: var(--muted); font-size: 16px; text-align: center; width: 36px; }
@@ -274,15 +273,12 @@ table.mini td + td { padding-left: 10px; text-align: right; font-variant-numeric
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 details summary { cursor: pointer; color: var(--text-2); }
 @media (max-width: 640px) { .bar { gap: 8px; } }
-.show-sm { display: none; }
-@media (max-width: 760px) { .hide-sm { display: none; } .show-sm { display: revert; } }
-/* On a phone the queue's reasons open under the sprint when its state is tapped. */
-.why-sm { display: none; margin-top: 6px; }
-.why-sm div { font-size: 12.5px; color: var(--text-2); margin: 1px 0; }
-@media (max-width: 760px) { tr.open .why-sm { display: block; }
-  .plan-table th, .plan-table td { padding: 8px 5px; }
+@media (max-width: 760px) { .hide-sm { display: none; } }
+@media (max-width: 760px) { .plan-table th, .plan-table td { padding: 8px 5px; }
   .plan-table .state { font-size: 13px; } }
-.tap { cursor: pointer; }
+.ready h3 { font-size: 13px; margin: 14px 0 4px; color: var(--text-2); }
+.ready ul { margin: 0; padding-left: 18px; } .ready li { margin: 2px 0; }
+.ready .with { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 4px; }
 ul.paths { margin: 0; padding-left: 16px; }
 ul.paths li { overflow-wrap: anywhere; }
 </style>
@@ -738,7 +734,7 @@ function loadReadiness() {
     })
     .finally(() => {
       busyEnd();
-      if (route().view === 'planned') {
+      if (route().view === 'planned' || route().view === 'sprint') {
         render();
       }
     });
@@ -762,24 +758,46 @@ function cardIconsHtml(total, undeclared = 0) {
   return r;
 }
 
-function whyHtml(s) {
-  if (s.state === 'Can start') {
-    return '<div class="muted">All cards declared and assessed; no blockers outside the sprint; no shared code</div>';
-  }
-  const lines = (s.why || []).map(w => {
-    let t = esc(w);
-    if (t.startsWith('Dependencies unknown:')) {
-      return `<div><span class="unknown">Dependencies unknown</span>:${t.slice(21)}</div>`;
-    }
-    if (t.startsWith('Overlap unknown:')) {
-      return `<div><span class="unknown">Overlap unknown</span>:${t.slice(16)}</div>`;
-    }
-    if (t.includes('which is not ready: a clash only if both run at once')) {
-      return `<div class="muted">${t}</div>`;
-    }
-    return `<div>${t}</div>`;
+// Whether a planned sprint can start, and everything in its way: the
+// sprints it waits on, the sprints it shares code with, and the cards whose
+// scope or dependencies are not yet declared.
+function readinessHtml(s) {
+  if (readinessError) return `<div class="note flag">${esc(readinessError)}</div>`;
+  if (!READINESS) return `<div class="card">${sk('100%', 80)}</div>`;
+  const q = (READINESS.queue || []).find(r => r.sprint_id === s.sprint);
+  if (!q) return '<div class="card muted">Not in the planned queue.</div>';
+  const name = id => { const o = byId[id]; return `${o?.alias ? esc(o.alias) + ' ' : ''}#${id}`; };
+  const link = id => `<a href="${sprintHref(id)}">${name(id)}</a>${byId[id]?.status === 'current' ? ' <span class="pill">running</span>' : ''}`;
+  const list = items => `<ul>${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`;
+
+  const upstream = (READINESS.graph?.dependencies || []).filter(d => d.to === s.sprint).map(d => d.from);
+  const waits = q.blockers.length ? `
+    ${upstream.length ? `<div class="with">${upstream.map(link).join('')}</div>` : ''}
+    ${list(q.blockers.map(b => b.replace(/^Waits on /, '')))}` : '<div class="muted">Nothing outside this sprint must finish first.</div>';
+
+  const shared = new Map();
+  (READINESS.overlap_pairs || []).forEach(p => {
+    const other = p.sprint_a === s.sprint ? p.sprint_b : p.sprint_b === s.sprint ? p.sprint_a : null;
+    if (other == null) return;
+    const row = shared.get(other) || { cards: [], paths: new Set() };
+    const [mine, theirs] = p.sprint_a === s.sprint ? [p.card_a, p.card_b] : [p.card_b, p.card_a];
+    row.cards.push(`${mine} · ${theirs}`);
+    (p.paths || []).forEach(x => row.paths.add(x));
+    shared.set(other, row);
   });
-  return lines.join('');
+  const overlap = shared.size ? [...shared].map(([id, r]) => `
+    <div style="margin:6px 0">${link(id)} <span class="small muted mono">${r.cards.map(esc).join(', ')}</span>
+      <ul class="paths mono">${[...r.paths].map(x => `<li>${esc(x).replaceAll('/', '/<wbr>')}</li>`).join('')}</ul></div>`).join('')
+    : '<div class="muted">No code shared with other sprints.</div>';
+
+  const scope = q.unverified.length ? list(q.unverified) : '<div class="muted">Every card declares its scope and has its dependencies assessed.</div>';
+
+  return `<div class="card ready">
+    <div class="row">${stateBadge(q.state)}</div>
+    <h3>Waits on</h3>${waits}
+    <h3>Shares code with</h3>${overlap}
+    <h3>Scope and dependency declarations</h3>${scope}
+  </div>`;
 }
 
 function renderDagSvg() {
@@ -972,7 +990,6 @@ V.planned = () => {
     <td class="pos hide-sm">${i}</td>
     <td>${sk('180px', 16)}<div style="margin-top:4px">${sk('80%', 12)}</div></td>
     <td>${sk('90px', 16)}</td>
-    <td class="hide-sm">${sk('70%', 14)}</td>
     <td>${skIcons(4)}</td>
     ${POINTS ? `<td>${sk('70px', 10)}</td>` : ''}
     <td class="hide-sm">${sk('100px', 14)}</td>
@@ -982,10 +999,8 @@ V.planned = () => {
     <td>
       <div>${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> <b>${esc(s.title)}</b></div>
       <div class="small t2 hide-sm">${esc(s.goal)}</div>
-      <div class="why-sm">${whyHtml(s)}</div>
     </td>
-    <td><span class="tap" onclick="if (matchMedia('(max-width: 760px)').matches) { event.stopPropagation(); this.closest('tr').classList.toggle('open'); }">${stateBadge(s.state)}<span class="show-sm small muted">ⓘ</span></span></td>
-    <td class="why hide-sm">${whyHtml(s)}</td>
+    <td>${stateBadge(s.state)}</td>
     <td>
       <div class="cicons hide-sm">${cardIconsHtml(s.cards_count, s.undeclared)}</div>
       <div class="small muted" style="margin-top:3px;white-space:nowrap">${s.cards_count} card${s.cards_count === 1 ? '' : 's'}</div>
@@ -1025,7 +1040,6 @@ V.planned = () => {
   <span class="state overlap">Overlap</span><span>could start, but shares code with a running sprint or with an earlier sprint in the queue that can also start</span>
   <span class="state unknown">Unverified</span><span>some cards lack a scope declaration or a dependency assessment, so readiness cannot be checked</span>
   <span class="state notready">Not ready</span><span>waits on unfinished cards in another sprint</span></span></span></th>
-    <th class="hide-sm">Why</th>
     <th>Cards</th>
     ${POINTS ? '<th>Points</th>' : ''}
     <th class="hide-sm">Estimated completion time</th>
@@ -1036,13 +1050,14 @@ V.planned = () => {
   ${renderOverlapTable()}`;
 };
 
-V.plannedDetail = s => `<p>${backLink(s)}</p>
+V.plannedDetail = s => { if (readinessState === 'idle') loadReadiness(); return `<p>${backLink(s)}</p>
   <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span>${planeLink(s)}</div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
+  <h2>Readiness</h2>${readinessHtml(s)}
   <div class="card" style="margin-top:16px"><div class="row">${s.cards == null ? skIcons(4, true) : `${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span>`}</div>
     ${POINTS ? `<div style="margin:12px 0 4px;max-width:${s.points * 14}px">${ringDots(s.points)}</div><span class="t2">${s.points} pts${MEDV ? ` · ≈ ${fmtH(s.points / MEDV)} at ${num(MEDV, 2)} pts/h` : ''}</span>` : ''}</div>
   <h2>Execution guidance</h2><div class="card prose">${esc(s.execution) || '—'}</div>
-  <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>`;
+  <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>`; };
 
 let pastSort = { k: 'ended', d: -1 }, pastQ = '';
 V.past = () => {

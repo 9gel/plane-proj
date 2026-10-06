@@ -698,6 +698,12 @@ first of two overlapping planned sprints can start and the later one shows
 the overlap. The sprints in Can start therefore never share code with each
 other or with a running sprint, and can all start at once.
 
+The state names only the reasons of the state that wins. Each queue row also
+carries every blocker (`blockers`) and every missing declaration
+(`unverified`), so a planned sprint's page can show all that stands in its
+way: the sprints it waits on, the sprints it shares code with, and the cards
+to declare. The Planned queue shows only the state.
+
 Times use the median velocity of completed sprints, or an assumed 3.5
 points per hour, marked as such, when there is none. The serial time is all
 planned points divided by velocity. The parallel time is the longest chain
@@ -1038,8 +1044,8 @@ and two JSON routes from `web.py`:
 - `/api/readiness` returns the `sprints readiness` report: each planned
   sprint's state and reasons, overlapping card pairs, the sprint dependency
   graph, and the serial and parallel times. It reads every open card's
-  relations and description, so the Planned page requests it on opening and
-  shows placeholders until it arrives.
+  relations and description, so the Planned page and a planned sprint's page
+  request it on opening and show placeholders until it arrives.
 - `/api/version` returns the register file's (and WAL's) modification time
   and size. The page polls it every 2 seconds and refetches `/api/sprints`
   only when it changes, so an idle page makes no Plane requests. A change made
