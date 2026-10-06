@@ -239,6 +239,13 @@ span.sk.inline { display: inline-block; vertical-align: middle; }
 .dag.focus .link.dep.hl:not(.crit) path:first-child { stroke: var(--text); }
 .dag.focus .link.dep.hl:not(.crit) path + path { fill: var(--text); }
 .dag.focus .link.dep.hl path + path { transform-box: fill-box; transform-origin: left center; transform: scale(1.5); }
+/* Arrows over a sideways row's edges, shown only where it has more. */
+.scroller { position: relative; }
+.sc { position: absolute; top: 50%; transform: translateY(-50%); z-index: 2; width: 34px; height: 34px; padding: 0; border-radius: 50%;
+  font-size: 22px; line-height: 1; background: var(--surface); box-shadow: 0 1px 6px rgba(0,0,0,.18); }
+.sc:hover { background: var(--surface-2); }
+.sc[hidden] { display: none; }
+.sc-left { left: -10px; } .sc-right { right: -10px; }
 .kpi.side { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi.side > :first-child { flex: none; }
 /* The dial shrinks in a narrow tile instead of overflowing it. */
@@ -570,12 +577,12 @@ V.overview = () => {
     <div class="card kpi link" onclick="location.hash='#/past'"><div class="v">${past.length}</div><div class="l">Completed${POINTS ? ` · ${past.reduce((a, s) => a + (s.points_end || 0), 0)} pts` : ''}</div></div>
     ${MEDV ? `<div class="card kpi link" onclick="location.hash='#/stats'"><div class="v">${num(MEDV, 2)}<span class="muted small"> pts/h</span></div><div class="l">Median velocity</div></div>` : ''}
   </div>
-  <div class="card" style="margin-top:12px"><h3>In flight</h3><div class="flight">${current.map(s => { const cards = cardsFor(s);
+  <div class="card" style="margin-top:12px"><h3>In flight</h3><div class="scroller"><button class="sc sc-left" aria-label="Scroll left" onclick="scrollRow(this, -1)">‹</button><div class="flight">${current.map(s => { const cards = cardsFor(s);
     return `<div class="card sub link" ${goto(s.sprint)}><div class="row">${label(s)}<span class="pill">${fmtH(elapsedH(s))} elapsed</span><span class="sp"></span>${legendOf('compact')}</div>
       <h3 style="margin:6px 0 16px">${esc(s.title)}</h3>${PARTIAL ? `${POINTS ? skStateBar() : ''}
       <div class="row" style="margin-top:10px">${skIcons(s.cards_start)}<span class="sp"></span>${skInline('110px')}</div>` : `${POINTS ? stateBar(cards, s.points_start, 'pts') : ''}
       <div class="row" style="margin-top:10px">${cardIcons(byProgress(cards).map(c => stC[c.state]))}<span class="sp"></span>
-      <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div>`}</div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div></div>
+      <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div>`}</div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div><button class="sc sc-right" aria-label="Scroll right" onclick="scrollRow(this, 1)">›</button></div></div>
   <div class="grid g2" style="margin-top:12px">
     <div class="card"><div class="row"><h3>Up next</h3><span class="sp"></span><a href="#/planned">All ${planned.length} →</a></div>
       ${planned.length ? '' : '<p class="muted">No planned sprints.</p>'}${planned.slice(0, 4).map(s => `<div class="row link" style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" ${goto(s.sprint)}>
@@ -1169,6 +1176,7 @@ function render() {
   const [, view, arg] = (location.hash || '#/').split('/');
   const fn = { '': V.overview, current: () => V.current(+arg), planned: V.planned, past: V.past, stats: V.stats, sprint: () => V.sprint(+arg) }[view || ''] || V.overview;
   $('#app').innerHTML = fn();
+  updateScrollers();
   // A narrow screen scrolls the sprint tabs; keep the open one in view.
   document.querySelector('.stabs a.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   const sec = view === 'sprint' ? { current: 'current', planned: 'planned', completed: 'past' }[byId[+arg]?.status] : (view || '');
@@ -1184,6 +1192,24 @@ function fitNav() {
   bar.classList.toggle('compact', room < navW);
 }
 new ResizeObserver(fitNav).observe($('.bar')); fitNav();
+// Sideways rows show an arrow on each side that has more to see, and a
+// click moves by about one card.
+function updateScrollers() {
+  document.querySelectorAll('.scroller').forEach(box => {
+    const row = box.querySelector('.flight');
+    const max = row.scrollWidth - row.clientWidth;
+    box.querySelector('.sc-left').hidden = row.scrollLeft <= 1;
+    box.querySelector('.sc-right').hidden = row.scrollLeft >= max - 1;
+  });
+}
+window.scrollRow = (button, direction) => {
+  const row = button.parentElement.querySelector('.flight');
+  const card = row.firstElementChild?.getBoundingClientRect().width || row.clientWidth;
+  row.scrollBy({ left: direction * (card + 12), behavior: 'smooth' });
+};
+// Scroll events do not bubble, so listen in the capture phase.
+document.addEventListener('scroll', e => { if (e.target.classList?.contains('flight')) updateScrollers(); }, true);
+addEventListener('resize', updateScrollers);
 // Elapsed time on the Current page moves with the clock, not with reloads.
 setInterval(() => document.querySelectorAll('[data-elapsed]').forEach(e => {
   e.textContent = fmtH((Date.now() - Date.parse(e.dataset.elapsed)) / 36e5); }), 30000);
