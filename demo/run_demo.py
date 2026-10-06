@@ -81,7 +81,46 @@ CURRENT = [
         "Member pass check-in",
         "Members scan their pass at the door and see today's timed slots.",
     ),
+    (
+        "CAT-3",
+        "High-resolution exhibit images",
+        "Every exhibit page shows zoomable images that load in under a second.",
+    ),
+    (
+        "NOT-2",
+        "Text message visit reminders",
+        "Visitors who opt in get a text the morning of their booked visit.",
+    ),
 ]
+# How far each running sprint has got: card states, points, hours since it
+# started and any timer still running. Four run at once, more than the
+# Overview shows side by side, so its In flight row scrolls.
+CURRENT_PROGRESS = {
+    "OFF-4": (
+        ["Done", "Done", "Verifying", "In Progress", "Todo"],
+        [3, 2, 3, 2, 3],
+        2.6,
+        {"coding": 18.0},
+    ),
+    "TIX-3": (
+        ["Done", "In Progress", "In Progress", "Todo", "Todo"],
+        [2, 3, 2, 2, 3],
+        1.5,
+        {},
+    ),
+    "CAT-3": (
+        ["Done", "Done", "Done", "Verifying", "In Progress"],
+        [2, 2, 3, 3, 1],
+        4.2,
+        {"blocking-run": 9.0},
+    ),
+    "NOT-2": (
+        ["In Progress", "Todo", "Todo", "Todo", "Todo"],
+        [3, 2, 2, 1, 2],
+        0.6,
+        {"coding": 31.0},
+    ),
+}
 # Planned work at the scale of a busy real project: about twenty sprints of
 # one to eleven cards. Each sprint works in one area of an invented code
 # tree; some cards also touch shared files, which produces code overlap.
@@ -275,6 +314,20 @@ CARD_TITLES = {
         "Door staff override",
         "Check-in audit log",
     ],
+    "CAT-3": [
+        "Image tiling pipeline",
+        "Zoom viewer",
+        "Image cache budget",
+        "Alt text for every image",
+        "Image load time check",
+    ],
+    "NOT-2": [
+        "Reminder opt-in",
+        "SMS provider client",
+        "Morning send schedule",
+        "Unsubscribe by reply",
+        "Reminder delivery log",
+    ],
 }
 # Card links have nowhere real to go: the project is invented.
 CARD_URL = "#"
@@ -415,12 +468,7 @@ def current_sprints(rng, now):
     current, cards, ref = [], {}, 300
     for offset, (alias, title, goal) in enumerate(CURRENT):
         number = len(PAST) + 1 + offset
-        states = (
-            ["Done", "Done", "Verifying", "In Progress", "Todo"]
-            if offset == 0
-            else ["Done", "In Progress", "In Progress", "Todo", "Todo"]
-        )
-        points = [3, 2, 3, 2, 3] if offset == 0 else [2, 3, 2, 2, 3]
+        states, points, hours, open_timers = CURRENT_PROGRESS[alias]
         members = []
         for card_title, state, point in zip(
             CARD_TITLES[alias], states, points, strict=True
@@ -438,10 +486,9 @@ def current_sprints(rng, now):
                 }
             )
         cards[str(number)] = members
-        hours = 2.6 - offset * 1.1
         done = sum(c["points"] for c in members if c["state"] == "Done")
         record = timing(rng, len(members), hours, final=False)
-        record["open_timer_minutes"] = {"coding": 18.0} if offset == 0 else {}
+        record["open_timer_minutes"] = dict(open_timers)
         current.append(
             {
                 "sprint": number,
@@ -622,6 +669,20 @@ CURRENT_TOUCHES = {
         "src/tickets/slots.ts",
         "src/tickets/override.ts",
         "db/schema.sql",
+    ],
+    "CAT-3": [
+        "src/catalog/images.ts",
+        "src/catalog/viewer.tsx",
+        "src/catalog/cache.ts",
+        "src/i18n/strings.json",
+        "src/catalog/",
+    ],
+    "NOT-2": [
+        "src/notify/optin.ts",
+        "src/notify/sms.ts",
+        "src/notify/schedule.ts",
+        "src/notify/reply.ts",
+        "src/api/members.ts",
     ],
 }
 

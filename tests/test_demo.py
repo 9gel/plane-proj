@@ -35,7 +35,8 @@ def test_build_writes_the_page_and_every_response_it_requests(tmp_path):
         assert body
     payload = json.loads((tmp_path / "api/sprints/index.html").read_text())
     assert payload["project"] == {"key": "WAY", "name": "Wayfinder"}
-    assert len(payload["listing"]["current"]) == 2
+    # More running sprints than the Overview shows side by side.
+    assert len(payload["listing"]["current"]) == 4
     readiness = json.loads((tmp_path / "api/readiness/index.html").read_text())
     assert readiness["summary"]["sprints"] == 20
     states = {row["state"] for row in readiness["queue"]}
