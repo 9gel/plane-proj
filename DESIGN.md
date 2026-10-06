@@ -824,6 +824,18 @@ long-lived process: connect 1.25 s once, a cycle's cards 0.10 s, and one
 card's comments 0.07-0.08 s each (5 cards). Ten open cards add about 0.8 s
 to the full payload.
 
+### Plane Cloud relations and ended cycles (measured 2026-10-06)
+
+Measured 2026-10-06 on app.plane.so while filling the Wayfinder demo
+project. The relations endpoint lists each bucket as bare card id
+strings, where the self-hosted server returns `{"project_id",
+"issue_id"}` objects; `Board.relations` reads both. A cycle whose end
+date has passed refuses new cards and edits with "The Cycle has already
+been completed". A cycle created with a future end date, filled, then
+updated to a past end date keeps its cards. Unpaced bursts of requests
+were refused with HTTP 429 `RATE_LIMIT_EXCEEDED`; a run paced at about
+one request a second completed.
+
 ## 7a. Intake is a separate resource
 
 `intake new` sends a nested `issue` request through the SDK's Intake create
