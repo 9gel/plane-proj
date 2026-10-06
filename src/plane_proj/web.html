@@ -290,6 +290,7 @@ details summary { cursor: pointer; color: var(--text-2); }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 a.pill { text-decoration: none; color: var(--text); }
 a.pill.clash { border-color: var(--warn); color: var(--warn); font-weight: 600; }
+a.pill.run { background: var(--st-prog); border-color: var(--st-prog); color: #fff; font-weight: 600; }
 .mark { font-size: 30px; font-weight: 700; line-height: 1; margin-right: 8px; }
 .mark.yes { color: var(--st-done); } .mark.no, .mark.maybe { color: var(--warn); }
 .clist .crow { padding: 10px 0; border-bottom: 1px solid var(--border); }
@@ -782,7 +783,12 @@ function cardIconsHtml(total, undeclared = 0) {
 // dependency graph, whether it can start, and each card's waits and shared
 // code. The readiness report supplies all but the size.
 const sprintName = id => { const o = byId[id]; return `${o?.alias ? esc(o.alias) + ' ' : ''}#${id}`; };
-const sprintPill = (id, clash) => `<a class="pill${clash ? ' clash' : ''}" href="${sprintHref(id)}">${sprintName(id)}${byId[id]?.status === 'current' ? ' · running' : ''}</a>`;
+// Running sprints are blue, as on the Planned graph; a planned sprint that
+// could run at the same time is red.
+const sprintPill = (id, clash) => {
+  const kind = byId[id]?.status === 'current' ? ' run' : clash ? ' clash' : '';
+  return `<a class="pill${kind}" href="${sprintHref(id)}">${sprintName(id)}</a>`;
+};
 
 function sizeHtml(s, q) {
   const velocity = READINESS?.summary?.velocity ?? MEDV;
@@ -794,31 +800,65 @@ function sizeHtml(s, q) {
   </div>${est}</div>`;
 }
 
-// The sprints this one waits on, to its left, and those that wait on it, to
-// its right; a sprint with nothing to wait for sits at the left and the last
-// in a chain at the right.
-function neighbourSvg(s) {
+// Every sprint this one waits on, directly or not, to its left, and every
+// sprint that waits on it to its right: the whole chain from start to end
+// through this sprint. Columns are the longest path from the chain's start,
+// so arrows always run left to right; the longest chain is green, as on
+// the Planned page.
+function chainSvg(s) {
   const deps = READINESS.graph?.dependencies || [];
-  const up = deps.filter(d => d.to === s.sprint), down = deps.filter(d => d.from === s.sprint);
-  if (!up.length && !down.length) return '<p class="muted" style="margin:0">No other sprint must finish first, and none waits on this one.</p>';
+  const reach = (start, step) => {
+    const seen = new Set(), todo = [start];
+    while (todo.length) {
+      const at = todo.pop();
+      deps.forEach(d => {
+        const [x, y] = step(d);
+        if (x === at && !seen.has(y)) { seen.add(y); todo.push(y); }
+      });
+    }
+    return seen;
+  };
+  const up = reach(s.sprint, d => [d.to, d.from]), down = reach(s.sprint, d => [d.from, d.to]);
+  if (!up.size && !down.size) return '<p class="muted" style="margin:0">No other sprint must finish first, and none waits on this one.</p>';
+  const ids = new Set([...up, s.sprint, ...down]);
+  const edges = deps.filter(d => ids.has(d.from) && ids.has(d.to)).map(d => ({ ...d, outY: 0, inY: 0 }));
+  const col = {};
+  const depth = id => col[id] ??= Math.max(0, ...edges.filter(d => d.to === id).map(d => depth(d.from) + 1));
+  ids.forEach(depth);
   const q = Object.fromEntries((READINESS.queue || []).map(r => [r.sprint_id, r]));
   const mark = id => byId[id]?.status === 'current' ? 'running' : ({ 'Can start': '🚀', Overlap: '⚠️', Unverified: '❓', 'Not ready': '⏳' }[q[id]?.state] || '');
-  const W = 170, H = 40, GX = 80, GY = 14, TOP = 26;
-  const cols = [up.length ? up.map(d => d.from) : null, [s.sprint], down.length ? down.map(d => d.to) : null].filter(Boolean);
+  const W = 170, H = 40, GX = 70, GY = 14, TOP = 26;
+  const cols = [];
+  [...ids].sort((a, b) => a - b).forEach(id => (cols[col[id]] ||= []).push(id));
   const tall = Math.max(...cols.map(c => c.length));
   const height = TOP + tall * (H + GY);
+  const X = c => 10 + c * (W + GX);
   const pos = {};
-  cols.forEach((ids, c) => ids.forEach((id, i) => {
-    pos[id] = [10 + c * (W + GX), TOP + (tall - ids.length) * (H + GY) / 2 + i * (H + GY)];
+  cols.forEach((list, c) => list.forEach((id, i) => {
+    pos[id] = [X(c), TOP + (tall - list.length) * (H + GY) / 2 + i * (H + GY)];
   }));
-  const width = 10 + cols.length * (W + GX) - GX + 10;
-  const head = (c, t) => `<text x="${10 + c * (W + GX)}" y="14" font-size="12" font-weight="600" fill="var(--text-2)">${t}</text>`;
-  let g = (up.length ? head(0, 'Must finish first') : '') + head(up.length ? 1 : 0, 'This sprint') + (down.length ? head(cols.length - 1, 'Waits on this sprint') : '');
-  [...up, ...down].forEach(d => {
+  const width = X(cols.length - 1) + W + 10;
+  const head = (c, t) => `<text x="${X(c)}" y="14" font-size="12" font-weight="600" fill="var(--text-2)">${t}</text>`;
+  const me = col[s.sprint];
+  let g = (me > 0 ? head(0, 'Starts the chain') : '') + head(me, 'This sprint') + (me < cols.length - 1 ? head(cols.length - 1, 'Ends the chain') : '');
+  // Arrows leaving or entering a sprint fan out along its edge.
+  const fan = (key, other, slot) => {
+    const at = {};
+    edges.forEach(d => (at[d[key]] ||= []).push(d));
+    Object.values(at).forEach(group => {
+      group.sort((p, r) => pos[p[other]][1] - pos[r[other]][1]);
+      group.forEach((d, i) => { d[slot] = (i - (group.length - 1) / 2) * Math.min(8, (H - 12) / group.length); });
+    });
+  };
+  fan('from', 'to', 'outY');
+  fan('to', 'from', 'inY');
+  const critical = new Set(READINESS.graph?.critical_edges || []);
+  edges.sort((p, r) => critical.has(`${p.from}-${p.to}`) - critical.has(`${r.from}-${r.to}`)).forEach(d => {
     const [x1, y1] = pos[d.from], [x2, y2] = pos[d.to];
-    const sx = x1 + W, sy = y1 + H / 2, ex = x2 - 8, ey = y2 + H / 2;
-    g += `<g><path d="M${sx} ${sy} C${sx + GX / 2} ${sy} ${ex - GX / 2} ${ey} ${ex} ${ey}" fill="none" stroke="var(--text-2)" stroke-width="1.5"><title>${sprintName(d.to)} waits on ${sprintName(d.from)}: ${esc(d.reason)}</title></path>
-      <path d="M${ex} ${ey - 5} L${ex + 8} ${ey} L${ex} ${ey + 5} Z" fill="var(--text-2)"/></g>`;
+    const sx = x1 + W, sy = y1 + H / 2 + d.outY, ex = x2 - 8, ey = y2 + H / 2 + d.inY;
+    const crit = critical.has(`${d.from}-${d.to}`), ink = crit ? 'var(--chain)' : 'var(--text-2)';
+    g += `<g><path d="M${sx} ${sy} C${sx + GX / 2} ${sy} ${ex - GX / 2} ${ey} ${ex} ${ey}" fill="none" stroke="${ink}" stroke-width="${crit ? 2 : 1.5}"><title>${sprintName(d.to)} waits on ${sprintName(d.from)}: ${esc(d.reason)}${crit ? ' (longest chain)' : ''}</title></path>
+      <path d="M${ex} ${ey - 5} L${ex + 8} ${ey} L${ex} ${ey + 5} Z" fill="${ink}"/></g>`;
   });
   Object.entries(pos).forEach(([id, [x, y]]) => {
     const self = +id === s.sprint, o = byId[id], run = o?.status === 'current';
@@ -827,7 +867,7 @@ function neighbourSvg(s) {
       <text x="${x + W - 10}" y="${y + H / 2 + 6}" font-size="${run ? 11 : 18}" text-anchor="end" fill="var(--text-2)">${mark(id)}</text>`;
     g += self ? node : `<a href="${sprintHref(id)}">${node}</a>`;
   });
-  return `<svg style="display:block;max-width:100%;height:auto" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${g}</svg>`;
+  return `<svg style="display:block" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${g}</svg>`;
 }
 
 function readinessPanels(q) {
@@ -851,7 +891,11 @@ function readinessPanels(q) {
   return `<div class="grid g3">
     <div class="card verdict">${stateBadge(q.state)}<p>${verdict}</p></div>
     <div class="card rpanel"><h3>Shares code with</h3>${sharing.length
-      ? `<div class="pills">${sharing.map(id => sprintPill(id, clash.has(id))).join('')}</div>${clash.size ? '<p>Red: could run at the same time.</p>' : ''}`
+      ? `<div class="pills">${sharing.map(id => sprintPill(id, clash.has(id))).join('')}</div>${(() => {
+        const running = sharing.some(id => byId[id]?.status === 'current');
+        const later = sharing.some(id => clash.has(id) && byId[id]?.status !== 'current');
+        return running || later ? `<p>${[running && 'Blue: running.', later && 'Red: could run at the same time.'].filter(Boolean).join(' ')}</p>` : '';
+      })()}`
       : '<p class="muted" style="margin:0">No other sprint.</p>'}</div>
     <div class="card rpanel"><h3>Dependencies</h3><div style="display:flex;align-items:center">${depMark}</div>${others.size ? `<div class="pills" style="margin-top:8px">${[...others].map(id => sprintPill(id)).join('')}</div>` : ''}</div>
   </div>`;
@@ -1092,7 +1136,7 @@ V.plannedDetail = s => {
   <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span>${planeLink(s)}</div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
   <h2>Size</h2>${sizeHtml(s, q)}
-  <h2>Dependencies</h2>${wait(() => `<div class="card" style="overflow-x:auto">${neighbourSvg(s)}</div>`)}
+  <h2>Dependencies</h2>${wait(() => `<div class="card" style="overflow-x:auto">${chainSvg(s)}</div>`)}
   <h2>Readiness</h2>${wait(() => readinessPanels(q))}
   <h2>Cards</h2>${wait(() => cardListHtml(q))}
   <h2>Execution guidance</h2><div class="card prose">${esc(s.execution) || '—'}</div>

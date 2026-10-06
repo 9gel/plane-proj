@@ -706,8 +706,9 @@ sprint. Shares are not limited to sprints that could run at the same time,
 so a sprint's page shows every clash it may meet and marks the concurrent
 ones. The Planned page keeps to whole sprints: the summary, Start now, the
 dependency graph and a queue showing each sprint's state. A planned sprint's
-page shows its size and estimate, its direct neighbours in the dependency
-graph, its verdict, the sprints it shares code with, whether it waits on
+page shows its size and estimate, the whole dependency chain through it
+(every sprint it waits on, directly or not, and every sprint waiting on it),
+its verdict, the sprints it shares code with, whether it waits on
 anything, and each card's waits and shared paths.
 
 Times use the median velocity of completed sprints, or an assumed 3.5
