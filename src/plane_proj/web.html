@@ -17,6 +17,7 @@
      colour-blind separation; grey folds the rest. */
   --t1: #b7698f; --t2: #7e903e; --t3: #a36faf; --t4: #b37736; --t5: #857ac4;
   --t6: #bf696a; --t-other: #aab2bd;
+  --chain: #6f8a2e;
   /* Neutral slate for counts and plans; violet means duration; hot pink
      is the average in stats strips. */
   --scope-o: #6f7b8a; --slate-2: #aab2bd; --dial-track: #d9dde3;
@@ -34,6 +35,7 @@
     --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #ffd23f; --st-done: #199e70; --st-cancel: #4a4945;
     --t1: #c4759c; --t2: #8a9c4a; --t3: #b07bbc; --t4: #c08343; --t5: #9186d1;
     --t6: #cd7576; --t-other: #59616c;
+    --chain: #9bb352;
     --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
     --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
     --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
@@ -47,6 +49,7 @@
   --st-todo: #77756f; --st-prog: #3987e5; --st-verify: #ffd23f; --st-done: #199e70; --st-cancel: #4a4945;
   --t1: #c4759c; --t2: #8a9c4a; --t3: #b07bbc; --t4: #c08343; --t5: #9186d1;
   --t6: #cd7576; --t-other: #59616c;
+  --chain: #9bb352;
   --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
   --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
   --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
@@ -233,8 +236,9 @@ span.sk.inline { display: inline-block; vertical-align: middle; }
 .dag.focus .link { opacity: .15; }
 .dag.focus .link.hl { opacity: 1; }
 .dag.focus .link.hl path:first-child { stroke-width: 4; }
-.dag.focus .link.dep.hl path:first-child { stroke: var(--text); }
-.dag.focus .link.dep.hl path + path { fill: var(--text); transform-box: fill-box; transform-origin: left center; transform: scale(1.5); }
+.dag.focus .link.dep.hl:not(.crit) path:first-child { stroke: var(--text); }
+.dag.focus .link.dep.hl:not(.crit) path + path { fill: var(--text); }
+.dag.focus .link.dep.hl path + path { transform-box: fill-box; transform-origin: left center; transform: scale(1.5); }
 .kpi.side { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kpi.side > :first-child { flex: none; }
 /* The dial shrinks in a narrow tile instead of overflowing it. */
@@ -797,8 +801,10 @@ function renderDagSvg() {
     const crit = critical.has(`${a}-${b}`);
     const sx = x1 + W, sy = y1 + H / 2, ex = x2 - 8, ey = y2 + H / 2;
     const aName = S[a]?.[0] || '#' + a, bName = S[b]?.[0] || '#' + b;
-    g += `<g class="link dep" data-a="${a}" data-b="${b}"><path d="M${sx} ${sy} C${sx + GX / 2} ${sy} ${ex - GX / 2} ${ey} ${ex} ${ey}" fill="none" stroke="${crit ? 'var(--text)' : 'var(--text-2)'}" stroke-width="${crit ? 3 : 1.5}"><title>${esc(bName)} waits on ${esc(aName)}: ${esc(why)}</title></path>
-      <path d="M${ex} ${ey - 5} L${ex + 8} ${ey} L${ex} ${ey + 5} Z" fill="${crit ? 'var(--text)' : 'var(--text-2)'}"/></g>`;
+    // The longest chain is told by colour, so thickness can mean "hovered".
+    const ink = crit ? 'var(--chain)' : 'var(--text-2)';
+    g += `<g class="link dep${crit ? ' crit' : ''}" data-a="${a}" data-b="${b}"><path d="M${sx} ${sy} C${sx + GX / 2} ${sy} ${ex - GX / 2} ${ey} ${ex} ${ey}" fill="none" stroke="${ink}" stroke-width="${crit ? 2 : 1.5}"><title>${esc(bName)} waits on ${esc(aName)}: ${esc(why)}${crit ? ' (longest chain)' : ''}</title></path>
+      <path d="M${ex} ${ey - 5} L${ex + 8} ${ey} L${ex} ${ey + 5} Z" fill="${ink}"/></g>`;
   });
 
   // Sprints
@@ -939,7 +945,7 @@ V.planned = () => {
   <div class="card">
     <div class="legend" style="margin:0 0 8px">
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--text-2)" stroke-width="1.5"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--text-2)"/></svg> must finish first (a card waits on it)</span>
-      <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--text)" stroke-width="3"/><path d="M19 0 L26 5 L19 10 Z" fill="var(--text)"/></svg> longest chain</span>
+      <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--chain)" stroke-width="2"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--chain)"/></svg> longest chain</span>
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 3"/></svg> shares code</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--st-prog);border-radius:3px;vertical-align:-1px"></span> running</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--warn);border-radius:3px;vertical-align:-1px"></span> dependencies unclear: arrows may be missing</span>
