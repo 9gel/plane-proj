@@ -274,7 +274,17 @@ table.mini td + td { padding-left: 10px; text-align: right; font-variant-numeric
 .nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 details summary { cursor: pointer; color: var(--text-2); }
 @media (max-width: 640px) { .bar { gap: 8px; } }
-@media (max-width: 760px) { .hide-sm { display: none; } }
+.show-sm { display: none; }
+@media (max-width: 760px) { .hide-sm { display: none; } .show-sm { display: revert; } }
+/* On a phone the queue's reasons open under the sprint when its state is tapped. */
+.why-sm { display: none; margin-top: 6px; }
+.why-sm div { font-size: 12.5px; color: var(--text-2); margin: 1px 0; }
+@media (max-width: 760px) { tr.open .why-sm { display: block; }
+  .plan-table th, .plan-table td { padding: 8px 5px; }
+  .plan-table .state { font-size: 13px; } }
+.tap { cursor: pointer; }
+ul.paths { margin: 0; padding-left: 16px; }
+ul.paths li { overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -901,7 +911,7 @@ function renderOverlapTable() {
     return `<tr>
       <td><b>${esc(nameA)}</b> × <b>${esc(nameB)}</b>${p.is_running ? ' <span class="pill">running</span>' : ''}</td>
       <td class="mono">${p.cards.map(esc).join('<br>')}</td>
-      <td class="mono">${[...p.paths].map(esc).join('<br>')}</td>
+      <td class="mono"><ul class="paths">${[...p.paths].map(x => `<li>${esc(x).replaceAll('/', '/<wbr>')}</li>`).join('')}</ul></td>
     </tr>`;
   }).join('');
 
@@ -959,27 +969,28 @@ V.planned = () => {
 
   const rowsHtml = !queue ? [1, 2, 3].map(i => `
   <tr>
-    <td class="pos">${i}</td>
+    <td class="pos hide-sm">${i}</td>
     <td>${sk('180px', 16)}<div style="margin-top:4px">${sk('80%', 12)}</div></td>
     <td>${sk('90px', 16)}</td>
-    <td>${sk('70%', 14)}</td>
-    <td class="hide-sm">${skIcons(4)}</td>
-    ${POINTS ? `<td class="hide-sm">${sk('70px', 10)}</td>` : ''}
+    <td class="hide-sm">${sk('70%', 14)}</td>
+    <td>${skIcons(4)}</td>
+    ${POINTS ? `<td>${sk('70px', 10)}</td>` : ''}
     <td class="hide-sm">${sk('100px', 14)}</td>
   </tr>`).join('') : queue.map(s => `
   <tr class="link" ${goto(s.sprint_id)}>
-    <td class="pos">${s.position}</td>
+    <td class="pos hide-sm">${s.position}</td>
     <td>
       <div>${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> <b>${esc(s.title)}</b></div>
-      <div class="small t2">${esc(s.goal)}</div>
+      <div class="small t2 hide-sm">${esc(s.goal)}</div>
+      <div class="why-sm">${whyHtml(s)}</div>
     </td>
-    <td>${stateBadge(s.state)}</td>
-    <td class="why">${whyHtml(s)}</td>
-    <td class="hide-sm">
-      <div class="cicons">${cardIconsHtml(s.cards_count, s.undeclared)}</div>
-      <div class="small muted" style="margin-top:3px">${s.cards_count} card${s.cards_count === 1 ? '' : 's'}</div>
+    <td><span class="tap" onclick="if (matchMedia('(max-width: 760px)').matches) { event.stopPropagation(); this.closest('tr').classList.toggle('open'); }">${stateBadge(s.state)}<span class="show-sm small muted">ⓘ</span></span></td>
+    <td class="why hide-sm">${whyHtml(s)}</td>
+    <td>
+      <div class="cicons hide-sm">${cardIconsHtml(s.cards_count, s.undeclared)}</div>
+      <div class="small muted" style="margin-top:3px;white-space:nowrap">${s.cards_count} card${s.cards_count === 1 ? '' : 's'}</div>
     </td>
-    ${POINTS ? `<td class="hide-sm">${ringDots(s.points)}<div class="small muted" style="margin-top:3px">${s.points} pts</div></td>` : ''}
+    ${POINTS ? `<td><span class="hide-sm">${ringDots(s.points)}</span><div class="small muted" style="margin-top:3px;white-space:nowrap">${s.points} pts</div></td>` : ''}
     <td class="hide-sm" style="min-width:150px">
       ${hbar(s.hours, maxHours, fmtH(s.hours), 'var(--slate-2)')}
     </td>
@@ -1008,15 +1019,15 @@ V.planned = () => {
   <h2>Queue</h2>
   <div class="card" style="padding:4px 6px"><table class="plan-table">
   <thead><tr>
-    <th>#</th>
-    <th>Sprint and goal</th>
+    <th class="hide-sm">#</th>
+    <th>Sprint<span class="hide-sm"> and goal</span></th>
     <th>State <span class="info" tabindex="0">ⓘ<span class="pop"><span class="state start">Can start</span><span>every card declares its scope and has its dependencies assessed, nothing outside the sprint blocks it, and no code is shared</span>
   <span class="state overlap">Overlap</span><span>could start, but shares code with a running sprint or with an earlier sprint in the queue that can also start</span>
   <span class="state unknown">Unverified</span><span>some cards lack a scope declaration or a dependency assessment, so readiness cannot be checked</span>
   <span class="state notready">Not ready</span><span>waits on unfinished cards in another sprint</span></span></span></th>
-    <th>Why</th>
-    <th class="hide-sm">Cards</th>
-    ${POINTS ? '<th class="hide-sm">Points</th>' : ''}
+    <th class="hide-sm">Why</th>
+    <th>Cards</th>
+    ${POINTS ? '<th>Points</th>' : ''}
     <th class="hide-sm">Estimated completion time</th>
   </tr></thead>
   <tbody>${rowsHtml}</tbody>
