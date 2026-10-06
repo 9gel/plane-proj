@@ -28,7 +28,7 @@ from datetime import UTC, datetime, timedelta
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from plane_proj import web
+from plane_proj import delivery_plan, readiness, web
 
 PAST = [
     ("CAT-1", "Exhibit catalog import"),
@@ -82,45 +82,180 @@ CURRENT = [
         "Members scan their pass at the door and see today's timed slots.",
     ),
 ]
-PLANNED = [
+# Planned work at the scale of a busy real project: about twenty sprints of
+# one to eleven cards. Each sprint works in one area of an invented code
+# tree; some cards also touch shared files, which produces code overlap.
+PLANNED_AREAS = [
     (
-        "RTE-4",
+        "RTE",
+        "routes",
         "Accessible route variants",
         "Every saved route offers a step-free and a quiet variant.",
     ),
     (
-        "AUD-4",
+        "AUD",
+        "audio",
         "Multilingual audio guide",
         "Audio stops play in the visitor's chosen language with matching "
         "transcripts.",
     ),
     (
-        "ANL-3",
+        "ANL",
+        "analytics",
         "Popular exhibit heatmap",
         "Curators see which galleries draw visitors at each hour.",
     ),
     (
-        "SHOP-2",
+        "SHOP",
+        "shop",
         "Click and collect",
         "Visitors reserve gift shop items and collect them at the exit.",
     ),
     (
-        "FAM-3",
+        "FAM",
+        "family",
         "Trail creator for educators",
         "Educators build a family trail from existing exhibits in under ten "
         "minutes.",
     ),
     (
         None,
+        "deps",
         "Dependency and security upgrades",
         "Toolchain and libraries are current with no open advisories.",
     ),
     (
-        "EVT-3",
+        "EVT",
+        "events",
         "Event booking",
         "Visitors book a seat at a talk and receive a reminder.",
     ),
+    (
+        "MAP",
+        "map",
+        "Indoor wayfinding arrows",
+        "Arrows on the floor plan lead from the visitor's spot to an exhibit.",
+    ),
+    (
+        "OFF",
+        "offline",
+        "Offline audio packs",
+        "Visitors download a gallery's audio before they arrive.",
+    ),
+    (
+        "TIX",
+        "tickets",
+        "Group ticket booking",
+        "A school books one visit for a whole class with one payment.",
+    ),
+    (
+        "A11Y",
+        "a11y",
+        "High contrast and large text",
+        "Every screen passes contrast checks in a high-contrast theme.",
+    ),
+    (
+        "CAT",
+        "catalog",
+        "Catalog import from collections system",
+        "New acquisitions appear in the guide the day they are catalogued.",
+    ),
+    (
+        "NOT",
+        "notify",
+        "Closing time reminders",
+        "Visitors get a reminder fifteen minutes before their wing closes.",
+    ),
+    (
+        "ADM",
+        "admin",
+        "Curator scheduling",
+        "Curators schedule exhibit text changes for a future date.",
+    ),
+    (
+        None,
+        "perf",
+        "Startup time under two seconds",
+        "The guide opens in under two seconds on a mid-range phone.",
+    ),
+    (
+        "MEM",
+        "members",
+        "Member benefits page",
+        "Members see their benefits and next renewal date.",
+    ),
+    (
+        "I18N",
+        "i18n",
+        "Simplified and traditional Chinese",
+        "Every screen is available in simplified and traditional Chinese.",
+    ),
+    (
+        "QR",
+        "qr",
+        "QR codes for temporary exhibits",
+        "Temporary exhibits get scannable labels on the day they open.",
+    ),
+    (
+        "ANL",
+        "analytics",
+        "Dwell time per exhibit",
+        "Curators see how long visitors stay at each exhibit.",
+    ),
+    (
+        "RTE",
+        "routes",
+        "Shared family routes",
+        "A family plans one route together on several phones.",
+    ),
 ]
+CARD_STEPS = [
+    "Data model for",
+    "API for",
+    "Screens for",
+    "Sync for",
+    "Settings for",
+    "Tests on device for",
+    "Copy review for",
+    "Migration for",
+    "Analytics events for",
+    "Docs for",
+    "Rollout of",
+]
+AREA_FILES = ["model", "api", "view", "sync", "store"]
+
+
+def step_file(k):
+    """A new file named after the card's step, such as `screens.ts`."""
+    return CARD_STEPS[k % len(CARD_STEPS)].split()[0].lower()
+
+
+# Files that cards outside an area also change, so sprints collide.
+SHARED_CODE = [
+    "src/api/client.ts",
+    "src/api/members.ts",
+    "src/ui/theme.css",
+    "db/schema.sql",
+    "src/i18n/strings.json",
+    "src/ui/nav.tsx",
+]
+# Files that only planned sprints share, so they collide with each other.
+PLANNED_SHARED = [
+    "src/ui/theme.css",
+    "src/i18n/strings.json",
+    "src/ui/nav.tsx",
+    "src/ui/onboarding.tsx",
+]
+# Areas whose cards reach into another area's whole directory.
+AREA_OWNERS = {
+    "family": "routes",
+    "a11y": "ui",
+    "notify": "events",
+    "qr": "catalog",
+    "perf": "map",
+}
+# Changed by almost every card for mechanical reasons; never an overlap.
+SHARED_PATHS = ["package.json", "package-lock.json"]
 CARD_TITLES = {
     "OFF-4": [
         "Route cache schema",
@@ -344,21 +479,82 @@ def current_sprints(rng, now):
     return current, cards
 
 
-def planned_sprints(rng):
-    planned = []
-    for position, (alias, title, goal) in enumerate(PLANNED, start=1):
-        count = rng.randint(3, 6)
+def planned_sprints(rng, current_cards, first_ref):
+    """Planned sprints, their cards' readiness facts, and the next card ref.
+
+    Cards declare files in their sprint's area and sometimes a shared file.
+    Some sprints wait on cards of an earlier sprint or a running one, and a
+    few have cards whose scope or dependencies are not yet declared, so the
+    queue shows every readiness state.
+    """
+    planned, facts, ref = [], [], first_ref
+    earlier_cards = [c for cards in current_cards.values() for c in cards]
+    for position, (alias, area, title, goal) in enumerate(PLANNED_AREAS, 1):
+        number = len(PAST) + len(CURRENT) + position
+        count = rng.choice([1, 2, 3, 3, 4, 4, 4, 5, 5, 6, 7, 8, 10, 11])
+        undeclared = position > 2 and rng.random() < 0.3
+        cards = []
+        for k in range(count):
+            ref += 1
+            touches = [f"src/{area}/{rng.choice(AREA_FILES)}.ts"]
+            if rng.random() < 0.12:
+                touches.append(rng.choice(SHARED_CODE))
+            # Planned sprints also collide with each other: on shared screens,
+            # and on a whole area directory that another sprint works in.
+            if rng.random() < 0.08:
+                touches.append(rng.choice(PLANNED_SHARED))
+            if area in AREA_OWNERS and k == 0:
+                touches.append(f"src/{AREA_OWNERS[area]}/")
+            if rng.random() < 0.3:
+                touches.append(f"src/{area}/{step_file(k)}.ts (new)")
+            blocked = []
+            # The first sprint stays clear to start; later ones may wait on
+            # earlier planned work or on a running sprint.
+            if position > 1 and k == 0 and rng.random() < 0.45:
+                blocked.append(rng.choice(earlier_cards))
+            missing = undeclared and rng.random() < 0.5
+            plan = delivery_plan.DeliveryPlan(
+                touches=None
+                if missing and rng.random() < 0.5
+                else tuple(
+                    delivery_plan.TouchedPath.parse(t)
+                    for t in dict.fromkeys(touches)
+                ),
+                dependencies_assessed=None
+                if missing and rng.random() < 0.6
+                else True,
+            )
+            card = readiness.CardFact(
+                id=f"card-{ref}",
+                ref=f"WAY-{ref}",
+                title=f"{CARD_STEPS[k % len(CARD_STEPS)]} {title.lower()}",
+                state="Backlog",
+                points=rng.choice([1, 2, 2, 3, 3, 5]),
+                sprint_id=number,
+                blocked_by=tuple(b.id for b in blocked),
+                delivery_plan=plan,
+            )
+            cards.append(card)
+        earlier_cards += cards
+        facts.append(
+            readiness.SprintFact(
+                sprint_id=number,
+                title=title,
+                alias=f"{alias}-{position + 3}" if alias else None,
+                goal=goal,
+                position=position,
+                cards=tuple(cards),
+            )
+        )
         planned.append(
             {
-                "sprint": len(PAST) + len(CURRENT) + position,
+                "sprint": number,
                 "status": "planned",
                 "title": title,
-                "alias": alias,
+                "alias": facts[-1].alias,
                 "position": position,
                 "cards": count,
-                "points": sum(
-                    rng.choice([1, 2, 2, 3, 3]) for _ in range(count)
-                ),
+                "points": facts[-1].points,
                 "sprint_id": None,
                 "cycle_id": None,
                 "started": None,
@@ -376,7 +572,61 @@ def planned_sprints(rng):
             | text(title)
             | {"goal": goal}
         )
-    return planned
+    return planned, facts, ref
+
+
+# What each running sprint's cards touch, so planned work can overlap it.
+CURRENT_TOUCHES = {
+    "OFF-4": [
+        "src/offline/cache.ts",
+        "src/offline/",
+        "src/offline/editor.tsx",
+        "src/offline/sync.ts",
+        "src/api/client.ts",
+    ],
+    "TIX-3": [
+        "src/tickets/scanner.ts",
+        "src/api/members.ts",
+        "src/tickets/slots.ts",
+        "src/tickets/override.ts",
+        "db/schema.sql",
+    ],
+}
+
+
+def current_facts(current, cards):
+    """Running sprints as readiness facts, from the listing's cards."""
+    facts = []
+    for sprint in current:
+        members = cards[str(sprint["sprint"])]
+        touches = CURRENT_TOUCHES[sprint["alias"]]
+        facts.append(
+            readiness.SprintFact(
+                sprint_id=sprint["sprint"],
+                title=sprint["title"],
+                alias=sprint["alias"],
+                goal=sprint["goal"],
+                is_current=True,
+                cards=tuple(
+                    readiness.CardFact(
+                        id=c["id"],
+                        ref=c["ref"],
+                        title=c["title"],
+                        state=c["state"],
+                        points=c["points"],
+                        sprint_id=sprint["sprint"],
+                        delivery_plan=delivery_plan.DeliveryPlan(
+                            touches=(
+                                delivery_plan.TouchedPath.parse(touches[k]),
+                            ),
+                            dependencies_assessed=True,
+                        ),
+                    )
+                    for k, c in enumerate(members)
+                ),
+            )
+        )
+    return facts
 
 
 def sprint_stats(past):
@@ -432,7 +682,10 @@ def demo_responses(now):
     rng = random.Random(7)  # the same invented history on every run
     past = past_sprints(rng, now)
     current, cards = current_sprints(rng, now)
-    planned = planned_sprints(rng)
+    running = current_facts(current, cards)
+    planned, planned_facts, _ = planned_sprints(
+        rng, {s.sprint_id: s.cards for s in running}, 400
+    )
     payload = {
         "generated_at": now.isoformat(),
         "project": {"key": "WAY", "name": "Wayfinder"},
@@ -449,7 +702,10 @@ def demo_responses(now):
     all_sprints = current + planned + past
     payload["cycle_urls"] = {
         str(s["sprint"]): web.cycle_url(
-            "https://plane.example", "wayfinder", "proj-uuid", f"cycle-{s['sprint']}"
+            "https://plane.example",
+            "wayfinder",
+            "proj-uuid",
+            f"cycle-{s['sprint']}",
         )
         for s in all_sprints
     }
@@ -474,213 +730,24 @@ def demo_responses(now):
             ],
         },
     }
-    readiness = {
-        "summary": {
-            "sprints": len(planned),
-            "cards": 31,
-            "points": 65,
-            "velocity": 3.47,
-            "velocity_source": "median",
-            "serial_hours": 18.75,
-            "parallel_hours": 6.62,
-        },
-        "queue": [
-            {
-                "position": 1,
-                "sprint_id": 41,
-                "alias": "RTE-4",
-                "title": "Accessible route variants",
-                "goal": "Every saved route offers a step-free and a quiet variant.",
-                "state": "Can start",
-                "why": [],
-                "reasons": [],
-                "cards_count": 4,
-                "points": 8,
-                "hours": 2.3,
-                "undeclared": 0,
-                "unassessed": 0,
-                "overlaps": [],
-            },
-            {
-                "position": 2,
-                "sprint_id": 42,
-                "alias": "AUD-4",
-                "title": "Multilingual audio guide",
-                "goal": (
-                    "Audio stops play in the visitor's chosen language with matching transcripts."
-                ),
-                "state": "Not ready",
-                "why": [
-                    "Waits on running OFF-4 #39: WAY-319 needs WAY-303 · ≈ 1h 10m left",
-                    "Shares src/offline/ with running OFF-4 #39 (WAY-322, WAY-302)",
-                ],
-                "reasons": [
-                    "Waits on running OFF-4 #39: WAY-319 needs WAY-303 · ≈ 1h 10m left",
-                    "Shares src/offline/ with running OFF-4 #39 (WAY-322, WAY-302)",
-                ],
-                "cards_count": 6,
-                "points": 16,
-                "hours": 4.62,
-                "undeclared": 0,
-                "unassessed": 0,
-                "overlaps": ["Shares src/offline/ with running OFF-4 #39 (WAY-322, WAY-302)"],
-            },
-            {
-                "position": 3,
-                "sprint_id": 43,
-                "alias": "ANL-3",
-                "title": "Popular exhibit heatmap",
-                "goal": "Curators see which galleries draw visitors at each hour.",
-                "state": "Not ready",
-                "why": [
-                    "Waits on planned RTE-4 #41: WAY-326 needs WAY-318",
-                    "Shares src/analytics/events.ts with EVT-3 #47 (WAY-327, WAY-345)",
-                ],
-                "reasons": [
-                    "Waits on planned RTE-4 #41: WAY-326 needs WAY-318",
-                    "Shares src/analytics/events.ts with EVT-3 #47 (WAY-327, WAY-345)",
-                ],
-                "cards_count": 6,
-                "points": 11,
-                "hours": 3.17,
-                "undeclared": 0,
-                "unassessed": 0,
-                "overlaps": ["Shares src/analytics/events.ts with EVT-3 #47 (WAY-327, WAY-345)"],
-            },
-            {
-                "position": 4,
-                "sprint_id": 44,
-                "alias": "SHOP-2",
-                "title": "Click and collect",
-                "goal": "Visitors reserve gift shop items and collect them at the exit.",
-                "state": "Overlap",
-                "why": [
-                    "Shares src/api/members.ts with running TIX-3 #40 (WAY-338, WAY-308)",
-                ],
-                "reasons": [
-                    "Shares src/api/members.ts with running TIX-3 #40 (WAY-338, WAY-308)",
-                ],
-                "cards_count": 4,
-                "points": 9,
-                "hours": 2.6,
-                "undeclared": 0,
-                "unassessed": 0,
-                "overlaps": ["Shares src/api/members.ts with running TIX-3 #40 (WAY-338, WAY-308)"],
-            },
-            {
-                "position": 5,
-                "sprint_id": 45,
-                "alias": "FAM-3",
-                "title": "Trail creator for educators",
-                "goal": "Educators build a family trail from existing exhibits.",
-                "state": "Not ready",
-                "why": [
-                    "Waits on planned ANL-3 #43: WAY-331 needs WAY-327",
-                ],
-                "reasons": [
-                    "Waits on planned ANL-3 #43: WAY-331 needs WAY-327",
-                ],
-                "cards_count": 3,
-                "points": 4,
-                "hours": 1.15,
-                "undeclared": 0,
-                "unassessed": 0,
-                "overlaps": [],
-            },
-            {
-                "position": 6,
-                "sprint_id": 46,
-                "alias": None,
-                "title": "Dependency and security upgrades",
-                "goal": "Toolchain and libraries are current with no open advisories.",
-                "state": "Unverified",
-                "why": [
-                    "Dependencies unknown: 5 of 5 cards not assessed",
-                    "Overlap unknown: 3 of 5 cards have no declared scope (dashed)",
-                ],
-                "reasons": [
-                    "Dependencies unknown: 5 of 5 cards not assessed",
-                    "Overlap unknown: 3 of 5 cards have no declared scope (dashed)",
-                ],
-                "cards_count": 5,
-                "points": 11,
-                "hours": 3.17,
-                "undeclared": 3,
-                "unassessed": 5,
-                "overlaps": [],
-            },
-            {
-                "position": 7,
-                "sprint_id": 47,
-                "alias": "EVT-3",
-                "title": "Event booking",
-                "goal": "Visitors book a seat at a talk and receive a reminder.",
-                "state": "Unverified",
-                "why": [
-                    "Overlap unknown: 1 of 4 cards have no declared scope (dashed)",
-                    (
-                        "Shares src/analytics/events.ts with ANL-3 #43, which is not ready: "
-                        "a clash only if both run at once"
-                    ),
-                ],
-                "reasons": [
-                    "Overlap unknown: 1 of 4 cards have no declared scope (dashed)",
-                    (
-                        "Shares src/analytics/events.ts with ANL-3 #43, which is not ready: "
-                        "a clash only if both run at once"
-                    ),
-                ],
-                "cards_count": 4,
-                "points": 6,
-                "hours": 1.73,
-                "undeclared": 1,
-                "unassessed": 0,
-                "overlaps": ["Shares src/analytics/events.ts with ANL-3 #43 (WAY-327, WAY-345)"],
-            },
-        ],
-        "overlap_pairs": [
-            {
-                "sprint_a": 44,
-                "sprint_b": 40,
-                "card_a": "WAY-338",
-                "card_b": "WAY-308",
-                "paths": ["src/api/members.ts"],
-                "is_running": True,
-            },
-            {
-                "sprint_a": 42,
-                "sprint_b": 39,
-                "card_a": "WAY-322",
-                "card_b": "WAY-302",
-                "paths": ["src/offline/"],
-                "is_running": True,
-            },
-            {
-                "sprint_a": 43,
-                "sprint_b": 47,
-                "card_a": "WAY-327",
-                "card_b": "WAY-345",
-                "paths": ["src/analytics/events.ts"],
-                "is_running": False,
-            },
-        ],
-        "graph": {
-            "columns": {39: 0, 40: 0, 41: 0, 42: 1, 43: 1, 44: 1, 45: 2, 46: 1, 47: 1},
-            "dependencies": [
-                {"from": 39, "to": 42, "reason": "WAY-319 needs WAY-303"},
-                {"from": 41, "to": 43, "reason": "WAY-326 needs WAY-318"},
-                {"from": 43, "to": 45, "reason": "WAY-331 needs WAY-327"},
-            ],
-            "critical_path": [41, 43, 45],
-            "critical_edges": ["41-43", "43-45"],
-        },
+    states = {
+        c.id: (c.ref, c.state)
+        for sprint in running + planned_facts
+        for c in sprint.cards
     }
+    readiness_payload = readiness.evaluate_readiness(
+        running,
+        planned_facts,
+        states,
+        completed_velocities=[s["velocity"] for s in past],
+        shared_paths=SHARED_PATHS,
+    )
     return {
         "/api/sprints": payload,
         "/api/sprints/local": payload,
         "/api/version": {"version": "demo"},
         "/api/dependencies": dependencies,
-        "/api/readiness": readiness,
+        "/api/readiness": readiness_payload,
     }
 
 
@@ -694,7 +761,7 @@ def build(out: Path, now: datetime) -> None:
 
 
 class QuietHandler(SimpleHTTPRequestHandler):
-    """Log requests, except the change poll every two seconds; logs minute timing refetches."""
+    """Log requests, except the page's change poll every two seconds."""
 
     def log_message(self, format, *args):  # noqa: A002 (http.server's name)
         if not self.path.startswith("/api/version"):

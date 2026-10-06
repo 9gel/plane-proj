@@ -841,15 +841,25 @@ function renderOverlapTable() {
     <div class="card"><div class="small t2" style="margin-bottom:8px">Pairs of running or planned sprints whose cards declare the same files or directories.</div><p class="muted">No code overlap between sprints.</p></div>`;
   }
   const qMap = Object.fromEntries((READINESS.queue || []).map(s => [s.sprint_id, s]));
-  const rows = pairs.map(p => {
+  // One row per pair of sprints: the readiness report lists every pair of
+  // cards, and a busy plan repeats the same two sprints many times.
+  const grouped = new Map();
+  pairs.forEach(p => {
+    const key = `${p.sprint_a}-${p.sprint_b}`;
+    const row = grouped.get(key) || { ...p, cards: [], paths: new Set() };
+    row.cards.push(`${p.card_a} · ${p.card_b}`);
+    (p.paths || []).forEach(x => row.paths.add(x));
+    grouped.set(key, row);
+  });
+  const rows = [...grouped.values()].map(p => {
     const sa = byId[p.sprint_a] || qMap[p.sprint_a];
     const sb = byId[p.sprint_b] || qMap[p.sprint_b];
     const nameA = (sa?.alias ? sa.alias + ' ' : '') + '#' + p.sprint_a;
     const nameB = (sb?.alias ? sb.alias + ' ' : '') + '#' + p.sprint_b;
     return `<tr>
       <td><b>${esc(nameA)}</b> × <b>${esc(nameB)}</b>${p.is_running ? ' <span class="pill">running</span>' : ''}</td>
-      <td class="mono">${esc(p.card_a)} · ${esc(p.card_b)}</td>
-      <td class="mono">${esc((p.paths || []).join(', '))}</td>
+      <td class="mono">${p.cards.map(esc).join('<br>')}</td>
+      <td class="mono">${[...p.paths].map(esc).join('<br>')}</td>
     </tr>`;
   }).join('');
 

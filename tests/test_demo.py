@@ -37,12 +37,13 @@ def test_build_writes_the_page_and_every_response_it_requests(tmp_path):
     assert payload["project"] == {"key": "WAY", "name": "Wayfinder"}
     assert len(payload["listing"]["current"]) == 2
     readiness = json.loads((tmp_path / "api/readiness/index.html").read_text())
-    assert readiness["summary"]["sprints"] == 7
+    assert readiness["summary"]["sprints"] == 20
     states = {row["state"] for row in readiness["queue"]}
     assert states == {"Can start", "Overlap", "Unverified", "Not ready"}
-    assert len(readiness["overlap_pairs"]) == 3
+    assert len(readiness["overlap_pairs"]) >= 5
     assert len(readiness["graph"]["dependencies"]) > 0
-    assert len(readiness["graph"]["columns"]) == 9
+    current, planned = payload["listing"]["current"], payload["listing"]["planned"]
+    assert len(readiness["graph"]["columns"]) == len(current) + len(planned)
     assert len(readiness["graph"]["critical_path"]) > 0
 
 
