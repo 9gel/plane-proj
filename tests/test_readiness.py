@@ -589,3 +589,56 @@ def test_queue_rows_carry_every_reason_not_only_the_winning_state() -> None:
         "DEMO-2 lacks declared scope",
         "DEMO-2 dependencies not assessed",
     ]
+
+
+def test_queue_rows_list_each_cards_waits_and_shared_code() -> None:
+    """Every open card says what it waits on outside the sprint and which
+    cards in any other sprint touch the same code, even a later sprint the
+    state ignores; a settled blocker no longer counts.
+    """
+    def plan(path: str) -> str:
+        return (
+            "<div><h2>Delivery plan</h2><p>Touches:<br>- " + path
+            + "<br>Dependencies: assessed</p></div>"
+        )
+
+    running = SprintFact(
+        sprint_id=1, title="Running", is_current=True,
+        cards=(
+            CardFact(id="r", ref="D-1", title="R", state="In Progress",
+                     points=1, sprint_id=1, description_html=plan("src/a.py")),
+            CardFact(id="r-done", ref="D-9", title="Old", state="Done",
+                     points=1, sprint_id=1),
+        ),
+    )
+    first = SprintFact(
+        sprint_id=2, title="First", position=1,
+        cards=(
+            CardFact(id="f", ref="D-2", title="Form", state="Backlog",
+                     points=3, sprint_id=2, blocked_by=("r", "r-done"),
+                     description_html=plan("src/b.py")),
+        ),
+    )
+    later = SprintFact(
+        sprint_id=3, title="Later", position=2,
+        cards=(
+            CardFact(id="l", ref="D-3", title="Later", state="Backlog",
+                     points=2, sprint_id=3, description_html=plan("src/b.py")),
+        ),
+    )
+
+    queue = evaluate_readiness([running], [first, later], {})["queue"]
+    (card,) = queue[0]["cards"]
+
+    assert card["ref"] == "D-2"
+    assert card["points"] == 3
+    assert card["declared"] and card["assessed"]
+    assert card["waits_on"] == [
+        {"ref": "D-1", "sprint_id": 1, "state": "In Progress"}
+    ]
+    assert card["shares"] == [
+        {"ref": "D-3", "sprint_id": 3, "paths": ["src/b.py"]}
+    ]
+    assert queue[1]["cards"][0]["shares"] == [
+        {"ref": "D-2", "sprint_id": 2, "paths": ["src/b.py"]}
+    ]

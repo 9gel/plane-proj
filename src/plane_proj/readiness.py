@@ -6,6 +6,7 @@ dependencies and declared code scope (Touches).
 
 from __future__ import annotations
 
+import dataclasses
 import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -234,6 +235,9 @@ def evaluate_readiness(
     shared_paths: Sequence[str] = (),
 ) -> dict[str, Any]:
     """Evaluate readiness, overlap, dependencies, and duration estimates."""
+    # Parse each card's delivery plan once: overlap compares every pair.
+    current_sprints = [_with_parsed_plans(s) for s in current_sprints]
+    planned_sprints = [_with_parsed_plans(s) for s in planned_sprints]
     all_sprints = current_sprints + planned_sprints
     card_index: dict[str, CardFact] = {}
     card_sprint_map: dict[str, SprintFact] = {}
@@ -500,6 +504,10 @@ def evaluate_readiness(
             "overlaps": sprint_overlaps[s.sprint_id],
             "blockers": sprint_blockers[s.sprint_id],
             "unverified": sprint_unverified[s.sprint_id],
+            "cards": _card_rows(
+                s, all_sprints, card_index, card_sprint_map, blocker_states,
+                shared_paths,
+            ),
         })
 
     return {
@@ -523,3 +531,71 @@ def evaluate_readiness(
             "critical_edges": critical_edges,
         },
     }
+
+
+def _with_parsed_plans(sprint: SprintFact) -> SprintFact:
+    return dataclasses.replace(
+        sprint,
+        cards=tuple(
+            dataclasses.replace(c, delivery_plan=c.parsed_plan)
+            for c in sprint.cards
+        ),
+    )
+
+
+def _card_rows(
+    sprint: SprintFact,
+    all_sprints: Sequence[SprintFact],
+    card_index: Mapping[str, CardFact],
+    card_sprint_map: Mapping[str, SprintFact],
+    blocker_states: Mapping[str, tuple[str, str]],
+    shared_paths: Sequence[str],
+) -> list[dict[str, Any]]:
+    """Each open card of a planned sprint, with what it waits on outside
+    the sprint and the code it shares with any other open sprint.
+
+    Shares list every other running or planned sprint, not only those that
+    could run at the same time, so a sprint page shows every clash it may
+    meet; the state still counts only the concurrent ones.
+    """
+    rows = []
+    for card in sprint.open_cards:
+        waits_on = []
+        for blocker_id in card.blocked_by:
+            blocker = card_index.get(blocker_id)
+            if blocker is not None:
+                other = card_sprint_map[blocker_id]
+                if other.sprint_id == sprint.sprint_id or blocker.is_settled:
+                    continue
+                waits_on.append({
+                    "ref": blocker.ref,
+                    "sprint_id": other.sprint_id,
+                    "state": blocker.state,
+                })
+                continue
+            ref, state = blocker_states.get(blocker_id, (blocker_id, ""))
+            if state.casefold() in {"done", "cancelled", "archived"}:
+                continue
+            waits_on.append({"ref": ref, "sprint_id": None, "state": state})
+        shares = [
+            {"ref": other_card.ref, "sprint_id": other.sprint_id, "paths": paths}
+            for other in all_sprints
+            if other.sprint_id != sprint.sprint_id
+            for other_card in other.open_cards
+            if (paths := card_shared_paths(
+                card, other_card, shared_paths=shared_paths
+            ))
+        ]
+        plan = card.parsed_plan
+        rows.append({
+            "id": card.id,
+            "ref": card.ref,
+            "title": card.title,
+            "points": card.points,
+            "state": card.state,
+            "declared": plan.touches is not None or plan.is_touches_none,
+            "assessed": plan.dependencies_assessed,
+            "waits_on": waits_on,
+            "shares": shares,
+        })
+    return rows

@@ -799,6 +799,9 @@ def with_plane(cards, running, planned_facts, plane):
     def ref(card_id, fallback):
         return real.get(card_id, {}).get("ref", fallback)
 
+    def real_id(card_id):
+        return real.get(card_id, {}).get("id", card_id)
+
     def url(card_id):
         found = real.get(card_id)
         return plane["board"] + found["id"] if found else CARD_URL
@@ -815,7 +818,12 @@ def with_plane(cards, running, planned_facts, plane):
             dataclasses.replace(
                 sprint,
                 cards=tuple(
-                    dataclasses.replace(c, ref=ref(c.id, c.ref))
+                    dataclasses.replace(
+                        c,
+                        id=real_id(c.id),
+                        ref=ref(c.id, c.ref),
+                        blocked_by=tuple(real_id(b) for b in c.blocked_by),
+                    )
                     for c in sprint.cards
                 ),
             )

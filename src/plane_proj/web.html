@@ -276,9 +276,29 @@ details summary { cursor: pointer; color: var(--text-2); }
 @media (max-width: 760px) { .hide-sm { display: none; } }
 @media (max-width: 760px) { .plan-table th, .plan-table td { padding: 8px 5px; }
   .plan-table .state { font-size: 13px; } }
-.ready h3 { font-size: 13px; margin: 14px 0 4px; color: var(--text-2); }
-.ready ul { margin: 0; padding-left: 18px; } .ready li { margin: 2px 0; }
-.ready .with { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 4px; }
+.size { display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+.size .sline { display: flex; align-items: center; gap: 12px; }
+.size .sline + .sline { margin-top: 12px; }
+.size .sline > span { white-space: nowrap; color: var(--text-2); }
+.size .est { min-width: 150px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+.size .est .v { font-size: 30px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.size .est .l { color: var(--text-2); font-size: 12.5px; margin-top: 2px; }
+@media (max-width: 560px) { .size { grid-template-columns: 1fr; } }
+.verdict .state { font-size: 18px; } .verdict .state::before { font-size: 34px; }
+.verdict p, .rpanel p { margin: 8px 0 0; color: var(--text-2); font-size: 13px; }
+.rpanel h3 { margin: 0 0 8px; font-size: 13px; color: var(--text-2); font-weight: 600; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+a.pill { text-decoration: none; color: var(--text); }
+a.pill.clash { border-color: var(--warn); color: var(--warn); font-weight: 600; }
+.mark { font-size: 30px; font-weight: 700; line-height: 1; margin-right: 8px; }
+.mark.yes { color: var(--st-done); } .mark.no, .mark.maybe { color: var(--warn); }
+.clist .crow { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.clist .crow:last-child { border-bottom: 0; } .clist .crow:first-child { padding-top: 0; }
+.clist .ctop { display: flex; gap: 8px; align-items: baseline; } .clist .ctop .mono { white-space: nowrap; }
+.clist .ctop .pts { margin-left: auto; white-space: nowrap; color: var(--text-2); font-size: 13px; }
+.clist .cmeta { display: grid; grid-template-columns: 70px 1fr; gap: 4px 8px; margin-top: 6px; font-size: 12.5px; }
+.clist .cmeta .k { color: var(--muted); }
+.clist .flag { color: var(--warn); font-size: 12px; font-weight: 600; margin-right: 10px; }
 ul.paths { margin: 0; padding-left: 16px; }
 ul.paths li { overflow-wrap: anywhere; }
 </style>
@@ -758,46 +778,104 @@ function cardIconsHtml(total, undeclared = 0) {
   return r;
 }
 
-// Whether a planned sprint can start, and everything in its way: the
-// sprints it waits on, the sprints it shares code with, and the cards whose
-// scope or dependencies are not yet declared.
-function readinessHtml(s) {
-  if (readinessError) return `<div class="note flag">${esc(readinessError)}</div>`;
-  if (!READINESS) return `<div class="card">${sk('100%', 80)}</div>`;
-  const q = (READINESS.queue || []).find(r => r.sprint_id === s.sprint);
-  if (!q) return '<div class="card muted">Not in the planned queue.</div>';
-  const name = id => { const o = byId[id]; return `${o?.alias ? esc(o.alias) + ' ' : ''}#${id}`; };
-  const link = id => `<a href="${sprintHref(id)}">${name(id)}</a>${byId[id]?.status === 'current' ? ' <span class="pill">running</span>' : ''}`;
-  const list = items => `<ul>${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>`;
+// A planned sprint's own page: its size, the sprints around it in the
+// dependency graph, whether it can start, and each card's waits and shared
+// code. The readiness report supplies all but the size.
+const sprintName = id => { const o = byId[id]; return `${o?.alias ? esc(o.alias) + ' ' : ''}#${id}`; };
+const sprintPill = (id, clash) => `<a class="pill${clash ? ' clash' : ''}" href="${sprintHref(id)}">${sprintName(id)}${byId[id]?.status === 'current' ? ' · running' : ''}</a>`;
 
-  const upstream = (READINESS.graph?.dependencies || []).filter(d => d.to === s.sprint).map(d => d.from);
-  const waits = q.blockers.length ? `
-    ${upstream.length ? `<div class="with">${upstream.map(link).join('')}</div>` : ''}
-    ${list(q.blockers.map(b => b.replace(/^Waits on /, '')))}` : '<div class="muted">Nothing outside this sprint must finish first.</div>';
+function sizeHtml(s, q) {
+  const velocity = READINESS?.summary?.velocity ?? MEDV;
+  const est = POINTS && velocity ? `<div class="card est"><div class="v">≈ ${fmtH(s.points / velocity)}</div><div class="l">Estimated at ${num(velocity, 2)} pts/h</div></div>` : '';
+  const undeclared = q ? q.cards.filter(c => !c.declared).length : 0;
+  return `<div class="size"><div class="card">
+    <div class="sline">${s.cards == null ? skIcons(4, true) : cardIconsHtml(s.cards, undeclared)}<span>${s.cards ?? '…'} card${s.cards === 1 ? '' : 's'}</span></div>
+    ${POINTS ? `<div class="sline">${ringDots(s.points)}<span>${s.points} pts</span></div>` : ''}
+  </div>${est}</div>`;
+}
 
-  const shared = new Map();
-  (READINESS.overlap_pairs || []).forEach(p => {
-    const other = p.sprint_a === s.sprint ? p.sprint_b : p.sprint_b === s.sprint ? p.sprint_a : null;
-    if (other == null) return;
-    const row = shared.get(other) || { cards: [], paths: new Set() };
-    const [mine, theirs] = p.sprint_a === s.sprint ? [p.card_a, p.card_b] : [p.card_b, p.card_a];
-    row.cards.push(`${mine} · ${theirs}`);
-    (p.paths || []).forEach(x => row.paths.add(x));
-    shared.set(other, row);
+// The sprints this one waits on, to its left, and those that wait on it, to
+// its right; a sprint with nothing to wait for sits at the left and the last
+// in a chain at the right.
+function neighbourSvg(s) {
+  const deps = READINESS.graph?.dependencies || [];
+  const up = deps.filter(d => d.to === s.sprint), down = deps.filter(d => d.from === s.sprint);
+  if (!up.length && !down.length) return '<p class="muted" style="margin:0">No other sprint must finish first, and none waits on this one.</p>';
+  const q = Object.fromEntries((READINESS.queue || []).map(r => [r.sprint_id, r]));
+  const mark = id => byId[id]?.status === 'current' ? 'running' : ({ 'Can start': '🚀', Overlap: '⚠️', Unverified: '❓', 'Not ready': '⏳' }[q[id]?.state] || '');
+  const W = 170, H = 40, GX = 80, GY = 14, TOP = 26;
+  const cols = [up.length ? up.map(d => d.from) : null, [s.sprint], down.length ? down.map(d => d.to) : null].filter(Boolean);
+  const tall = Math.max(...cols.map(c => c.length));
+  const height = TOP + tall * (H + GY);
+  const pos = {};
+  cols.forEach((ids, c) => ids.forEach((id, i) => {
+    pos[id] = [10 + c * (W + GX), TOP + (tall - ids.length) * (H + GY) / 2 + i * (H + GY)];
+  }));
+  const width = 10 + cols.length * (W + GX) - GX + 10;
+  const head = (c, t) => `<text x="${10 + c * (W + GX)}" y="14" font-size="12" font-weight="600" fill="var(--text-2)">${t}</text>`;
+  let g = (up.length ? head(0, 'Must finish first') : '') + head(up.length ? 1 : 0, 'This sprint') + (down.length ? head(cols.length - 1, 'Waits on this sprint') : '');
+  [...up, ...down].forEach(d => {
+    const [x1, y1] = pos[d.from], [x2, y2] = pos[d.to];
+    const sx = x1 + W, sy = y1 + H / 2, ex = x2 - 8, ey = y2 + H / 2;
+    g += `<g><path d="M${sx} ${sy} C${sx + GX / 2} ${sy} ${ex - GX / 2} ${ey} ${ex} ${ey}" fill="none" stroke="var(--text-2)" stroke-width="1.5"><title>${sprintName(d.to)} waits on ${sprintName(d.from)}: ${esc(d.reason)}</title></path>
+      <path d="M${ex} ${ey - 5} L${ex + 8} ${ey} L${ex} ${ey + 5} Z" fill="var(--text-2)"/></g>`;
   });
-  const overlap = shared.size ? [...shared].map(([id, r]) => `
-    <div style="margin:6px 0">${link(id)} <span class="small muted mono">${r.cards.map(esc).join(', ')}</span>
-      <ul class="paths mono">${[...r.paths].map(x => `<li>${esc(x).replaceAll('/', '/<wbr>')}</li>`).join('')}</ul></div>`).join('')
-    : '<div class="muted">No code shared with other sprints.</div>';
+  Object.entries(pos).forEach(([id, [x, y]]) => {
+    const self = +id === s.sprint, o = byId[id], run = o?.status === 'current';
+    const node = `<rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${self ? 'var(--text)' : run ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${self || run ? 2 : 1}"/>
+      <text x="${x + 10}" y="${y + H / 2 + 5}" font-size="13" fill="var(--text)"><tspan font-weight="600">${esc(o?.alias || '')}</tspan>${o?.alias ? ' ' : ''}<tspan fill="var(--muted)">#${id}</tspan></text>
+      <text x="${x + W - 10}" y="${y + H / 2 + 6}" font-size="${run ? 11 : 18}" text-anchor="end" fill="var(--text-2)">${mark(id)}</text>`;
+    g += self ? node : `<a href="${sprintHref(id)}">${node}</a>`;
+  });
+  return `<svg style="display:block;max-width:100%;height:auto" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${g}</svg>`;
+}
 
-  const scope = q.unverified.length ? list(q.unverified) : '<div class="muted">Every card declares its scope and has its dependencies assessed.</div>';
-
-  return `<div class="card ready">
-    <div class="row">${stateBadge(q.state)}</div>
-    <h3>Waits on</h3>${waits}
-    <h3>Shares code with</h3>${overlap}
-    <h3>Scope and dependency declarations</h3>${scope}
+function readinessPanels(q) {
+  const others = new Set(q.cards.flatMap(c => c.waits_on.filter(w => w.sprint_id != null).map(w => w.sprint_id)));
+  const outside = q.cards.some(c => c.waits_on.some(w => w.sprint_id == null));
+  const unassessed = q.cards.filter(c => !c.assessed).length;
+  const undeclared = q.cards.filter(c => !c.declared).length;
+  const clash = new Set((READINESS.overlap_pairs || []).flatMap(p => p.sprint_a === q.sprint_id ? [p.sprint_b] : p.sprint_b === q.sprint_id ? [p.sprint_a] : []));
+  const sharing = [...new Set(q.cards.flatMap(c => c.shares.map(x => x.sprint_id)))].sort((a, b) => a - b);
+  const verdict = {
+    'Can start': 'Clear to start now.',
+    Overlap: 'Shares code with a sprint that could run at the same time.',
+    Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} without a declared scope`, unassessed && `${unassessed} without assessed dependencies`].filter(Boolean).join(', ')}.`,
+    'Not ready': 'Waits on unfinished cards in another sprint.',
+  }[q.state];
+  const depMark = others.size || outside
+    ? `<span class="mark no">✗</span>Waits on ${others.size ? `${others.size} sprint${others.size === 1 ? '' : 's'}` : ''}${others.size && outside ? ' and ' : ''}${outside ? 'cards outside every sprint' : ''}`
+    : unassessed
+      ? `<span class="mark maybe">?</span>None recorded, but ${unassessed} card${unassessed === 1 ? ' is' : 's are'} not assessed`
+      : '<span class="mark yes">✓</span>Nothing to wait for';
+  return `<div class="grid g3">
+    <div class="card verdict">${stateBadge(q.state)}<p>${verdict}</p></div>
+    <div class="card rpanel"><h3>Shares code with</h3>${sharing.length
+      ? `<div class="pills">${sharing.map(id => sprintPill(id, clash.has(id))).join('')}</div>${clash.size ? '<p>Red: could run at the same time.</p>' : ''}`
+      : '<p class="muted" style="margin:0">No other sprint.</p>'}</div>
+    <div class="card rpanel"><h3>Dependencies</h3><div style="display:flex;align-items:center">${depMark}</div>${others.size ? `<div class="pills" style="margin-top:8px">${[...others].map(id => sprintPill(id)).join('')}</div>` : ''}</div>
   </div>`;
+}
+
+function cardListHtml(q) {
+  const link = c => DATA.board_url ? `<a href="${esc(DATA.board_url + c.id)}" target="_blank" rel="noopener">${esc(c.ref)}</a>` : esc(c.ref);
+  const where = (sprint, ref) => sprint == null ? esc(ref) : `<a href="${sprintHref(sprint)}">${sprintName(sprint)}</a>: ${esc(ref)}`;
+  return `<div class="card clist">${q.cards.map(c => {
+    // Per path, the other cards grouped by sprint: "EVT-10 #49: WAY-235, WAY-236".
+    const byPath = new Map();
+    c.shares.forEach(x => x.paths.forEach(p => {
+      const sprints = byPath.get(p) || byPath.set(p, new Map()).get(p);
+      (sprints.get(x.sprint_id) || sprints.set(x.sprint_id, []).get(x.sprint_id)).push(esc(x.ref));
+    }));
+    return `<div class="crow">
+      <div class="ctop"><span class="mono small">${link(c)}</span><b>${esc(c.title)}</b><span class="pts">${POINTS ? `${c.points} pt${c.points === 1 ? '' : 's'}` : ''}</span></div>
+      ${!c.declared || !c.assessed ? `<div style="margin-top:4px">${!c.declared ? '<span class="flag">scope not declared</span>' : ''}${!c.assessed ? '<span class="flag">dependencies not assessed</span>' : ''}</div>` : ''}
+      ${c.waits_on.length || byPath.size ? `<div class="cmeta">
+        ${c.waits_on.length ? `<span class="k">Waits on</span><span>${c.waits_on.map(w => where(w.sprint_id, w.ref) + (w.state ? ` <span class="muted">(${esc(w.state)})</span>` : '')).join(', ')}</span>` : ''}
+        ${byPath.size ? `<span class="k">Shares</span><ul class="paths">${[...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span> <span class="muted">with</span> ${[...with_].map(([sid, refs]) => `<a href="${sprintHref(sid)}">${sprintName(sid)}</a>: ${refs.join(', ')}`).join('; ')}</li>`).join('')}</ul>` : ''}
+      </div>` : ''}
+    </div>`;
+  }).join('') || '<p class="muted" style="margin:0">No open cards.</p>'}</div>`;
 }
 
 function renderDagSvg() {
@@ -899,48 +977,6 @@ document.addEventListener('mouseover', e => {
   dag.classList.add('focus');
   dag.querySelectorAll('.link').forEach(l => l.classList.toggle('hl', l.dataset.a === sid || l.dataset.b === sid));
 });
-
-function renderOverlapTable() {
-  if (!READINESS) {
-    return `<h2>Code overlap between sprints</h2>
-    <div class="card"><div class="small t2" style="margin-bottom:8px">Pairs of running or planned sprints whose cards declare the same files or directories.</div>${sk('100%', 80)}</div>`;
-  }
-  const pairs = READINESS.overlap_pairs || [];
-  if (!pairs.length) {
-    return `<h2>Code overlap between sprints</h2>
-    <div class="card"><div class="small t2" style="margin-bottom:8px">Pairs of running or planned sprints whose cards declare the same files or directories.</div><p class="muted">No code overlap between sprints.</p></div>`;
-  }
-  const qMap = Object.fromEntries((READINESS.queue || []).map(s => [s.sprint_id, s]));
-  // One row per pair of sprints: the readiness report lists every pair of
-  // cards, and a busy plan repeats the same two sprints many times.
-  const grouped = new Map();
-  pairs.forEach(p => {
-    const key = `${p.sprint_a}-${p.sprint_b}`;
-    const row = grouped.get(key) || { ...p, cards: [], paths: new Set() };
-    row.cards.push(`${p.card_a} · ${p.card_b}`);
-    (p.paths || []).forEach(x => row.paths.add(x));
-    grouped.set(key, row);
-  });
-  const rows = [...grouped.values()].map(p => {
-    const sa = byId[p.sprint_a] || qMap[p.sprint_a];
-    const sb = byId[p.sprint_b] || qMap[p.sprint_b];
-    const nameA = (sa?.alias ? sa.alias + ' ' : '') + '#' + p.sprint_a;
-    const nameB = (sb?.alias ? sb.alias + ' ' : '') + '#' + p.sprint_b;
-    return `<tr>
-      <td><b>${esc(nameA)}</b> × <b>${esc(nameB)}</b>${p.is_running ? ' <span class="pill">running</span>' : ''}</td>
-      <td class="mono">${p.cards.map(esc).join('<br>')}</td>
-      <td class="mono"><ul class="paths">${[...p.paths].map(x => `<li>${esc(x).replaceAll('/', '/<wbr>')}</li>`).join('')}</ul></td>
-    </tr>`;
-  }).join('');
-
-  return `<h2>Code overlap between sprints</h2>
-  <div class="card">
-    <div class="small t2" style="margin-bottom:8px">Pairs of running or planned sprints whose cards declare the same files or directories.</div>
-    <table><thead><tr><th>Sprints</th><th>Cards</th><th>Shared paths</th></tr></thead><tbody>
-      ${rows}
-    </tbody></table>
-  </div>`;
-}
 
 V.planned = () => {
   if (!planned.length) return '<h1>Planned sprints</h1><p class="muted">No planned sprints.</p>';
@@ -1045,19 +1081,23 @@ V.planned = () => {
     <th class="hide-sm">Estimated completion time</th>
   </tr></thead>
   <tbody>${rowsHtml}</tbody>
-  </table></div>
-
-  ${renderOverlapTable()}`;
+  </table></div>`;
 };
 
-V.plannedDetail = s => { if (readinessState === 'idle') loadReadiness(); return `<p>${backLink(s)}</p>
+V.plannedDetail = s => {
+  if (readinessState === 'idle') loadReadiness();
+  const q = READINESS?.queue?.find(r => r.sprint_id === s.sprint);
+  const wait = html => readinessError ? `<div class="note flag">${esc(readinessError)}</div>` : !READINESS ? `<div class="card">${sk('100%', 60)}</div>` : !q ? '<div class="card muted">Not in the planned queue.</div>' : html();
+  return `<p>${backLink(s)}</p>
   <div class="row">${label(s)}<span class="pill">planned · position ${s.position}</span>${planeLink(s)}</div>
   <h1 style="margin-top:6px">${esc(s.title)}</h1><p class="goal">${esc(s.goal)}</p>
-  <h2>Readiness</h2>${readinessHtml(s)}
-  <div class="card" style="margin-top:16px"><div class="row">${s.cards == null ? skIcons(4, true) : `${cardIcons(Array(s.cards).fill('plain'), true)}<span class="t2">${s.cards} cards</span>`}</div>
-    ${POINTS ? `<div style="margin:12px 0 4px;max-width:${s.points * 14}px">${ringDots(s.points)}</div><span class="t2">${s.points} pts${MEDV ? ` · ≈ ${fmtH(s.points / MEDV)} at ${num(MEDV, 2)} pts/h` : ''}</span>` : ''}</div>
+  <h2>Size</h2>${sizeHtml(s, q)}
+  <h2>Dependencies</h2>${wait(() => `<div class="card" style="overflow-x:auto">${neighbourSvg(s)}</div>`)}
+  <h2>Readiness</h2>${wait(() => readinessPanels(q))}
+  <h2>Cards</h2>${wait(() => cardListHtml(q))}
   <h2>Execution guidance</h2><div class="card prose">${esc(s.execution) || '—'}</div>
-  <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>`; };
+  <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>`;
+};
 
 let pastSort = { k: 'ended', d: -1 }, pastQ = '';
 V.past = () => {

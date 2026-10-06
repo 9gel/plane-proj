@@ -699,10 +699,16 @@ the overlap. The sprints in Can start therefore never share code with each
 other or with a running sprint, and can all start at once.
 
 The state names only the reasons of the state that wins. Each queue row also
-carries every blocker (`blockers`) and every missing declaration
-(`unverified`), so a planned sprint's page can show all that stands in its
-way: the sprints it waits on, the sprints it shares code with, and the cards
-to declare. The Planned queue shows only the state.
+carries every blocker (`blockers`), every missing declaration (`unverified`)
+and its open cards (`cards`): each card's unfinished blockers outside the
+sprint and the paths it shares with cards in any other running or planned
+sprint. Shares are not limited to sprints that could run at the same time,
+so a sprint's page shows every clash it may meet and marks the concurrent
+ones. The Planned page keeps to whole sprints: the summary, Start now, the
+dependency graph and a queue showing each sprint's state. A planned sprint's
+page shows its size and estimate, its direct neighbours in the dependency
+graph, its verdict, the sprints it shares code with, whether it waits on
+anything, and each card's waits and shared paths.
 
 Times use the median velocity of completed sprints, or an assumed 3.5
 points per hour, marked as such, when there is none. The serial time is all
