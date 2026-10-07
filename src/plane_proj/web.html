@@ -122,7 +122,7 @@ svg a:hover rect { stroke: var(--accent); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 .legend.compact { font-size: 11px; gap: 8px; }
 .legend.compact i { width: 8px; height: 8px; margin-right: 3px; }
-.legend i.hollow { background: none !important; border: 1px dashed var(--muted); }
+.legend i.hollow, .board .colh i.hollow { background: none !important; border: 1px dashed var(--muted); }
 table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 th { font-size: 12px; color: var(--text-2); font-weight: 600; white-space: nowrap; }
@@ -157,7 +157,7 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.d { background: var(--st-done); }
 .ci.v::after { background: rgba(0,0,0,.45); box-shadow: 0 4px 0 rgba(0,0,0,.45); }
 .ci.big.v::after { box-shadow: 0 6px 0 rgba(0,0,0,.45); } .ci.r { background: none; border: 1px dashed var(--muted); }
-.ci.r::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
+.ci.r::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); } .ci.big.r::after { box-shadow: 0 6px 0 var(--muted); }
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 .ci.u { border-style: dashed; }
@@ -170,6 +170,7 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .board .colb { padding: 10px; min-height: 160px; }
 .board .colh + .colh, .board .colb + .colb { border-left: 1px solid var(--border); }
 .wi { background: var(--bg); border: 1px solid var(--border); border-left: 3px solid; border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; font-size: 13px; }
+.wi.r { border-left: 3px dashed var(--muted) !important; }
 .wi .meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: 11.5px; color: var(--text-2); }
 .flag { color: var(--warn); font-weight: 600; }
 .prose { white-space: pre-wrap; color: var(--text-2); }
@@ -379,6 +380,8 @@ const STATES = ['Todo', 'In Progress', 'Verifying', 'Done', 'Cancelled'];
 const PROGRESS = ['Done', 'Verifying', 'In Progress', 'Todo', 'Cancelled'];
 const byProgress = cards => [...cards].sort((a, b) => PROGRESS.indexOf(a.state) - PROGRESS.indexOf(b.state));
 const stC = { 'Todo': 'var(--st-todo)', 'In Progress': 'var(--st-prog)', 'Verifying': 'var(--st-verify)', 'Done': 'var(--st-done)', 'Cancelled': 'var(--st-cancel)' };
+// Cancelled draws hollow and dashed, as Past draws a card not delivered.
+const swatch = st => st === 'Cancelled' ? 'class="hollow"' : `style="background:${stC[st]}"`;
 // The sprint's own Plane cycle, which lists only its cards.
 const planeLink = s => {
   const url = DATA.cycle_urls?.[s.sprint ?? s.sprint_id];
@@ -523,7 +526,7 @@ function cardRow(start, end) {
     + (end > start ? ` (+${end - start} added)` : '');
   return `<div class="cicons" data-tip="${esc(tipT)}">${r}</div>`;
 }
-const cardIcons = (colors, big) => `<div class="cicons">${colors.map(c => c === 'plain' ? `<span class="ci plain ${big ? 'big' : ''}"></span>` : `<span class="ci ${big ? 'big' : ''} ${c === stC.Verifying ? 'v' : ''}" style="background:${c}"></span>`).join('')}</div>`;
+const cardIcons = (colors, big) => `<div class="cicons">${colors.map(c => c === 'plain' ? `<span class="ci plain ${big ? 'big' : ''}"></span>` : c === stC.Cancelled ? `<span class="ci r ${big ? 'big' : ''}"></span>` : `<span class="ci ${big ? 'big' : ''} ${c === stC.Verifying ? 'v' : ''}" style="background:${c}"></span>`).join('')}</div>`;
 
 // Points by state, one dot per point, total outside, dashed start marker.
 // Points removed since the start show as hollow dots up to it.
@@ -535,7 +538,7 @@ function stateBar(cards, start, unit, tipText = '') {
   const put = (html, count) => { for (let i = 0; i < count; i++, n++) { if (n === start) r += marker; r += html; } };
   PROGRESS.forEach(st => {
     const k = cards.filter(c => c.state === st).reduce((a, c) => a + val(c), 0);
-    put(`<span class="dot" style="background:${stC[st]}" data-tip="${st}: ${k} ${unit}"></span>`, k);
+    put(`<span class="dot${st === 'Cancelled' ? ' hollow' : ''}" ${st === 'Cancelled' ? '' : `style="background:${stC[st]}"`} data-tip="${st}: ${k} ${unit}"></span>`, k);
   });
   put('<span class="dot hollow" data-tip="Removed since the start"></span>', Math.max(0, start - tot));
   if (n === start) r += marker;
@@ -543,7 +546,7 @@ function stateBar(cards, start, unit, tipText = '') {
     <span class="tot">${tot} <span class="muted small">${unit}</span></span></div>`;
 }
 // Every state, always: the legend needs no data, so it is the same loading or loaded.
-const legendOf = cls => `<div class="legend ${cls}">${PROGRESS.map(st => `<span><i style="background:${stC[st]}"></i>${st}</span>`).join('')}</div>`;
+const legendOf = cls => `<div class="legend ${cls}">${PROGRESS.map(st => `<span><i ${swatch(st)}></i>${st}</span>`).join('')}</div>`;
 const stateLegend = legendOf('');
 
 const niceStep = v => { const r = v / 4 || 1, e = 10 ** Math.floor(Math.log10(r)); return [1, 2, 2.5, 5, 10].map(m => m * e).find(x => x >= r); };
@@ -735,10 +738,10 @@ V.currentOne = s => {
       <span class="tot" style="font-weight:650;white-space:nowrap">${fmtMin(execTot)}</span></div>
     <div class="legend">${exec.map(x => `<span><i style="background:${x[3]}"></i>${timerText(x)}</span>`).join('')}</div></div>
   ${PARTIAL ? `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2></div>
-  <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st}</div>`).join('')}
+  <div class="board">${STATES.map(st => `<div class="colh"><i ${swatch(st)}></i>${st}</div>`).join('')}
     ${STATES.map((st, i) => `<div class="colb">${i < 4 ? `<div class="wi" style="border-left-color:${stC[st]}">${sk('40%', 14)}<div style="margin-top:8px">${sk('85%', 14)}</div></div>` : ''}</div>`).join('')}</div>` : `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2></div>
-  <div class="board">${STATES.map(st => `<div class="colh"><i style="background:${stC[st]}"></i>${st} <span class="muted">${cards.filter(c => c.state === st).length}</span></div>`).join('')}
-    ${STATES.map(st => `<div class="colb">${cards.filter(c => c.state === st).map(c => `<div class="wi" style="border-left-color:${stC[st]}">
+  <div class="board">${STATES.map(st => `<div class="colh"><i ${swatch(st)}></i>${st} <span class="muted">${cards.filter(c => c.state === st).length}</span></div>`).join('')}
+    ${STATES.map(st => `<div class="colb">${cards.filter(c => c.state === st).map(c => `<div class="wi${st === 'Cancelled' ? ' r' : ''}" style="border-left-color:${stC[st]}">
       <div class="row"><a class="mono" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.ref)}</a><span class="sp"></span>${POINTS ? `<span class="pill">${c.points} pt</span>` : ''}</div>
       <div>${esc(c.title)}</div>${waitsOn(c)}</div>`).join('')}</div>`).join('')}</div>`}
 
