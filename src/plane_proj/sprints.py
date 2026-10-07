@@ -22,7 +22,7 @@ from rich.table import Table
 
 from plane_proj.guards import SprintCycleBound, SprintCycleTaken
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 STATUS_PLANNED = "planned"
 STATUS_CURRENT = "current"
 STATUS_COMPLETED = "completed"
@@ -114,6 +114,41 @@ CREATE TABLE sprints (
     SNAPSHOT_SCHEMA_SQL + BINDING_SCHEMA_SQL + JOURNAL_SCHEMA_SQL
     + ALIAS_INDEX_SQL + "PRAGMA user_version = 10;"
 )
+
+# Register write rule: rows change only through plane-proj. Every write
+# calls this function, which only plane-proj connections define; any
+# other SQLite client fails with "no such function".
+WRITER_FUNCTION = "plane_proj_register_writer"
+REGISTER_TABLES = (
+    "sprints", "card_execution_snapshots", "register_binding",
+    "operation_journal",
+)
+WRITE_GUARD_SQL = "".join(
+    f"CREATE TRIGGER IF NOT EXISTS register_guard_{table}_{action.lower()} "
+    f"BEFORE {action} ON {table} BEGIN SELECT {WRITER_FUNCTION}(); END;\n"
+    for table in REGISTER_TABLES
+    for action in ("INSERT", "UPDATE", "DELETE")
+)
+SCHEMA_SQL = SCHEMA_SQL.replace(
+    "PRAGMA user_version = 10;",
+    WRITE_GUARD_SQL + f"PRAGMA user_version = {SCHEMA_VERSION};",
+)
+
+# Paths opened for writing in this process; the CLI commits them to git
+# when the command ends so no uncommitted register change can be reverted.
+_opened_for_write: set[Path] = set()
+
+
+def allow_register_writes(connection: sqlite3.Connection) -> None:
+    """Define the writer function the register's write triggers call."""
+    connection.create_function(WRITER_FUNCTION, 0, lambda: 1, deterministic=True)
+
+
+def take_written_registers() -> list[Path]:
+    """Return and forget every register this process opened for writing."""
+    paths = sorted(_opened_for_write)
+    _opened_for_write.clear()
+    return paths
 
 
 @dataclass(frozen=True, slots=True)
@@ -269,6 +304,7 @@ def create_database(path: Path, binding: tuple[str, str, str] | None = None) -> 
     connection: sqlite3.Connection | None = None
     try:
         connection = sqlite3.connect(path)
+        allow_register_writes(connection)
         connection.executescript(SCHEMA_SQL)
         if binding is not None:
             _store_binding(connection, binding)
@@ -406,6 +442,9 @@ def connect_database(path: Path, *, writable: bool) -> sqlite3.Connection:
     except sqlite3.Error as error:
         raise SprintError(f"cannot open database {path}: {error}") from error
     connection.row_factory = sqlite3.Row
+    if writable:
+        allow_register_writes(connection)
+        _opened_for_write.add(path.resolve())
     version = connection.execute("PRAGMA user_version").fetchone()[0]
     if writable and version in {1, 2, 3}:
         {1: _migrate_v1, 2: _migrate_v2, 3: _migrate_v3}[version](connection)
@@ -473,12 +512,18 @@ def connect_database(path: Path, *, writable: bool) -> sqlite3.Connection:
     if writable and version == 9:
         _migrate_v10(connection)
         version = 10
+    if writable and version == 10:
+        connection.executescript(
+            "BEGIN IMMEDIATE;" + WRITE_GUARD_SQL
+            + "PRAGMA user_version = 11; COMMIT;"
+        )
+        version = 11
 
     if version != SCHEMA_VERSION:
         connection.close()
         action = (
             "run plane-proj sprints migrate or a write command to upgrade it"
-            if version in {1, 2, 3, 4, 5, 6, 7, 8, 9}
+            if version in set(range(1, SCHEMA_VERSION))
             else "use a supported database"
         )
         raise SprintError(

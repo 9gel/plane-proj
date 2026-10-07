@@ -25,6 +25,7 @@ from click.testing import CliRunner
 
 from plane_proj import sprints
 from plane_proj.cli import Context, cli
+from tests.conftest import writer_connect
 
 BINDING = ("https://plane.test", "test", "DEMO")
 
@@ -176,7 +177,7 @@ def fake_board(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> FakeUtcBoard:
 
 def create_v9_register(path: Path, binding: tuple[str, str, str] = BINDING) -> Path:
     """Create a database initialized with schema v9."""
-    with closing(sqlite3.connect(path)) as conn:
+    with closing(writer_connect(path)) as conn:
         conn.executescript(V9_SCHEMA_SQL)
         conn.execute(
             "INSERT INTO register_binding VALUES (1, ?, ?, ?)",
@@ -236,7 +237,7 @@ def test_sprints_start_stores_utc_timestamp_with_offset(
     )
     assert result.exit_code == 0, result.output
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         started = conn.execute(
             "SELECT started FROM sprints WHERE sprint_id = 1"
         ).fetchone()[0]
@@ -256,7 +257,7 @@ def test_sprints_start_stores_utc_timestamp_with_z(
     )
     assert result.exit_code == 0, result.output
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         started = conn.execute(
             "SELECT started FROM sprints WHERE sprint_id = 2"
         ).fetchone()[0]
@@ -291,7 +292,7 @@ def test_sprints_close_stores_utc_timestamp_with_offset(
     )
     assert result.exit_code == 0, result.output
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         ended = conn.execute(
             "SELECT ended FROM sprints WHERE sprint_id = 1"
         ).fetchone()[0]
@@ -324,7 +325,7 @@ def test_sprints_close_stores_utc_timestamp_with_z(
     )
     assert result.exit_code == 0, result.output
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         ended = conn.execute(
             "SELECT ended FROM sprints WHERE sprint_id = 2"
         ).fetchone()[0]
@@ -364,7 +365,7 @@ def test_sprints_add_stores_utc_timestamps(tmp_path: Path) -> None:
     )
     assert result.exit_code == 0, result.output
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         row = conn.execute(
             "SELECT started, ended FROM sprints WHERE sprint_id = 10"
         ).fetchone()
@@ -387,7 +388,7 @@ def test_migration_v9_to_v10_rewrites_mixed_offsets_to_utc(
     database = tmp_path / "sprints.sqlite"
     create_v9_register(database)
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         # 1. Completed sprint with +08:00 started and Z ended
         conn.execute(
             """INSERT INTO sprints (
@@ -443,12 +444,12 @@ def test_migration_v9_to_v10_rewrites_mixed_offsets_to_utc(
     # Run migration
     result = invoke_sprints(database, "migrate")
     assert result.exit_code == 0, result.output
-    assert "schema v9 → v10" in result.output
+    assert "schema v9 → v11" in result.output
 
     # Post-migration assertions:
-    assert sprints.schema_version(database) == 10
+    assert sprints.schema_version(database) == sprints.SCHEMA_VERSION
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         conn.row_factory = sqlite3.Row
         sprints_rows = {
             row["sprint_id"]: dict(row)
@@ -504,7 +505,7 @@ def test_migration_v9_to_v10_is_idempotent(tmp_path: Path) -> None:
     database = tmp_path / "sprints.sqlite"
     create_v9_register(database)
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         conn.execute(
             """INSERT INTO sprints (
                 sprint_id, title, status, started, ended, hours,
@@ -516,9 +517,9 @@ def test_migration_v9_to_v10_is_idempotent(tmp_path: Path) -> None:
 
     # First migration: 9 -> 10
     assert invoke_sprints(database, "migrate").exit_code == 0
-    assert sprints.schema_version(database) == 10
+    assert sprints.schema_version(database) == sprints.SCHEMA_VERSION
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         tables = [
             row[0]
             for row in conn.execute(
@@ -533,9 +534,9 @@ def test_migration_v9_to_v10_is_idempotent(tmp_path: Path) -> None:
     # Second migration: already at v10
     result = invoke_sprints(database, "migrate")
     assert result.exit_code == 0, result.output
-    assert "already at schema v10" in result.output
+    assert "already at schema v11" in result.output
 
-    with closing(sqlite3.connect(database)) as conn:
+    with closing(writer_connect(database)) as conn:
         snapshot_after_second = {
             table: conn.execute(f"SELECT * FROM {table}").fetchall()
             for table in tables
@@ -555,7 +556,7 @@ def test_register_merge_v10_ours_and_v9_theirs_without_false_conflict(
     """Register merge driver merges a migrated (v10) register and an unmigrated (v9) register."""
     base = create_v9_register(tmp_path / "base.sqlite")
     # Base contains Sprint 1 in v9 with +08:00
-    with closing(sqlite3.connect(base)) as conn:
+    with closing(writer_connect(base)) as conn:
         conn.execute(
             """INSERT INTO sprints (
                 sprint_id, title, status, started, ended, hours,
@@ -572,11 +573,11 @@ def test_register_merge_v10_ours_and_v9_theirs_without_false_conflict(
 
     # OURS: migrated to v10, and adds planned Sprint 2
     assert invoke_sprints(ours, "migrate").exit_code == 0
-    assert sprints.schema_version(ours) == 10
+    assert sprints.schema_version(ours) == sprints.SCHEMA_VERSION
     plan_sprint(ours, 2, position=1)
 
     # THEIRS: remains unmigrated v9, adds planned Sprint 3
-    with closing(sqlite3.connect(theirs)) as conn:
+    with closing(writer_connect(theirs)) as conn:
         conn.execute(
             """INSERT INTO sprints (sprint_id, title, status, position, goal, acceptance)
                VALUES (3, 'Sprint 3', 'planned', 2, 'Goal 3', 'Criterion 3')"""
@@ -588,8 +589,8 @@ def test_register_merge_v10_ours_and_v9_theirs_without_false_conflict(
     assert result.exit_code == 0, f"Merge failed: {result.output}\n{result.stderr}"
 
     # Verify merged result in ours:
-    assert sprints.schema_version(ours) == 10
-    with closing(sqlite3.connect(ours)) as conn:
+    assert sprints.schema_version(ours) == sprints.SCHEMA_VERSION
+    with closing(writer_connect(ours)) as conn:
         conn.row_factory = sqlite3.Row
         sprints_by_id = {
             row["sprint_id"]: dict(row)
@@ -611,7 +612,7 @@ def test_register_merge_v9_ours_and_v10_theirs_without_false_conflict(
 ) -> None:
     """Register merge driver merges unmigrated (v9) ours and migrated (v10) theirs."""
     base = create_v9_register(tmp_path / "base.sqlite")
-    with closing(sqlite3.connect(base)) as conn:
+    with closing(writer_connect(base)) as conn:
         conn.execute(
             """INSERT INTO sprints (
                 sprint_id, title, status, started, ended, hours,
@@ -627,7 +628,7 @@ def test_register_merge_v9_ours_and_v10_theirs_without_false_conflict(
     shutil.copy(base, theirs)
 
     # OURS: remains unmigrated v9, adds planned Sprint 2
-    with closing(sqlite3.connect(ours)) as conn:
+    with closing(writer_connect(ours)) as conn:
         conn.execute(
             """INSERT INTO sprints (sprint_id, title, status, position, goal, acceptance)
                VALUES (2, 'Sprint 2', 'planned', 1, 'Goal 2', 'Criterion 2')"""
@@ -637,15 +638,15 @@ def test_register_merge_v9_ours_and_v10_theirs_without_false_conflict(
 
     # THEIRS: migrated to v10, adds planned Sprint 3
     assert invoke_sprints(theirs, "migrate").exit_code == 0
-    assert sprints.schema_version(theirs) == 10
+    assert sprints.schema_version(theirs) == sprints.SCHEMA_VERSION
     plan_sprint(theirs, 3, position=2)
 
     result = invoke_merge(base, ours, theirs)
     assert result.exit_code == 0, f"Merge failed: {result.output}\n{result.stderr}"
 
     # Verify merged result in ours is upgraded to v10 with UTC timestamps
-    assert sprints.schema_version(ours) == 10
-    with closing(sqlite3.connect(ours)) as conn:
+    assert sprints.schema_version(ours) == sprints.SCHEMA_VERSION
+    with closing(writer_connect(ours)) as conn:
         conn.row_factory = sqlite3.Row
         sprints_by_id = {
             row["sprint_id"]: dict(row)
@@ -670,7 +671,7 @@ def test_register_merge_different_instant_string_format_no_false_conflict(
     Since timestamps represent the same instant, no conflict is raised.
     """
     base = create_v9_register(tmp_path / "base.sqlite")
-    with closing(sqlite3.connect(base)) as conn:
+    with closing(writer_connect(base)) as conn:
         conn.execute(
             """INSERT INTO sprints (
                 sprint_id, title, status, started, ended, hours,
@@ -689,7 +690,7 @@ def test_register_merge_different_instant_string_format_no_false_conflict(
     assert invoke_sprints(ours, "migrate").exit_code == 0
 
     # THEIRS updates retrospective on Sprint 1 in v9
-    with closing(sqlite3.connect(theirs)) as conn:
+    with closing(writer_connect(theirs)) as conn:
         conn.execute(
             "UPDATE sprints SET retrospective = 'Retrospective notes' WHERE sprint_id = 1"
         )
@@ -698,7 +699,7 @@ def test_register_merge_different_instant_string_format_no_false_conflict(
     result = invoke_merge(base, ours, theirs)
     assert result.exit_code == 0, f"Merge failed: {result.output}\n{result.stderr}"
 
-    with closing(sqlite3.connect(ours)) as conn:
+    with closing(writer_connect(ours)) as conn:
         conn.row_factory = sqlite3.Row
         sprint1 = dict(
             conn.execute(
@@ -716,7 +717,7 @@ def test_register_merge_true_timestamp_conflict_is_refused(
 ) -> None:
     """True conflict where both branches changed ended to different instants is refused."""
     base = create_v9_register(tmp_path / "base.sqlite")
-    with closing(sqlite3.connect(base)) as conn:
+    with closing(writer_connect(base)) as conn:
         conn.execute(
             """INSERT INTO sprints (
                 sprint_id, title, status, started, ended, hours,
@@ -733,7 +734,7 @@ def test_register_merge_true_timestamp_conflict_is_refused(
 
     # OURS migrates to v10 and changes ended to 23:30 UTC
     assert invoke_sprints(ours, "migrate").exit_code == 0
-    with closing(sqlite3.connect(ours)) as conn:
+    with closing(writer_connect(ours)) as conn:
         conn.execute(
             "UPDATE sprints SET ended = '2026-10-05T23:30:00+00:00' WHERE sprint_id = 1"
         )
@@ -741,7 +742,7 @@ def test_register_merge_true_timestamp_conflict_is_refused(
 
     # THEIRS (v9) changes ended to 2026-10-06T08:00:00+08:00
     # (which is 2026-10-06T00:00:00+00:00, different instant)
-    with closing(sqlite3.connect(theirs)) as conn:
+    with closing(writer_connect(theirs)) as conn:
         conn.execute(
             "UPDATE sprints SET ended = '2026-10-06T08:00:00+08:00' WHERE sprint_id = 1"
         )

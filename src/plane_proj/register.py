@@ -19,6 +19,7 @@ from plane_proj.sprints import (
     SCHEMA_SQL,
     SCHEMA_VERSION,
     SprintError,
+    allow_register_writes,
     database_uri,
     to_utc_timestamp,
 )
@@ -56,6 +57,10 @@ type Register = dict[str, Table]
 
 class RegisterMergeError(SprintError):
     """Register merge rule: a merge that cannot be made without a person."""
+
+
+class RegisterCommitError(SprintError):
+    """Register commit rule: every register write is committed at once."""
 
 
 class RegisterSetupError(SprintError):
@@ -307,6 +312,7 @@ def _write_atomically(ours: Path, merged: Register) -> None:
 def _build(path: Path, merged: Register) -> None:
     conflicts: list[str] = []
     with closing(sqlite3.connect(path)) as connection:
+        allow_register_writes(connection)
         connection.executescript(SCHEMA_SQL)
         for table, rows in merged.items():
             for key, row in sorted(rows.items()):
@@ -389,6 +395,42 @@ def _git(directory: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         ["git", *arguments], cwd=directory, capture_output=True, text=True,
         check=False,
     )
+
+
+def commit_register(register: Path, command: str) -> bool:
+    """Commit only the register when this command changed it.
+
+    An uncommitted register is one `git checkout` away from losing writes
+    Plane has already accepted, so each write command commits it at once.
+    A register outside git, or untracked, is left alone. Returns whether
+    a commit was made.
+    """
+    directory = register.parent
+    if shutil.which("git") is None or not directory.is_dir():
+        return False
+    if _git(directory, "ls-files", "--error-unmatch", "--",
+            register.name).returncode != 0:
+        return False
+    status = _git(directory, "status", "--porcelain", "--", register.name)
+    if status.returncode != 0 or not status.stdout.strip():
+        return False
+    committed = _git(
+        directory, "commit", "--only",
+        "-m", f"chore(plane): record `{command}` in sprint register",
+        "-m", "plane-proj commits each register write immediately so no "
+        "uncommitted register change can be reverted out from under the "
+        "board. Verification: plane-proj read back its Plane writes before "
+        "this commit.",
+        "--", register.name,
+    )
+    if committed.returncode != 0:
+        detail = (committed.stderr or committed.stdout).strip()
+        raise RegisterCommitError(
+            f"Register commit rule: {register} was written but git refused "
+            f"to commit it: {detail}. Commit it now with `git commit --only "
+            f"{register}`; never checkout, restore or stash it."
+        )
+    return True
 
 
 def _work_tree(directory: Path) -> Path:

@@ -18,7 +18,7 @@ from plane_proj.guards import (
     SprintCycleBound,
     SprintCycleTaken,
 )
-from tests.conftest import Card, PlannedCycles
+from tests.conftest import Card, PlannedCycles, writer_connect
 
 
 @pytest.mark.parametrize(
@@ -310,7 +310,7 @@ def test_v7_alias_migration_preserves_every_existing_table(tmp_path):
         database, "start", "3", "--started", "2026-01-02T03:04:05+08:00",
     ).exit_code == 0
     assert invoke(database, "collect", "--sprint", "3").exit_code == 0
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         connection.execute("DROP INDEX sprint_alias")
         connection.execute("ALTER TABLE sprints DROP COLUMN alias")
         connection.execute("PRAGMA user_version = 7")
@@ -330,7 +330,7 @@ def test_v7_alias_migration_preserves_every_existing_table(tmp_path):
     assert database.read_bytes() == old_bytes
     result = invoke(database, "migrate")
     assert result.exit_code == 0, result.output
-    assert "schema v7 → v10" in result.output
+    assert "schema v7 → v11" in result.output
     with sprints.connect_database(database, writable=False) as connection:
         for table, expected in before.items():
             actual = [tuple(row) for row in connection.execute(
@@ -343,7 +343,7 @@ def test_v7_alias_migration_preserves_every_existing_table(tmp_path):
     migrated = database.read_bytes()
     assert invoke(database, "migrate").exit_code == 0
     assert database.read_bytes() == migrated
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         connection.execute(  # v9 accepts the kinds 0.8-0.19 registers use
             "INSERT INTO operation_journal VALUES ('start', 'sprint-start',"
             " 'Sprint 3', '{}', '[]', NULL, 'now', 'now')"
@@ -642,7 +642,7 @@ def test_reorder_refuses_invalid_complete_order_without_writing(
 
 def test_write_command_migrates_v1_without_losing_history(tmp_path: Path) -> None:
     database = tmp_path / "SPRINTS.sqlite"
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         connection.executescript(
             """CREATE TABLE sprints (
                 sprint_id INTEGER PRIMARY KEY, title TEXT NOT NULL, started TEXT NOT NULL,
@@ -673,11 +673,11 @@ def test_write_command_migrates_v1_without_losing_history(tmp_path: Path) -> Non
 def test_write_command_migrates_v2_to_persist_plane_cycle_ids(tmp_path: Path) -> None:
     database = tmp_path / "SPRINTS.sqlite"
     create_register(database)
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         connection.execute("ALTER TABLE sprints DROP COLUMN cycle_id")
         connection.execute("PRAGMA user_version = 2")
     assert plan(database, 2).exit_code == 0
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         columns = {row[1] for row in connection.execute("PRAGMA table_info(sprints)")}
         assert "cycle_id" in columns
         assert (
@@ -744,11 +744,11 @@ def test_collect_persists_current_sprint_card_stats(tmp_path: Path) -> None:
 def test_write_command_migrates_v3_to_execution_snapshots(tmp_path: Path) -> None:
     database = tmp_path / "SPRINTS.sqlite"
     create_register(database)
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         connection.execute("DROP TABLE card_execution_snapshots")
         connection.execute("PRAGMA user_version = 3")
     assert plan(database, 2).exit_code == 0
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         columns = {
             row[1] for row in connection.execute("PRAGMA table_info(card_execution_snapshots)")
         }
@@ -764,14 +764,14 @@ def test_write_command_migrates_v5_to_v6_and_drops_unique_index(
 ) -> None:
     database = tmp_path / "SPRINTS.sqlite"
     create_register(database)
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         connection.execute(
             "CREATE UNIQUE INDEX one_current_sprint "
             "ON sprints(status) WHERE status = 'current'"
         )
         connection.execute("PRAGMA user_version = 5")
     assert plan(database, 2).exit_code == 0
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         indices = {
             row[1] for row in connection.execute("PRAGMA index_list(sprints)")
         }
@@ -1459,7 +1459,7 @@ def test_statistics_render_titles_and_settled_state_ordering(capsys):
 def test_migrate_upgrades_an_old_unbound_register(tmp_path: Path) -> None:
     database = tmp_path / "SPRINTS.sqlite"
     create_register(database)
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         connection.executescript(
             "DROP TABLE operation_journal;"
             "DROP TABLE register_binding;"
@@ -1470,7 +1470,7 @@ def test_migrate_upgrades_an_old_unbound_register(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert f"schema v4 → v{sprints.SCHEMA_VERSION}" in result.output
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         tables = {row[0] for row in connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
         )}
@@ -1497,7 +1497,7 @@ def test_migrate_refuses_a_missing_register(tmp_path: Path) -> None:
 def test_old_schema_error_names_both_versions_and_migrate(tmp_path: Path) -> None:
     database = tmp_path / "SPRINTS.sqlite"
     create_register(database)
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         connection.execute("PRAGMA user_version = 6")
 
     with pytest.raises(sprints.SprintError) as caught:

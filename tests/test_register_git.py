@@ -295,3 +295,52 @@ def test_init_survives_a_failing_git_setup(
     assert sprints.read_binding(repo / "plane" / "SPRINTS.sqlite") == (
         "unused", "w", "DEMO",
     )
+
+
+def committed_register(repo: Path) -> Path:
+    path = make_register(repo / "plane" / "SPRINTS.sqlite")
+    result = git(repo, "add", "--", "plane")
+    assert result.returncode == 0, result.stderr
+    assert git(repo, "commit", "-q", "-m", "register").returncode == 0
+    sprints.take_written_registers()
+    return path
+
+
+def test_write_commits_only_the_register_at_command_end(repo):
+    path = committed_register(repo)
+    (repo / "other.txt").write_text("staged by someone else\n")
+    assert git(repo, "add", "other.txt").returncode == 0
+
+    plan(path, 7)
+    from plane_proj.cli import _commit_registers
+    _commit_registers("plane-proj sprints plan")
+
+    assert git(repo, "status", "--porcelain", "--", "plane").stdout == ""
+    assert git(repo, "diff", "--cached", "--name-only").stdout == "other.txt\n"
+    assert "Sprint 7" in titles(repo / "plane" / "SPRINTS.sqlite").values()
+    log = git(repo, "log", "-1", "--format=%s%n%n%b").stdout
+    assert log.startswith("chore(plane): record `plane-proj sprints plan`")
+    assert git(repo, "checkout", "--", "plane/SPRINTS.sqlite").returncode == 0
+    assert "Sprint 7" in titles(path).values()
+
+
+def test_unchanged_register_makes_no_commit(repo):
+    path = committed_register(repo)
+    sprints.connect_database(path, writable=True).close()
+    head = git(repo, "rev-parse", "HEAD").stdout
+
+    assert register_module.commit_register(path, "plane-proj x") is False
+    assert git(repo, "rev-parse", "HEAD").stdout == head
+
+
+def test_refused_commit_raises_and_keeps_the_write(repo):
+    path = committed_register(repo)
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text("#!/bin/sh\necho refused-by-hook >&2\nexit 1\n")
+    hook.chmod(0o755)
+    plan(path, 8)
+
+    with pytest.raises(register_module.RegisterCommitError,
+                       match="Register commit rule.*refused-by-hook"):
+        register_module.commit_register(path, "plane-proj sprints plan")
+    assert "Sprint 8" in titles(path).values()

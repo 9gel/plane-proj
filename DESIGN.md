@@ -404,6 +404,34 @@ foreign-key constraints on every write, and `user_version` drives
 migrations. A text register would have to re-implement all three; the driver
 and textconv give git what it needs without moving the data out of SQLite.
 
+### Register protection and schema v11
+
+Measured 2026-10-08 in the mapstats repository: sprint 153's close and
+sprint 154's start were written to Plane and the register, left
+uncommitted, and then discarded by an unrelated agent's
+`git checkout plane/SPRINTS.sqlite` (twice, at 16:22Z and 17:29Z on
+2026-10-07). Plane kept both writes and the register did not. A later close
+with a new `--ended` was refused by Plane because the cycle had already
+ended, and preflight still reported READY. Agents had also read the register
+through raw `sqlite3` even though the skill forbids it. An instruction an
+agent can skip does not protect the register, so the tool now does.
+
+Schema v11 adds `BEFORE INSERT/UPDATE/DELETE` triggers on every register
+table. Each trigger calls `plane_proj_register_writer()`, a function that
+only plane-proj connections define (`allow_register_writes`), so a write
+from any other SQLite client fails with `no such function` and changes
+nothing. Reads stay open. Dropping the triggers is still possible, but only
+on purpose. Binaries older than v11 refuse the register and cannot write it.
+
+Each `connect_database(writable=True)` records its path. When the command
+ends, whether it succeeded or failed, the CLI commits each recorded register
+that git tracks and that changed, with `git commit --only` so changes other
+people staged stay staged. A failed command commits too, because Plane may
+already hold its writes. If git refuses the commit, for example because a
+hook rejects it or a merge is in progress, the command exits non-zero with
+`Register commit rule` and git's reason. The register merge driver writes
+through its own connection, so it never commits during a merge.
+
 ### Canonical UTC timestamps and schema v10
 
 Schema v10 normalizes every stored timestamp in the register to canonical UTC

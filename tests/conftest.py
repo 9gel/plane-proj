@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -19,6 +20,23 @@ from plane.client.plane_client import PlaneClient
 
 from plane_proj.board import Board
 from plane_proj.config import Config, project_from_facts
+from plane_proj.sprints import allow_register_writes, take_written_registers
+
+
+def writer_connect(path: Path | str) -> sqlite3.Connection:
+    """Open a register as plane-proj does, so tests can seed raw rows."""
+    connection = sqlite3.connect(path)
+    allow_register_writes(connection)
+    return connection
+
+
+@pytest.fixture(autouse=True)
+def _forget_written_registers():
+    """Each test starts and ends with no register queued for commit."""
+    take_written_registers()
+    yield
+    take_written_registers()
+
 
 # A real client, built only so the doubles can read the true method
 # signatures off it. No request is ever made through it.

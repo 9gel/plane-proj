@@ -182,6 +182,10 @@ when sprints run on different branches. In an existing project, or after a
 fresh clone, run `plane-proj register git-setup` once. Commit the
 `.gitattributes` change it makes.
 
+plane-proj commits the register itself after every command that writes it,
+staging nothing else. Only plane-proj can write it: a raw SQLite write fails.
+Never checkout, restore or stash the register.
+
 ### 2. Prepare Plane
 
 - Add a `Verifying` state in Plane's `Started` state group.

@@ -24,7 +24,7 @@ from plane_proj.guards import (
     MissingIndependentVerdict,
     TransitionNotAllowed,
 )
-from tests.conftest import Card, FakeClient
+from tests.conftest import Card, FakeClient, writer_connect
 
 OP = "3e1f8f9c-0000-4000-8000-000000000001"
 
@@ -585,7 +585,7 @@ def test_a_version_6_register_gains_the_journal_on_write_open(
 ):
     path = tmp_path / "SPRINTS.sqlite"
     sprints_module.create_database(path)
-    with sqlite3.connect(path) as connection:
+    with writer_connect(path) as connection:
         connection.executescript(
             "DROP TABLE operation_journal; PRAGMA user_version = 6;"
         )

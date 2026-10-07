@@ -1,7 +1,6 @@
 """Sprint registers must reject the wrong target before reads or writes reach Plane."""
 
 import json
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -9,6 +8,7 @@ from click.testing import CliRunner
 
 from plane_proj import sprints
 from plane_proj.cli import Context, cli
+from tests.conftest import writer_connect
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def target(tmp_path, monkeypatch):
 
 def seed_binding(database: Path) -> None:
     sprints.create_database(database)
-    with sqlite3.connect(database) as connection:
+    with writer_connect(database) as connection:
         connection.execute("""CREATE TABLE IF NOT EXISTS register_binding (
             singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
             host TEXT NOT NULL, workspace TEXT NOT NULL, project TEXT NOT NULL

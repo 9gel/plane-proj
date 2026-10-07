@@ -13,6 +13,7 @@ from click.testing import CliRunner
 
 from plane_proj import register, sprints
 from plane_proj.cli import cli
+from tests.conftest import writer_connect
 
 BINDING = ("https://plane.test", "test", "DEMO")
 STARTED = "2026-10-01T09:00:00Z"
@@ -221,7 +222,7 @@ def test_schema_version_mismatch_is_refused(tmp_path, which):
     plan(base, 1)
     base, ours, theirs = branches(tmp_path)
     target = {"base": base, "theirs": theirs}[which]
-    with closing(sqlite3.connect(target)) as db:
+    with closing(writer_connect(target)) as db:
         db.execute("PRAGMA user_version = 8")
     before = ours.read_bytes()
 
@@ -299,7 +300,7 @@ def test_dump_differs_when_content_differs(tmp_path):
 
 
 def raw(path: Path, *statements: str) -> None:
-    with closing(sqlite3.connect(path)) as connection:
+    with closing(writer_connect(path)) as connection:
         for statement in statements:
             connection.execute(statement)
         connection.commit()
@@ -456,3 +457,41 @@ def test_git_setup_says_when_git_is_missing(tmp_path, monkeypatch):
     assert result.exit_code == 1
     assert "git is not available" in result.stderr
     assert not (tmp_path / ".gitattributes").exists()
+
+
+@pytest.mark.parametrize("statement", [
+    "INSERT INTO sprints (sprint_id, title, status) VALUES (9, 'Raw', 'planned')",
+    "UPDATE sprints SET title = 'Raw' WHERE sprint_id = 1",
+    "DELETE FROM sprints WHERE sprint_id = 1",
+    "DELETE FROM register_binding",
+])
+def test_raw_sqlite_write_is_refused_and_register_unchanged(tmp_path, statement):
+    path = new_register(tmp_path / "SPRINTS.sqlite")
+    plan(path, 1)
+    before = register.dump_register(path)
+
+    with closing(sqlite3.connect(path)) as connection, pytest.raises(
+        sqlite3.OperationalError, match=sprints.WRITER_FUNCTION
+    ):
+        connection.execute(statement)
+        connection.commit()
+    assert register.dump_register(path) == before
+
+
+def test_v10_register_gains_the_write_guard_on_migration(tmp_path):
+    path = new_register(tmp_path / "SPRINTS.sqlite")
+    with closing(writer_connect(path)) as connection:
+        for name, in connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'trigger'"
+        ).fetchall():
+            connection.execute(f"DROP TRIGGER {name}")
+        connection.execute("PRAGMA user_version = 10")
+        connection.commit()
+
+    sprints.connect_database(path, writable=True).close()
+
+    assert sprints.schema_version(path) == sprints.SCHEMA_VERSION
+    with closing(sqlite3.connect(path)) as connection, pytest.raises(
+        sqlite3.OperationalError, match=sprints.WRITER_FUNCTION
+    ):
+        connection.execute("DELETE FROM sprints")

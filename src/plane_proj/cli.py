@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -122,6 +123,26 @@ def cli(ctx: click.Context, config: str | None, project: str | None,
         env_file: Path | None, as_json: bool) -> None:
     """Run visible, governed multi-agent delivery through Plane."""
     ctx.obj = Context(config, project, as_json, env_file)
+    ctx.call_on_close(lambda: _commit_registers(_command_words(sys.argv[1:])))
+
+
+def _command_words(arguments: list[str]) -> str:
+    """Name the command for a commit subject: words, not option values."""
+    words: list[str] = []
+    skip = False
+    for argument in arguments:
+        if skip:
+            skip = False
+        elif argument in {"--conf", "--project", "--env-file", "--database"}:
+            skip = True
+        elif not argument.startswith("-"):
+            words.append(argument)
+    return " ".join(["plane-proj", *words[:3]])
+
+
+def _commit_registers(command: str) -> None:
+    for register in sprints_module.take_written_registers():
+        register_module.commit_register(register, command)
 
 
 # ---- sprints ------------------------------------------------------------
