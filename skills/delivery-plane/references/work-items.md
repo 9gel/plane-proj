@@ -88,6 +88,16 @@ target and explicit exclusions. `Current status` contains present facts, not a
 chronology. Each acceptance criterion names a capable instrument, the observed
 property, and the required result.
 
+**A CARD MUST NOT SPECIFY RUNTIME CHECKS UNLESS THE USER ASKED FOR THEM.** A
+runtime check is a guard in delivered code that can fail a run on its own:
+validations, re-audits, inventory or count assertions, hash or identity
+comparisons, preflight gates, and thresholds. Acceptance instruments are tests
+and runs that QA executes, never code added to the product. **BEFORE A CARD
+SPECIFIES ANY CHECK, THE PLANNER MUST CONFIRM THAT NOTHING ELSE ALREADY DOES
+THE JOB** (the build tool, its tests, the orchestrator, the library, or the
+operation failing with its own error) **AND THAT IT IS NECESSARY AT ALL.** If
+either is in doubt, leave it out.
+
 Before dispatch, each data-delivery card MUST identify the exact output set:
 artifact count, format/schema, producer, consumer, identity/provenance source,
 and whether outputs remain separate. It MUST distinguish implementation,

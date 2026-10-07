@@ -22,7 +22,9 @@ MUST NOT issue the behaviour verdict on a tree it integrated.
 - Approve a size-5 exception only after documenting why every plausible split
   would leave an invalid, unusable, or undeliverable intermediate system.
 - Define representative inputs, expected outputs, rejection cases, and
-  verification instruments before implementation, and write the executable
+  verification instruments before implementation. Rejection cases are tested
+  against the operation's own errors; **NEVER SPECIFY RUNTIME CHECKS** (see
+  [work items](work-items.md#2-delivery-card)). Write the executable
   acceptance tests the Builder will loop on (see
   [verification](verification.md#2-delivery-sequence)).
 - Give each acceptance row the cheapest execution stage that can fail it, so
