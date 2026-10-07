@@ -528,6 +528,8 @@ function cardRow(start, end) {
 }
 const cardIcons = (colors, big) => `<div class="cicons">${colors.map(c => c === 'plain' ? `<span class="ci plain ${big ? 'big' : ''}"></span>` : c === stC.Cancelled ? `<span class="ci r ${big ? 'big' : ''}"></span>` : `<span class="ci ${big ? 'big' : ''} ${c === stC.Verifying ? 'v' : ''}" style="background:${c}"></span>`).join('')}</div>`;
 
+// A total that leaves out cancelled cards, naming them only when there are some.
+const liveTotal = (live, cancelled, unit) => `${live} <span class="muted small">${unit}${cancelled ? ` / ${cancelled} cancelled` : ''}</span>`;
 // Points by state, one dot per point, total outside, dashed start marker.
 // Points removed since the start show as hollow dots up to it.
 function stateBar(cards, start, unit, tipText = '') {
@@ -542,8 +544,9 @@ function stateBar(cards, start, unit, tipText = '') {
   });
   put('<span class="dot hollow" data-tip="Removed since the start"></span>', Math.max(0, start - tot));
   if (n === start) r += marker;
+  const cancelled = cards.filter(c => c.state === 'Cancelled').reduce((a, c) => a + val(c), 0);
   return `<div class="sbar"><div class="dots">${r}</div><span class="sp"></span>
-    <span class="tot">${tot} <span class="muted small">${unit}</span></span></div>`;
+    <span class="tot">${liveTotal(tot - cancelled, cancelled, unit)}</span></div>`;
 }
 // Every state, always: the legend needs no data, so it is the same loading or loaded.
 const legendOf = cls => `<div class="legend ${cls}">${PROGRESS.map(st => `<span><i ${swatch(st)}></i>${st}</span>`).join('')}</div>`;
@@ -684,7 +687,7 @@ function summaryCard(s, cards) {
   // The start markers carry the scope change in their tooltip; the page shows only the graphics.
   const scope = `Started with ${s.cards_start} cards${POINTS ? ` · ${s.points_start} pts` : ''}.<br>Now ${s.cards_current} cards${POINTS ? ` · ${s.points_current} pts (${delta >= 0 ? '+' : ''}${delta} pts)` : ''}.`;
   const count = PARTIAL ? skInline('70px', 22)
-    : `<span class="tot" style="font-weight:650;font-size:18px">${cards.length} <span class="muted small">cards</span></span>`;
+    : `<span class="tot" style="font-weight:650;font-size:18px">${liveTotal(cards.filter(c => c.state !== 'Cancelled').length, cards.filter(c => c.state === 'Cancelled').length, 'cards')}</span>`;
   // Card icons with a dashed start marker after the sprint's opening card count.
   const marker = `<span class="cstart" data-tip="${esc(scope)}"><b>start ${s.cards_start}</b></span>`;
   const icons = PARTIAL ? skIcons(s.cards_start, true) : cardIcons(byProgress(cards).map(c => stC[c.state]), true)
