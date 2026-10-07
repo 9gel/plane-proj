@@ -100,7 +100,8 @@ CURRENT = [
 ]
 # How far each running sprint has got: card states, points, hours since it
 # started and any timer still running. Four run at once, more than the
-# Overview shows side by side, so its In flight row scrolls.
+# Overview shows side by side, so its In flight row scrolls. CAT-3 has
+# cancelled a card, so its totals name what they leave out.
 CURRENT_PROGRESS = {
     "OFF-4": (
         ["Done", "Done", "Verifying", "In Progress", "Todo"],
@@ -115,7 +116,7 @@ CURRENT_PROGRESS = {
         {},
     ),
     "CAT-3": (
-        ["Done", "Done", "Done", "Verifying", "In Progress"],
+        ["Done", "Done", "Done", "Verifying", "Cancelled"],
         [2, 2, 3, 3, 1],
         4.2,
         {"blocking-run": 9.0},
@@ -508,8 +509,12 @@ def current_sprints(rng, now):
                 "points_current": sum(points),
                 "cards_done": sum(c["state"] == "Done" for c in members),
                 "points_done": done,
-                "cards_cancelled": 0,
-                "points_cancelled": 0,
+                "cards_cancelled": sum(
+                    c["state"] == "Cancelled" for c in members
+                ),
+                "points_cancelled": sum(
+                    c["points"] for c in members if c["state"] == "Cancelled"
+                ),
                 "velocity": done / hours,
                 "sprint_id": number,
                 "cycle_id": "cycle",

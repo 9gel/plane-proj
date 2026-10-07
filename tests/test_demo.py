@@ -37,6 +37,10 @@ def test_build_writes_the_page_and_every_response_it_requests(tmp_path):
     assert payload["project"] == {"key": "WAY", "name": "Wayfinder"}
     # More running sprints than the Overview shows side by side.
     assert len(payload["listing"]["current"]) == 4
+    # A running sprint with a cancelled card shows Current's cancelled totals.
+    running = [payload["cards"][str(s["sprint"])]
+               for s in payload["listing"]["current"]]
+    assert any(c["state"] == "Cancelled" for ms in running for c in ms)
     readiness = json.loads((tmp_path / "api/readiness/index.html").read_text())
     assert readiness["summary"]["sprints"] == 20
     states = {row["state"] for row in readiness["queue"]}
