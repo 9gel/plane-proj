@@ -408,7 +408,7 @@ def evaluate_readiness(
             if card_unassessed:
                 unassessed_count += 1
                 unverified_card_ids.add(card.id)
-                msg = f"{card.ref} unknown dependencies"
+                msg = f"{card.ref} dependencies unknown"
                 if msg not in unverified_reasons:
                     unverified_reasons.append(msg)
 

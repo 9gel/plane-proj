@@ -265,7 +265,7 @@ def test_touches_none_refuses_when_changes_exist_and_passes_when_clean(tmp_path)
     )
     with pytest.raises(ScopeRule) as exc_info:
         check_verdict_scope(card, "DEMO-12", rev, cwd=repo)
-    assert "declares Touches: none" in str(exc_info.value)
+    assert "declares File scope: none" in str(exc_info.value)
     assert "docs/guide.md" in str(exc_info.value)
 
 

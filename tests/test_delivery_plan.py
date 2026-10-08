@@ -45,10 +45,10 @@ def test_roundtrip_render_html_parse() -> None:
 
 
 def test_roundtrip_touches_none() -> None:
-    """Render and parse Touches: none through HTML."""
+    """Render and parse File scope: none (and legacy Touches: none) through HTML."""
     plan = DeliveryPlan(touches=(), dependencies_assessed=True)
     rendered_md = render_section(plan)
-    assert "Touches: none" in rendered_md
+    assert "File scope: none" in rendered_md
     assert "Dependencies: assessed" in rendered_md
 
     html = to_html(rendered_md)
@@ -58,6 +58,12 @@ def test_roundtrip_touches_none() -> None:
     assert parsed.is_touches_none is True
     assert parsed.dependencies_assessed is True
     assert parsed.is_declared is True
+
+    # Legacy Touches: none also parses correctly
+    legacy_html = to_html("## Delivery plan\nTouches: none\nDependencies: assessed\n")
+    legacy_parsed = parse_delivery_plan(legacy_html)
+    assert legacy_parsed.touches == ()
+    assert legacy_parsed.is_touches_none is True
 
 
 def test_undeclared_parsing() -> None:

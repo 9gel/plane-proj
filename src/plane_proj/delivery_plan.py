@@ -144,9 +144,9 @@ def render_section(
 
     lines = [f"## {DELIVERY_PLAN_HEADING}"]
     if touches_none:
-        lines.append("Touches: none")
+        lines.append("File scope: none")
     elif touches is not None:
-        lines.append("Touches:")
+        lines.append("File scope:")
         for item in touches:
             p = TouchedPath.parse(item) if isinstance(item, str) else item
             # A code span, so Markdown keeps the path literal: otherwise
@@ -197,18 +197,20 @@ def parse_delivery_plan(content: str | None) -> DeliveryPlan:
 
     in_touches = False
     for line in lines:
-        if re.match(r"(?i)^touches:\s*none\s*$", line):
+        if re.match(r"(?i)^(?:touches|file\s+scope):\s*none\s*$", line):
             touches = []
             in_touches = False
             continue
-        m_touches = re.match(r"(?i)^touches:\s*(.*)$", line)
+        m_touches = re.match(r"(?i)^(?:touches|file\s+scope):\s*(.*)$", line)
         if m_touches:
             inline = m_touches.group(1).strip()
             touches = []
             if inline.lower() == "none":
                 in_touches = False
             elif inline:
-                touches.append(TouchedPath.parse(re.sub(r"^[-*•]\s*", "", inline)))
+                touches.append(
+                    TouchedPath.parse(re.sub(r"^[-*•]\s*", "", inline))
+                )
                 in_touches = True
             else:
                 in_touches = True

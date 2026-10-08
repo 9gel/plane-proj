@@ -26,7 +26,7 @@
   /* Velocity heat, slow to fast: peach, orange, red, deep red. No yellow:
      yellow means Verifying. */
   --heat-0: #f2c4a4; --heat-1: #ee8636; --heat-2: #e2593a; --heat-3: #b81f2f;
-  --warn: #d13b3b; --unclear: #b8621b; --overlap: #7b42bc; --grid: #e9e8e4; --track: #ecebe7; --sk-hi: #fcfcfb; --range: #6f6d67; --median: #4a3aa7;
+  --warn: #d13b3b; --overlap: #b8621b; --no-scope: #7b42bc; --grid: #e9e8e4; --track: #ecebe7; --sk-hi: #fcfcfb; --range: #6f6d67; --median: #4a3aa7;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -41,7 +41,7 @@
     --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
     --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
     --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
-    --warn: #ef6b6b; --unclear: #e58d3c; --overlap: #c084fc; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
+    --warn: #ef6b6b; --overlap: #e58d3c; --no-scope: #c084fc; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
   }
 }
 :root[data-theme="dark"] {
@@ -56,7 +56,7 @@
   --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
   --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
   --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
-  --warn: #ef6b6b; --unclear: #e58d3c; --overlap: #c084fc; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
+  --warn: #ef6b6b; --overlap: #e58d3c; --no-scope: #c084fc; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
@@ -163,10 +163,11 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.r::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); } .ci.big.r::after { box-shadow: 0 6px 0 var(--muted); }
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
-.ci.u { border-style: dashed; }
-.ci.unk { border-color: var(--unclear); border-style: dashed; }
-.ci.unk::after { background: var(--unclear); box-shadow: 0 4px 0 var(--unclear); }
-.ci.big.unk::after { box-shadow: 0 6px 0 var(--unclear); }
+.ci.u { border-color: var(--no-scope); border-style: dashed; }
+.ci.unk { border-color: var(--muted); border-style: dotted; }
+.ci.unk::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
+.ci.big.unk::after { box-shadow: 0 6px 0 var(--muted); }
+.ci.u.unk { border-color: var(--no-scope); border-style: dotted; }
 .ci.go { border-color: var(--parallel); }
 .ci.go::after { background: var(--parallel); box-shadow: 0 4px 0 var(--parallel); }
 .ci.big.go::after { box-shadow: 0 6px 0 var(--parallel); }
@@ -305,7 +306,7 @@ a.pill { text-decoration: none; color: var(--text); }
 a.pill.clash { border-color: var(--overlap); color: var(--overlap); font-weight: 600; }
 a.pill.run { background: var(--st-prog); border-color: var(--st-prog); color: #fff; font-weight: 600; }
 .mark { font-size: 30px; font-weight: 700; line-height: 1; margin-right: 8px; }
-.mark.yes { color: var(--st-done); } .mark.no { color: var(--warn); } .mark.maybe { color: var(--unclear); }
+.mark.yes { color: var(--st-done); } .mark.no { color: var(--warn); } .mark.maybe { color: var(--muted); }
 .clist { padding: 4px 6px; }
 .clist td { vertical-align: top; padding: 10px; font-size: 13px; }
 .clist tbody tr:last-child td { border-bottom: 0; }
@@ -321,8 +322,8 @@ a.pill.run { background: var(--st-prog); border-color: var(--st-prog); color: #f
   .clist td[data-k]::before { content: attr(data-k); display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
 }
 .clist .flag { color: var(--warn); font-size: 12px; font-weight: 600; margin-right: 10px; }
-.clist .flag.u { color: var(--muted); font-style: italic; font-weight: 300; }
-.clist .flag.unk { color: var(--unclear); font-style: italic; font-weight: 300; }
+.clist .flag.u { color: var(--no-scope); font-style: italic; font-weight: 300; }
+.clist .flag.unk { color: var(--muted); font-style: italic; font-weight: 300; }
 ul.paths { margin: 0; padding-left: 16px; }
 ul.paths li { overflow-wrap: anywhere; }
 </style>
@@ -874,7 +875,7 @@ function cardIconsHtml(cardsOrTotal, undeclared = 0, big = false) {
       }
       if (isUnkDeps) {
         cls = cls ? `${cls} unk` : 'unk';
-        notes.push('unknown dependencies');
+        notes.push('dependencies unknown');
       }
 
       const tip = `${esc(c.ref)}: ${esc(c.title)}${notes.length ? ` · ${notes.join(' · ')}` : ''}`;
@@ -916,8 +917,8 @@ function sizeHtml(s, q) {
     const parts = [];
     if (ready > 0) parts.push(`<span style="color:var(--parallel);font-weight:600">${ready} clear to start</span>`);
     if (blocked > 0) parts.push(`<span style="color:var(--warn);font-weight:600">${blocked} blocked</span>`);
-    if (noScope > 0) parts.push(`<span style="color:var(--muted);font-style:italic;font-weight:300">${noScope} no file scope</span>`);
-    if (unkDeps > 0) parts.push(`<span style="color:var(--unclear);font-style:italic;font-weight:300">${unkDeps} unknown dependencies</span>`);
+    if (noScope > 0) parts.push(`<span style="color:var(--no-scope);font-style:italic;font-weight:300">${noScope} no file scope</span>`);
+    if (unkDeps > 0) parts.push(`<span style="color:var(--muted);font-style:italic;font-weight:300">${unkDeps} dependencies unknown</span>`);
     if (parts.length) {
       breakdown = `<div class="small" style="margin-top:6px">${parts.join(' · ')}</div>`;
     }
@@ -1029,8 +1030,8 @@ function readinessPanels(q) {
   const sharing = [...new Set(q.cards.flatMap(c => c.shares.map(x => x.sprint_id)))].sort((a, b) => a - b);
   const verdict = {
     'Can start': 'Clear to start now.',
-    Overlap: 'Shares code with a sprint that could run at the same time.',
-    Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} with no file scope`, unassessed && `${unassessed} with unknown dependencies`].filter(Boolean).join(', ')}.`,
+    Overlap: 'File scope overlaps with a sprint that could run at the same time.',
+    Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} with no file scope`, unassessed && `${unassessed} with dependencies unknown`].filter(Boolean).join(', ')}.`,
     'Not ready': q.ready_cards > 0
       ? `${q.ready_cards} of ${q.cards_count} cards are clear to start now in parallel. ${q.blocked_cards} card${q.blocked_cards === 1 ? ' waits' : 's wait'} on unfinished work in another sprint.`
       : 'Waits on unfinished cards in another sprint.',
@@ -1038,15 +1039,15 @@ function readinessPanels(q) {
   const depMark = others.size || outside
     ? `<span class="mark no">✗</span>Waits on ${others.size ? `${others.size} sprint${others.size === 1 ? '' : 's'}` : ''}${others.size && outside ? ' and ' : ''}${outside ? 'cards outside every sprint' : ''}`
     : unassessed
-      ? `<span class="mark maybe">?</span>None recorded, but ${unassessed} card${unassessed === 1 ? '' : 's'} with unknown dependencies`
+      ? `<span class="mark maybe">?</span>None recorded, but ${unassessed} card${unassessed === 1 ? '' : 's'} with dependencies unknown`
       : '<span class="mark yes">✓</span>Nothing to wait for';
   return `<div class="grid g3">
     <div class="card verdict">${stateBadge(q.state, q)}<p>${verdict}</p></div>
-    <div class="card rpanel"><h3>Shares code with</h3>${sharing.length
+    <div class="card rpanel"><h3>File scope overlaps with</h3>${sharing.length
       ? `<div class="pills">${sharing.map(id => sprintPill(id, clash.has(id))).join('')}</div>${(() => {
         const running = sharing.some(id => byId[id]?.status === 'current');
         const later = sharing.some(id => clash.has(id) && byId[id]?.status !== 'current');
-        return running || later ? `<p>${[running && 'Blue: running.', later && 'Purple: could run at the same time.'].filter(Boolean).join(' ')}</p>` : '';
+        return running || later ? `<p>${[running && 'Blue: running.', later && 'Golden: could run at the same time.'].filter(Boolean).join(' ')}</p>` : '';
       })()}`
       : '<p class="muted" style="margin:0">No other sprint.</p>'}</div>
     <div class="card rpanel"><h3>Dependencies</h3><div style="display:flex;align-items:center">${depMark}</div>${others.size ? `<div class="pills" style="margin-top:8px">${[...others].map(id => sprintPill(id)).join('')}</div>` : ''}</div>
@@ -1073,7 +1074,7 @@ function cardListHtml(q) {
       const sprints = byPath.get(p) || byPath.set(p, new Map()).get(p);
       (sprints.get(x.sprint_id) || sprints.set(x.sprint_id, []).get(x.sprint_id)).push(cardLink(x.ref));
     }));
-    const flags = [c.broad?.length ? `<span class="flag">declares ${c.broad.map(esc).join(', ')}, not files</span>` : '', !c.declared ? '<span class="flag u">no file scope</span>' : '', !c.assessed ? '<span class="flag unk">unknown dependencies</span>' : ''].filter(Boolean);
+    const flags = [c.broad?.length ? `<span class="flag">declares ${c.broad.map(esc).join(', ')}, not files</span>` : '', !c.declared ? '<span class="flag u">no file scope</span>' : '', !c.assessed ? '<span class="flag unk">dependencies unknown</span>' : ''].filter(Boolean);
     const waits = c.waits_on.map(w => `<li>${w.sprint_id == null ? '' : `${sprintLink(w.sprint_id)}: `}${cardLink(w.ref)}${w.state ? ` <span class="muted">(${esc(w.state)})</span>` : ''}</li>`).join('');
     const shares = [...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span><br><span class="muted">with</span> ${[...with_].map(([sid, links]) => `${sprintLink(sid)}: ${links.join(', ')}`).join('; ')}</li>`).join('');
     const badge = c.can_proceed
@@ -1172,8 +1173,8 @@ function renderDagSvg() {
   // Sprints
   Object.entries(pos).forEach(([id, [x, y]]) => {
     const [alias, mark, kind, unclear, s] = S[id] || ['', '', '', false, null];
-    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--unclear)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"${unclear ? ' stroke-dasharray="3 3"' : ''}><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
-      ${unclear ? `<text x="${x + W / 2}" y="${y + H + 12}" font-size="10.5" text-anchor="middle" fill="var(--unclear)" font-weight="600">dependencies unclear</text>` : ''}
+    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--muted)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"${unclear ? ' stroke-dasharray="3 3"' : ''}><title>${unclear ? 'Dependencies unknown: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
+      ${unclear ? `<text x="${x + W / 2}" y="${y + H + 12}" font-size="10.5" text-anchor="middle" fill="var(--muted)" font-weight="600">dependencies unknown</text>` : ''}
       <text x="${x + 10}" y="${y + H / 2 + 5}" font-size="13" fill="var(--text)"><tspan font-weight="600">${esc(alias)}</tspan>${alias ? ' ' : ''}<tspan fill="${alias ? 'var(--muted)' : 'var(--text)'}">#${id}</tspan></text>
       ${sprintNodeBadge(x, y, W, H, { run: kind === 'run', sprint: s, mark })}</a>`;
   });
@@ -1266,7 +1267,7 @@ V.planned = () => {
   ${kpisHtml}
 
   <h2>Start now</h2>
-  <p class="small muted" style="margin:-4px 0 10px">Only sprints that are clear to start: every card declared and assessed, nothing outside the sprint blocks them, and no shared code.</p>
+  <p class="small muted" style="margin:-4px 0 10px">Only sprints that are clear to start: every card declared and assessed, nothing outside the sprint blocks them, and no file scope overlap.</p>
   ${startNowHtml}
 
   <h2>Sprint dependencies</h2>
@@ -1274,9 +1275,9 @@ V.planned = () => {
     <div class="legend" style="margin:0 0 8px">
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--text-2)" stroke-width="1.5"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--text-2)"/></svg> must finish first (a card waits on it)</span>
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--chain)" stroke-width="2"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--chain)"/></svg> longest chain</span>
-      <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="4 3"/></svg> shares code</span>
+      <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="4 3"/></svg> file scope overlap</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--st-prog);border-radius:3px;vertical-align:-1px"></span> running</span>
-      <span><span style="display:inline-block;width:14px;height:10px;border:2px dotted var(--unclear);border-radius:3px;vertical-align:-1px"></span> dependencies unclear: arrows may be missing</span>
+      <span><span style="display:inline-block;width:14px;height:10px;border:2px dotted var(--muted);border-radius:3px;vertical-align:-1px"></span> dependencies unknown: arrows may be missing</span>
       <span><span style="display:inline-block;padding:0 4px;border:1.2px solid var(--parallel);background:var(--parallel-bg);border-radius:4px;vertical-align:-1px;font-size:10px;font-weight:700;color:var(--parallel);line-height:14px">X/Y</span> unblocked cards</span>
     </div>
     <div style="overflow-x:auto">${renderDagSvg()}</div>
@@ -1286,17 +1287,17 @@ V.planned = () => {
   <div class="legend" style="margin:0 0 10px">
     <span><span class="ci plain go" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> clear to start</span>
     <span><span class="ci plain b" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> blocked</span>
-    <span><span class="ci plain u" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300">no file scope</span></span>
-    <span><span class="ci plain unk" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300;color:var(--unclear)">unknown dependencies</span></span>
+    <span><span class="ci plain u" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300;color:var(--no-scope)">no file scope</span></span>
+    <span><span class="ci plain unk" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300;color:var(--muted)">dependencies unknown</span></span>
   </div>
   <div class="card" style="padding:4px 6px"><table class="plan-table">
   <thead><tr>
     <th class="hide-sm">#</th>
     <th>Sprint<span class="hide-sm"> and goal</span></th>
-    <th>State <span class="info" tabindex="0">ⓘ<span class="pop"><span class="state start">Can start</span><span>every card declares its scope and has its dependencies assessed, nothing outside the sprint blocks it, and no code is shared</span>
+    <th>State <span class="info" tabindex="0">ⓘ<span class="pop"><span class="state start">Can start</span><span>every card declares its scope and has its dependencies assessed, nothing outside the sprint blocks it, and no file scope overlap</span>
   <span class="state notready">X/Y blocked</span><span>some cards wait on unfinished work in another sprint (unblocked cards can start in parallel)</span>
-  <span class="state overlap">Overlap</span><span>could start, but shares code with a running sprint or with an earlier sprint in the queue that can also start</span>
-  <span class="state unknown">Unverified</span><span>some cards have no file scope or unknown dependencies, so readiness cannot be checked</span>
+  <span class="state overlap">Overlap</span><span>could start, but has file scope overlap with a running sprint or with an earlier sprint in the queue that can also start</span>
+  <span class="state unknown">Unverified</span><span>some cards have no file scope or dependencies unknown, so readiness cannot be checked</span>
   <span class="state notready">Not ready</span><span>waits on unfinished cards in another sprint</span></span></span></th>
     <th>Cards</th>
     ${POINTS ? '<th>Points</th>' : ''}

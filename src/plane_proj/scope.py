@@ -62,9 +62,9 @@ def require_tracked_files(
     for touched in touches:
         if delivery_plan_module.is_broad(touched.path):
             raise DeliveryPlanRule(
-                "Delivery plan rule: Touches lists files, not directories or "
-                f"patterns; got {touched.path!r}. List each file the card "
-                "changes, and mark files it creates (new)."
+                "Delivery plan rule: File scope lists files, not "
+                f"directories or patterns; got {touched.path!r}. List each "
+                "file the card changes, and mark files it creates (new)."
             )
     proc = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
@@ -86,7 +86,7 @@ def require_tracked_files(
         path = touched.path.removeprefix("./")
         if (root / path).is_dir():
             raise DeliveryPlanRule(
-                "Delivery plan rule: Touches lists files, not directories; "
+                "Delivery plan rule: File scope lists files, not directories; "
                 f"{path!r} is a directory. List each file the card changes."
             )
         if not touched.is_new and path not in tracked:
@@ -232,8 +232,10 @@ def check_verdict_scope(
     if plan.is_touches_none:
         if uncovered:
             raise ScopeRule(
-                f"Scope rule: {reference} declares Touches: none, but change set from {revision} "
-                f"contains {len(uncovered)} changed file(s): {', '.join(sorted(uncovered))}."
+                f"Scope rule: {reference} declares File scope: none, "
+                f"but change set from {revision} contains "
+                f"{len(uncovered)} changed file(s): "
+                f"{', '.join(sorted(uncovered))}."
             )
         return
 
