@@ -401,14 +401,14 @@ def evaluate_readiness(
                     f"{card.ref} declares directories or patterns, not files: "
                     + ", ".join(broad)
                     if broad
-                    else f"{card.ref} lacks declared scope"
+                    else f"{card.ref} no scope"
                 )
                 if msg not in unverified_reasons:
                     unverified_reasons.append(msg)
             if card_unassessed:
                 unassessed_count += 1
                 unverified_card_ids.add(card.id)
-                msg = f"{card.ref} dependencies not assessed"
+                msg = f"{card.ref} unknown dependencies"
                 if msg not in unverified_reasons:
                     unverified_reasons.append(msg)
 

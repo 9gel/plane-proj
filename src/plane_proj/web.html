@@ -164,6 +164,9 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 .ci.u { border-style: dashed; }
+.ci.unk { border-color: var(--warn); border-style: dashed; }
+.ci.unk::after { background: var(--warn); box-shadow: 0 4px 0 var(--warn); }
+.ci.big.unk::after { box-shadow: 0 6px 0 var(--warn); }
 .ci.go { border-color: var(--parallel); }
 .ci.go::after { background: var(--parallel); box-shadow: 0 4px 0 var(--parallel); }
 .ci.big.go::after { box-shadow: 0 6px 0 var(--parallel); }
@@ -849,11 +852,30 @@ const stateBadge = (st, s) => {
 function cardIconsHtml(cardsOrTotal, undeclared = 0, big = false) {
   if (Array.isArray(cardsOrTotal)) {
     return cardsOrTotal.map(c => {
-      const isU = !c.declared || !c.assessed;
-      const isB = Boolean(c.is_blocked || c.waits_on?.length);
-      const isGo = Boolean(c.can_proceed ?? (!isB && !isU));
-      const cls = isB ? 'b' : isGo ? 'go' : isU ? 'u' : '';
-      const tip = `${esc(c.ref)}: ${esc(c.title)}${c.waits_on?.length ? ` · waits on ${c.waits_on.map(w => w.ref).join(', ')}` : isGo ? ' · clear to proceed' : isU ? ' · unverified' : ''}`;
+      const isBlocked = Boolean(c.is_blocked || c.waits_on?.length);
+      const isNoScope = !c.declared;
+      const isUnkDeps = !c.assessed;
+      const isGo = Boolean(c.can_proceed ?? (!isBlocked && !isNoScope && !isUnkDeps));
+
+      let cls = '';
+      const notes = [];
+      if (isBlocked) {
+        cls = 'b';
+        notes.push(c.waits_on?.length ? `waits on ${c.waits_on.map(w => w.ref).join(', ')}` : 'blocked');
+      } else if (isGo) {
+        cls = 'go';
+        notes.push('clear to start');
+      }
+      if (isNoScope) {
+        cls = cls ? `${cls} u` : 'u';
+        notes.push('no scope');
+      }
+      if (isUnkDeps) {
+        cls = cls ? `${cls} unk` : 'unk';
+        notes.push('unknown dependencies');
+      }
+
+      const tip = `${esc(c.ref)}: ${esc(c.title)}${notes.length ? ` · ${notes.join(' · ')}` : ''}`;
       return `<span class="ci plain ${big ? 'big ' : ''}${cls}" data-tip="${tip}"></span>`;
     }).join('');
   }
@@ -882,10 +904,27 @@ function sizeHtml(s, q) {
   const est = POINTS && velocity ? `<div class="card est"><div class="v">≈ ${fmtH(s.points / velocity)}</div><div class="l">Estimated at ${num(velocity, 2)} pts/h</div></div>` : '';
   const undeclared = q ? q.cards.filter(c => !c.declared).length : 0;
   const icons = q?.cards ? cardIconsHtml(q.cards, 0, true) : (s.cards == null ? skIcons(4, true) : cardIconsHtml(s.cards, undeclared, true));
-  const readyNote = q && q.ready_cards > 0 && q.blocked_cards > 0 ? ` (${q.ready_cards} clear to start)` : '';
+
+  let breakdown = '';
+  if (q?.cards) {
+    const ready = q.cards.filter(c => c.can_proceed).length;
+    const blocked = q.cards.filter(c => c.is_blocked).length;
+    const noScope = q.cards.filter(c => !c.declared).length;
+    const unkDeps = q.cards.filter(c => !c.assessed).length;
+    const parts = [];
+    if (ready > 0) parts.push(`<span style="color:var(--parallel);font-weight:600">${ready} clear to start</span>`);
+    if (blocked > 0) parts.push(`<span style="color:var(--warn);font-weight:600">${blocked} blocked</span>`);
+    if (noScope > 0) parts.push(`<span style="color:var(--muted);font-weight:600">${noScope} no scope</span>`);
+    if (unkDeps > 0) parts.push(`<span style="color:var(--warn);font-weight:600">${unkDeps} unknown dependencies</span>`);
+    if (parts.length) {
+      breakdown = `<div class="small" style="margin-top:6px">${parts.join(' · ')}</div>`;
+    }
+  }
+
   return `<div class="size"><div class="card">
-    <div class="sline">${icons}<span>${s.cards ?? '…'} card${s.cards === 1 ? '' : 's'}${readyNote}</span></div>
-    ${POINTS ? `<div class="sline">${ringDots(s.points)}<span>${s.points} pts</span></div>` : ''}
+    <div class="sline">${icons}<span>${s.cards ?? '…'} card${s.cards === 1 ? '' : 's'}</span></div>
+    ${breakdown}
+    ${POINTS ? `<div class="sline" style="margin-top:12px">${ringDots(s.points)}<span>${s.points} pts</span></div>` : ''}
   </div>${est}</div>`;
 }
 
@@ -989,7 +1028,7 @@ function readinessPanels(q) {
   const verdict = {
     'Can start': 'Clear to start now.',
     Overlap: 'Shares code with a sprint that could run at the same time.',
-    Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} without files declared`, unassessed && `${unassessed} without assessed dependencies`].filter(Boolean).join(', ')}.`,
+    Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} with no scope`, unassessed && `${unassessed} with unknown dependencies`].filter(Boolean).join(', ')}.`,
     'Not ready': q.ready_cards > 0
       ? `${q.ready_cards} of ${q.cards_count} cards are clear to start now in parallel. ${q.blocked_cards} card${q.blocked_cards === 1 ? ' waits' : 's wait'} on unfinished work in another sprint.`
       : 'Waits on unfinished cards in another sprint.',
@@ -997,7 +1036,7 @@ function readinessPanels(q) {
   const depMark = others.size || outside
     ? `<span class="mark no">✗</span>Waits on ${others.size ? `${others.size} sprint${others.size === 1 ? '' : 's'}` : ''}${others.size && outside ? ' and ' : ''}${outside ? 'cards outside every sprint' : ''}`
     : unassessed
-      ? `<span class="mark maybe">?</span>None recorded, but ${unassessed} card${unassessed === 1 ? ' is' : 's are'} not assessed`
+      ? `<span class="mark maybe">?</span>None recorded, but ${unassessed} card${unassessed === 1 ? '' : 's'} with unknown dependencies`
       : '<span class="mark yes">✓</span>Nothing to wait for';
   return `<div class="grid g3">
     <div class="card verdict">${stateBadge(q.state, q)}<p>${verdict}</p></div>
@@ -1023,7 +1062,7 @@ function cardListHtml(q) {
       const sprints = byPath.get(p) || byPath.set(p, new Map()).get(p);
       (sprints.get(x.sprint_id) || sprints.set(x.sprint_id, []).get(x.sprint_id)).push(esc(x.ref));
     }));
-    const flags = [c.broad?.length ? `declares ${c.broad.map(esc).join(', ')}, not files` : !c.declared && 'scope not declared', !c.assessed && 'dependencies not assessed'].filter(Boolean);
+    const flags = [c.broad?.length ? `declares ${c.broad.map(esc).join(', ')}, not files` : !c.declared && 'no scope', !c.assessed && 'unknown dependencies'].filter(Boolean);
     const waits = c.waits_on.map(w => `<li>${w.sprint_id == null ? '' : `${sprintLink(w.sprint_id)}: `}${esc(w.ref)}${w.state ? ` <span class="muted">(${esc(w.state)})</span>` : ''}</li>`).join('');
     const shares = [...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span><br><span class="muted">with</span> ${[...with_].map(([sid, refs]) => `${sprintLink(sid)}: ${refs.join(', ')}`).join('; ')}</li>`).join('');
     const badge = c.can_proceed
@@ -1203,7 +1242,7 @@ V.planned = () => {
     <td>${stateBadge(s.state, s)}</td>
     <td>
       <div class="cicons hide-sm">${cardIconsHtml(s.cards || s.cards_count, s.undeclared)}</div>
-      <div class="small muted" style="margin-top:3px;white-space:nowrap">${s.cards_count} card${s.cards_count === 1 ? '' : 's'}${s.ready_cards > 0 && s.blocked_cards > 0 ? ` · ${s.ready_cards} can start` : ''}</div>
+      <div class="small muted" style="margin-top:3px;white-space:nowrap">${s.cards_count} card${s.cards_count === 1 ? '' : 's'}${s.ready_cards > 0 && s.blocked_cards > 0 ? ` · ${s.ready_cards} clear to start` : ''}</div>
     </td>
     ${POINTS ? `<td><span class="hide-sm">${ringDots(s.points)}</span><div class="small muted" style="margin-top:3px;white-space:nowrap">${s.points} pts</div></td>` : ''}
     <td class="hide-sm" style="min-width:150px">
@@ -1233,6 +1272,12 @@ V.planned = () => {
   </div>
 
   <h2>Queue</h2>
+  <div class="legend" style="margin:0 0 10px">
+    <span><span class="ci plain go" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> clear to start</span>
+    <span><span class="ci plain b" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> blocked</span>
+    <span><span class="ci plain u" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> no scope</span>
+    <span><span class="ci plain unk" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> unknown dependencies</span>
+  </div>
   <div class="card" style="padding:4px 6px"><table class="plan-table">
   <thead><tr>
     <th class="hide-sm">#</th>
@@ -1240,7 +1285,7 @@ V.planned = () => {
     <th>State <span class="info" tabindex="0">ⓘ<span class="pop"><span class="state start">Can start</span><span>every card declares its scope and has its dependencies assessed, nothing outside the sprint blocks it, and no code is shared</span>
   <span class="state notready">X/Y blocked</span><span>some cards wait on unfinished work in another sprint (unblocked cards can start in parallel)</span>
   <span class="state overlap">Overlap</span><span>could start, but shares code with a running sprint or with an earlier sprint in the queue that can also start</span>
-  <span class="state unknown">Unverified</span><span>some cards lack a scope declaration or a dependency assessment, so readiness cannot be checked</span>
+  <span class="state unknown">Unverified</span><span>some cards have no scope or unknown dependencies, so readiness cannot be checked</span>
   <span class="state notready">Not ready</span><span>waits on unfinished cards in another sprint</span></span></span></th>
     <th>Cards</th>
     ${POINTS ? '<th>Points</th>' : ''}

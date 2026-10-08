@@ -164,8 +164,8 @@ def test_four_readiness_states_and_reasons_naming_cards() -> None:
     assert any("DEMO-11" in r and "DEMO-1" in r and "src/run.py" in r for r in whys[11])
 
     assert states[12] == STATE_UNVERIFIED
-    assert any("DEMO-12 lacks declared scope" in r for r in whys[12])
-    assert any("DEMO-12 dependencies not assessed" in r for r in whys[12])
+    assert any("DEMO-12 no scope" in r for r in whys[12])
+    assert any("DEMO-12 unknown dependencies" in r for r in whys[12])
 
     assert states[13] == STATE_CAN_START
     assert whys[13] == []
@@ -586,8 +586,8 @@ def test_queue_rows_carry_every_reason_not_only_the_winning_state() -> None:
     assert row["state"] == STATE_NOT_READY
     assert row["blockers"] == ["Waits on running #1: DEMO-2 needs DEMO-1"]
     assert row["unverified"] == [
-        "DEMO-2 lacks declared scope",
-        "DEMO-2 dependencies not assessed",
+        "DEMO-2 no scope",
+        "DEMO-2 unknown dependencies",
     ]
 
 
