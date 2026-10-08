@@ -165,7 +165,7 @@ def test_four_readiness_states_and_reasons_naming_cards() -> None:
 
     assert states[12] == STATE_UNVERIFIED
     assert any("DEMO-12 no file scope" in r for r in whys[12])
-    assert any("DEMO-12 dependencies unknown" in r for r in whys[12])
+    assert any("DEMO-12 dependencies incomplete" in r for r in whys[12])
 
     assert states[13] == STATE_CAN_START
     assert whys[13] == []
@@ -587,7 +587,7 @@ def test_queue_rows_carry_every_reason_not_only_the_winning_state() -> None:
     assert row["blockers"] == ["Waits on running #1: DEMO-2 needs DEMO-1"]
     assert row["unverified"] == [
         "DEMO-2 no file scope",
-        "DEMO-2 dependencies unknown",
+        "DEMO-2 dependencies incomplete",
     ]
 
 

@@ -408,7 +408,7 @@ def evaluate_readiness(
             if card_unassessed:
                 unassessed_count += 1
                 unverified_card_ids.add(card.id)
-                msg = f"{card.ref} dependencies unknown"
+                msg = f"{card.ref} dependencies incomplete"
                 if msg not in unverified_reasons:
                     unverified_reasons.append(msg)
 
@@ -675,6 +675,7 @@ def _card_rows(
             "assessed": plan.dependencies_assessed,
             "can_proceed": can_proceed,
             "is_blocked": is_blocked,
+            "is_overlap": is_overlap,
             "waits_on": waits_on,
             "shares": shares,
         })
