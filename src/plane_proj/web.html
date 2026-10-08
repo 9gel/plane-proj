@@ -167,7 +167,7 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.unk { border-color: var(--muted); border-style: dotted; }
 .ci.unk::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 .ci.big.unk::after { box-shadow: 0 6px 0 var(--muted); }
-.ci.u.unk { border-color: var(--no-scope); border-style: dotted; }
+.ci.u.unk { border-color: var(--no-scope); border-style: dashed; }
 .ci.go { border-color: var(--parallel); }
 .ci.go::after { background: var(--parallel); box-shadow: 0 4px 0 var(--parallel); }
 .ci.big.go::after { box-shadow: 0 6px 0 var(--parallel); }
@@ -1130,10 +1130,18 @@ function renderDagSvg() {
   let g = `<text x="${X(0)}" y="16" font-size="12" font-weight="600" fill="var(--text-2)">Running / Can start</text>`
     + (maxCol >= 1 ? `<text x="${X(1)}" y="16" font-size="12" font-weight="600" fill="var(--text-2)">Other sprints</text><line x1="${X(1) - GX / 2}" y1="4" x2="${X(1) - GX / 2}" y2="${height - 4}" stroke="var(--border)"/>` : '');
 
-  // Overlap dashed arcs
+  // Overlap dash-dot arcs (grouped by sprint pair so multiple overlapping cards don't stack lines)
+  const overlapEdges = new Map();
   (READINESS.overlap_pairs || []).forEach(p => {
-    const a = p.sprint_a, b = p.sprint_b, path = (p.paths || []).join(', ');
+    const a = p.sprint_a, b = p.sprint_b;
     if (!pos[a] || !pos[b]) return;
+    const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+    const edge = overlapEdges.get(key) || { a, b, paths: new Set() };
+    (p.paths || []).forEach(pth => edge.paths.add(pth));
+    overlapEdges.set(key, edge);
+  });
+  overlapEdges.forEach(({ a, b, paths }) => {
+    const path = [...paths].join(', ');
     const [x1, y1] = pos[a], [x2, y2] = pos[b];
     const same = x1 === x2;
     const ax = same ? x1 : x1 + W / 2, ay = same ? y1 + H / 2 : y1 + H;
