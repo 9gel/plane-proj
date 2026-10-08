@@ -26,7 +26,7 @@
   /* Velocity heat, slow to fast: peach, orange, red, deep red. No yellow:
      yellow means Verifying. */
   --heat-0: #f2c4a4; --heat-1: #ee8636; --heat-2: #e2593a; --heat-3: #b81f2f;
-  --warn: #d13b3b; --grid: #e9e8e4; --track: #ecebe7; --sk-hi: #fcfcfb; --range: #6f6d67; --median: #4a3aa7;
+  --warn: #d13b3b; --unclear: #b8621b; --grid: #e9e8e4; --track: #ecebe7; --sk-hi: #fcfcfb; --range: #6f6d67; --median: #4a3aa7;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -41,7 +41,7 @@
     --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
     --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
     --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
-    --warn: #ef6b6b; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
+    --warn: #ef6b6b; --unclear: #e58d3c; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
   }
 }
 :root[data-theme="dark"] {
@@ -56,7 +56,7 @@
   --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
   --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
   --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
-  --warn: #ef6b6b; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
+  --warn: #ef6b6b; --unclear: #e58d3c; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
@@ -108,9 +108,9 @@ h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 10
 .state::before { font-size: 26px; line-height: 1; }
 .state.start { color: var(--text); } .state.start::before { content: "🚀"; }
 .state.overlap { color: var(--warn); } .state.overlap::before { content: "⚠️"; }
-.state.unknown { color: var(--warn); } .state.unknown::before { content: "❓"; }
+.state.unknown { color: var(--unclear); } .state.unknown::before { content: "❓"; }
 .state.notready { color: var(--muted); } .state.notready::before { content: "⏳"; }
-.unknown { color: var(--text); font-weight: 600; } .unknown::before { content: "? "; color: var(--warn); font-weight: 700; }
+.unknown { color: var(--text); font-weight: 600; } .unknown::before { content: "? "; color: var(--unclear); font-weight: 700; }
 .plan-table th, .plan-table td { vertical-align: top; padding: 10px; }
 .plan-table td.pos { font-family: ui-monospace, monospace; color: var(--muted); font-size: 16px; text-align: center; width: 36px; }
 .plan-table tbody tr:last-child td { border-bottom: 0; }
@@ -164,9 +164,9 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 .ci.u { border-style: dashed; }
-.ci.unk { border-color: var(--warn); border-style: dashed; }
-.ci.unk::after { background: var(--warn); box-shadow: 0 4px 0 var(--warn); }
-.ci.big.unk::after { box-shadow: 0 6px 0 var(--warn); }
+.ci.unk { border-color: var(--unclear); border-style: dashed; }
+.ci.unk::after { background: var(--unclear); box-shadow: 0 4px 0 var(--unclear); }
+.ci.big.unk::after { box-shadow: 0 6px 0 var(--unclear); }
 .ci.go { border-color: var(--parallel); }
 .ci.go::after { background: var(--parallel); box-shadow: 0 4px 0 var(--parallel); }
 .ci.big.go::after { box-shadow: 0 6px 0 var(--parallel); }
@@ -305,7 +305,7 @@ a.pill { text-decoration: none; color: var(--text); }
 a.pill.clash { border-color: var(--warn); color: var(--warn); font-weight: 600; }
 a.pill.run { background: var(--st-prog); border-color: var(--st-prog); color: #fff; font-weight: 600; }
 .mark { font-size: 30px; font-weight: 700; line-height: 1; margin-right: 8px; }
-.mark.yes { color: var(--st-done); } .mark.no, .mark.maybe { color: var(--warn); }
+.mark.yes { color: var(--st-done); } .mark.no { color: var(--warn); } .mark.maybe { color: var(--unclear); }
 .clist { padding: 4px 6px; }
 .clist td { vertical-align: top; padding: 10px; font-size: 13px; }
 .clist tbody tr:last-child td { border-bottom: 0; }
@@ -321,6 +321,8 @@ a.pill.run { background: var(--st-prog); border-color: var(--st-prog); color: #f
   .clist td[data-k]::before { content: attr(data-k); display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
 }
 .clist .flag { color: var(--warn); font-size: 12px; font-weight: 600; margin-right: 10px; }
+.clist .flag.u { color: var(--muted); font-style: italic; font-weight: 300; }
+.clist .flag.unk { color: var(--unclear); font-style: italic; font-weight: 300; }
 ul.paths { margin: 0; padding-left: 16px; }
 ul.paths li { overflow-wrap: anywhere; }
 </style>
@@ -672,7 +674,7 @@ V.overview = () => {
           } else if (q.state === 'Overlap') {
             pill = `<span class="pill" style="color:var(--warn)">Overlap</span>`;
           } else if (q.state === 'Unverified') {
-            pill = `<span class="pill" style="color:var(--warn)">Unverified</span>`;
+            pill = `<span class="pill" style="color:var(--unclear)">Unverified</span>`;
           }
         }
         const icons = s.cards == null ? skIcons(4)
@@ -915,7 +917,7 @@ function sizeHtml(s, q) {
     if (ready > 0) parts.push(`<span style="color:var(--parallel);font-weight:600">${ready} clear to start</span>`);
     if (blocked > 0) parts.push(`<span style="color:var(--warn);font-weight:600">${blocked} blocked</span>`);
     if (noScope > 0) parts.push(`<span style="color:var(--muted);font-style:italic;font-weight:300">${noScope} no scope</span>`);
-    if (unkDeps > 0) parts.push(`<span style="color:var(--warn);font-style:italic;font-weight:300">${unkDeps} unknown dependencies</span>`);
+    if (unkDeps > 0) parts.push(`<span style="color:var(--unclear);font-style:italic;font-weight:300">${unkDeps} unknown dependencies</span>`);
     if (parts.length) {
       breakdown = `<div class="small" style="margin-top:6px">${parts.join(' · ')}</div>`;
     }
@@ -1071,7 +1073,7 @@ function cardListHtml(q) {
       const sprints = byPath.get(p) || byPath.set(p, new Map()).get(p);
       (sprints.get(x.sprint_id) || sprints.set(x.sprint_id, []).get(x.sprint_id)).push(cardLink(x.ref));
     }));
-    const flags = [c.broad?.length ? `declares ${c.broad.map(esc).join(', ')}, not files` : !c.declared && 'no scope', !c.assessed && 'unknown dependencies'].filter(Boolean);
+    const flags = [c.broad?.length ? `<span class="flag">declares ${c.broad.map(esc).join(', ')}, not files</span>` : '', !c.declared ? '<span class="flag u">no scope</span>' : '', !c.assessed ? '<span class="flag unk">unknown dependencies</span>' : ''].filter(Boolean);
     const waits = c.waits_on.map(w => `<li>${w.sprint_id == null ? '' : `${sprintLink(w.sprint_id)}: `}${cardLink(w.ref)}${w.state ? ` <span class="muted">(${esc(w.state)})</span>` : ''}</li>`).join('');
     const shares = [...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span><br><span class="muted">with</span> ${[...with_].map(([sid, links]) => `${sprintLink(sid)}: ${links.join(', ')}`).join('; ')}</li>`).join('');
     const badge = c.can_proceed
@@ -1081,7 +1083,7 @@ function cardListHtml(q) {
         : '';
     return `<tr>
       <td class="ref mono small">${link(c)}${badge}</td>
-      <td><b>${esc(c.title)}</b>${flags.length ? `<div>${flags.map(f => `<span class="flag">${f}</span>`).join('')}</div>` : ''}</td>
+      <td><b>${esc(c.title)}</b>${flags.length ? `<div>${flags.join('')}</div>` : ''}</td>
       ${POINTS ? `<td style="min-width:90px">${ringDots(c.points)}<div class="small muted" style="margin-top:3px">${c.points} pt${c.points === 1 ? '' : 's'}</div></td>` : ''}
       <td data-k="Waits on" class="${waits ? '' : 'empty'}">${waits ? `<ul>${waits}</ul>` : '<span class="muted">—</span>'}</td>
       <td data-k="Shares code" class="${shares ? '' : 'empty'}">${shares ? `<ul>${shares}</ul>` : '<span class="muted">—</span>'}</td>
@@ -1170,8 +1172,8 @@ function renderDagSvg() {
   // Sprints
   Object.entries(pos).forEach(([id, [x, y]]) => {
     const [alias, mark, kind, unclear, s] = S[id] || ['', '', '', false, null];
-    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--warn)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
-      ${unclear ? `<text x="${x + W / 2}" y="${y + H + 12}" font-size="10.5" text-anchor="middle" fill="var(--warn)" font-weight="600">dependencies unclear</text>` : ''}
+    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--unclear)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
+      ${unclear ? `<text x="${x + W / 2}" y="${y + H + 12}" font-size="10.5" text-anchor="middle" fill="var(--unclear)" font-weight="600">dependencies unclear</text>` : ''}
       <text x="${x + 10}" y="${y + H / 2 + 5}" font-size="13" fill="var(--text)"><tspan font-weight="600">${esc(alias)}</tspan>${alias ? ' ' : ''}<tspan fill="${alias ? 'var(--muted)' : 'var(--text)'}">#${id}</tspan></text>
       ${sprintNodeBadge(x, y, W, H, { run: kind === 'run', sprint: s, mark })}</a>`;
   });
@@ -1274,7 +1276,7 @@ V.planned = () => {
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--chain)" stroke-width="2"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--chain)"/></svg> longest chain</span>
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 3"/></svg> shares code</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--st-prog);border-radius:3px;vertical-align:-1px"></span> running</span>
-      <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--warn);border-radius:3px;vertical-align:-1px"></span> dependencies unclear: arrows may be missing</span>
+      <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--unclear);border-radius:3px;vertical-align:-1px"></span> dependencies unclear: arrows may be missing</span>
       <span><span style="display:inline-block;padding:0 4px;border:1.2px solid var(--parallel);background:var(--parallel-bg);border-radius:4px;vertical-align:-1px;font-size:10px;font-weight:700;color:var(--parallel);line-height:14px">X/Y</span> unblocked cards</span>
     </div>
     <div style="overflow-x:auto">${renderDagSvg()}</div>
@@ -1285,7 +1287,7 @@ V.planned = () => {
     <span><span class="ci plain go" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> clear to start</span>
     <span><span class="ci plain b" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> blocked</span>
     <span><span class="ci plain u" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300">no scope</span></span>
-    <span><span class="ci plain unk" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300">unknown dependencies</span></span>
+    <span><span class="ci plain unk" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300;color:var(--unclear)">unknown dependencies</span></span>
   </div>
   <div class="card" style="padding:4px 6px"><table class="plan-table">
   <thead><tr>
