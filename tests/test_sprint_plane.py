@@ -339,6 +339,18 @@ def test_write_sprint_cycle_creates_named_cycle_and_reads_it_back(
     assert client.named("cycles.retrieve")
 
 
+def test_write_sprint_cycle_creates_named_cycle_with_title(
+    board, client: FakeClient, planned: PlannedCycles,
+) -> None:
+    cycle_id = board.write_sprint_cycle(7, None, "## Goal\n\nShip", title="The Title")
+
+    (_, _, sent), = client.named("cycles.create")
+    assert sent["data"].name == "Sprint 7 - The Title"
+    assert sent["data"].description == "## Goal\n\nShip"
+    assert cycle_id == "cycle-1"
+    assert board.sprint_cycles({7}) == {7: "cycle-1"}
+
+
 def test_write_sprint_cycle_updates_only_a_changed_description(
     board, client: FakeClient, planned: PlannedCycles,
 ) -> None:
@@ -353,6 +365,18 @@ def test_write_sprint_cycle_updates_only_a_changed_description(
     assert sent["data"].description == "second"
     assert planned.records[0].description == "second"
     assert len(client.named("cycles.create")) == 1
+
+
+def test_write_sprint_cycle_updates_name_when_title_changes(
+    board, client: FakeClient, planned: PlannedCycles,
+) -> None:
+    cycle_id = board.write_sprint_cycle(7, None, "first", title="Old Title")
+
+    assert board.write_sprint_cycle(7, cycle_id, "first", title="New Title") == cycle_id
+    (_, args, sent), = client.named("cycles.update")
+    assert args[2] == cycle_id
+    assert sent["data"].name == "Sprint 7 - New Title"
+    assert planned.records[0].name == "Sprint 7 - New Title"
 
 
 def test_write_sprint_cycle_fails_when_description_does_not_read_back(

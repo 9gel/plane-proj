@@ -262,7 +262,9 @@ def sprints_plan(
                     connection, sprint_id, cycle_id,
                     board.cycle_description(cycle_id), description,
                 )
-        cycle_id = board.write_sprint_cycle(sprint_id, cycle_id, description)
+        cycle_id = board.write_sprint_cycle(
+            sprint_id, cycle_id, description, title=title,
+        )
         connection.execute("BEGIN IMMEDIATE")
         sprints_module.require_unbound_cycle(connection, sprint_id, cycle_id)
         if not known and not adopt_cycle:
@@ -351,7 +353,10 @@ def sprints_start(obj: dict[str, Any], cycle_id: str, started: str) -> None:
             )
         started_utc = sprints_module.to_utc_timestamp(started)
         sprints_module.validate_sprint_start(connection, sprint_id, started_utc, cycle_id)
-        board.require_no_orphans(*_open_sprints(connection))
+        current, planned, known = _open_sprints(connection)
+        if hasattr(board, "require_sprints_in_sync"):
+            board.require_sprints_in_sync(known)
+        board.require_no_orphans(current, planned)
         cycle_name, admitted, backlogged = board.start_sprint_cycle(cycle_id, started)
         metrics = board.sprint_cycle_metrics(cycle_id)
         # Cancelled members are not admitted scope; opening totals
@@ -372,16 +377,18 @@ def sprints_start(obj: dict[str, Any], cycle_id: str, started: str) -> None:
 
 def _open_sprints(
     connection: sqlite3.Connection,
-) -> tuple[dict[int, str], set[int]]:
-    """Current sprints with their bound cycle ids, and planned sprint ids."""
+) -> tuple[dict[int, str], set[int], set[int]]:
+    """Current sprints with bound cycle ids, planned sprint ids, and all known sprint ids."""
     current: dict[int, str] = {}
     planned: set[int] = set()
+    known: set[int] = set()
     for sprint in sprints_module.fetch_sprints(connection):
+        known.add(sprint.sprint_id)
         if sprint.status == sprints_module.STATUS_CURRENT and sprint.cycle_id:
             current[sprint.sprint_id] = sprint.cycle_id
         elif sprint.status == sprints_module.STATUS_PLANNED:
             planned.add(sprint.sprint_id)
-    return current, planned
+    return current, planned, known
 
 
 @sprints.command("check")
@@ -398,8 +405,8 @@ def sprints_check(obj: dict[str, Any]) -> None:
     with sprints_module.connect_database(
         obj["database"], writable=False
     ) as connection:
-        current, planned = _open_sprints(connection)
-    findings = root.board.sprint_findings(current, planned)
+        current, planned, known = _open_sprints(connection)
+    findings = root.board.sprint_findings(current, planned, known)
     emit(findings, as_json=root.as_json, render=lambda r: records_table(r, [
         ("card", "CARD"), ("finding", "FINDING"), ("detail", "DETAIL"),
     ]))

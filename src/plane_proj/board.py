@@ -65,6 +65,7 @@ from plane_proj.guards import (
     OrphanedCard,
     ReadbackFailed,
     ScaleContradiction,
+    SprintCycleMissing,
     TransitionNotAllowed,
 )
 from plane_proj.sprints import timestamps_equal
@@ -155,6 +156,20 @@ def sprint_cycle_number(name: str) -> int | None:
     """The N of a cycle named for `Sprint N`, or None for any other name."""
     match = _SPRINT_NAME.match(name.strip())
     return None if match is None else int(match.group(1))
+
+
+def sprint_cycle_name(sprint_id: int, title: str | None = None) -> str:
+    """The Plane cycle name for a sprint, formatted as `Sprint N - Title`."""
+    if not title or not title.strip():
+        return f"Sprint {sprint_id}"
+    cleaned = title.strip()
+    if cleaned == f"Sprint {sprint_id}":
+        return f"Sprint {sprint_id}"
+    prefix_match = _SPRINT_NAME.match(cleaned)
+    if prefix_match and int(prefix_match.group(1)) == sprint_id:
+        remainder = cleaned[prefix_match.end():].lstrip(" -—:").strip()
+        return f"Sprint {sprint_id} - {remainder}" if remainder else f"Sprint {sprint_id}"
+    return f"Sprint {sprint_id} - {cleaned}"
 
 
 class Board:
@@ -742,12 +757,53 @@ class Board:
             not in SETTLED_STATES
         ]
 
+    def missing_sprint_cycles(
+        self, known_sprint_ids: set[int],
+    ) -> list[tuple[int, str, str]]:
+        """Plane sprint cycles not present in known_sprint_ids.
+
+        Returns (sprint_id, cycle_name, cycle_id) tuples for active (non-cancelled,
+        non-archived) sprint cycles on Plane whose sprint ID is absent from the
+        local register.
+        """
+        missing: list[tuple[int, str, str]] = []
+        for cycle in self.groupings("cycle"):
+            if getattr(cycle, "archived_at", None) or getattr(cycle, "deleted_at", None):
+                continue
+            name = str(getattr(cycle, "name", ""))
+            if "(cancelled)" in name.casefold():
+                continue
+            match = _SPRINT_NAME.match(name)
+            if match is None:
+                continue
+            sprint_id = int(match.group(1))
+            if sprint_id not in known_sprint_ids:
+                missing.append((sprint_id, name, str(getattr(cycle, "id", ""))))
+        return sorted(missing, key=lambda x: x[0])
+
+    def require_sprints_in_sync(self, known_sprint_ids: set[int]) -> None:
+        """Refuse when Plane holds a sprint cycle completely absent from the register."""
+        missing = self.missing_sprint_cycles(known_sprint_ids)
+        if missing:
+            names = ", ".join(f"{name!r} ({cycle_id})" for _, name, cycle_id in missing)
+            ids = ", ".join(str(sprint_id) for sprint_id, _, _ in missing)
+            raise SprintCycleMissing(
+                f"Sprint cycle rule: Plane has sprint cycle(s) completely absent "
+                f"from this register: {names}. This register has no record of sprint {ids}. "
+                "Another git branch or worktree may have planned or run them, or this "
+                "register is out of sync or corrupt. Switch to the branch or worktree "
+                "where the sprint was planned, or merge it into this branch."
+            )
+
     def require_no_orphans(
         self, current: Mapping[int, str], planned: set[int],
+        known: set[int] | None = None,
     ) -> None:
         """Refuse while any open card belongs to no planned or current sprint."""
         if not self.project.rules.require_cycle:
             return
+        if known is not None:
+            self.require_sprints_in_sync(known)
         members, _ = self.sprint_membership(current, planned)
         orphans = self.orphaned_cards(members, self.cards())
         if orphans:
@@ -762,16 +818,26 @@ class Board:
 
     def sprint_findings(
         self, current: Mapping[int, str], planned: set[int],
+        known: set[int] | None = None,
     ) -> list[dict[str, str]]:
         """Audit sprint membership, card states, and timers; writes nothing."""
+        findings = []
+        if known is not None:
+            for _sprint_id, name, cycle_id in self.missing_sprint_cycles(known):
+                findings.append({
+                    "card": "—",
+                    "finding": "sprint absent from register",
+                    "detail": f"Plane cycle {name!r} ({cycle_id}) has no record "
+                              "in this register; check git branch or worktree",
+                })
         members, cycleless = self.sprint_membership(current, planned)
         cards = self.cards()
-        findings = [
+        findings.extend([
             {"card": self._reference(card), "finding": "in no sprint",
              "detail": f"state {self._state_name(getattr(card, 'state', None))}; "
                        "set-cycle to a planned sprint or cancel"}
             for card in self.orphaned_cards(members, cards)
-        ]
+        ])
         for card in cards:
             if str(card.id) not in members:
                 continue
@@ -1330,33 +1396,54 @@ class Board:
 
     def write_sprint_cycle(
         self, sprint_id: int, cycle_id: str | None, description: str,
+        title: str | None = None,
     ) -> str:
         """Create or update the `Sprint N` cycle so it describes the plan.
 
         `cycle_id` is the live cycle `sprint_cycles` found, or None to create
-        one. An unchanged description is not rewritten. Both the cycle and
-        its description are read back before the id is returned.
+        one. An unchanged description or name is not rewritten. Both the cycle
+        and its description are read back before the id is returned.
         """
+        expected_name = sprint_cycle_name(sprint_id, title)
         if cycle_id is None:
             created = self.create_cycle(
-                f"Sprint {sprint_id}", {"description": description}
+                expected_name, {"description": description}
             )
             cycle_id = str(getattr(created, "id", ""))
             found = self.sprint_cycles({sprint_id}).get(sprint_id)
             if not cycle_id or found != cycle_id:
                 raise ReadbackFailed(
-                    f"Plane did not confirm cycle 'Sprint {sprint_id}': "
+                    f"Plane did not confirm cycle {expected_name!r}: "
                     f"created {cycle_id!r}, read back {found!r}."
                 )
-        elif self.cycle_description(cycle_id) != description:
-            self.update_cycle(cycle_id, {"description": description})
+        else:
+            fields: dict[str, Any] = {}
+            if self.cycle_description(cycle_id) != description:
+                fields["description"] = description
+            if self.cycle_name(cycle_id) != expected_name:
+                fields["name"] = expected_name
+            if fields:
+                self.update_cycle(cycle_id, fields)
         actual = self.cycle_description(cycle_id)
         if actual != description:
             raise ReadbackFailed(
                 f"Plane accepted the plan for cycle {cycle_id}, but its "
                 f"description reads back {actual!r}."
             )
+        actual_name = self.cycle_name(cycle_id)
+        if actual_name != expected_name:
+            raise ReadbackFailed(
+                f"Plane accepted the plan for cycle {cycle_id}, but its "
+                f"name reads back {actual_name!r}."
+            )
         return cycle_id
+
+    def cycle_name(self, cycle_id: str) -> object:
+        """A cycle's stored name, read live."""
+        cycle = self.client.cycles.retrieve(
+            self.slug, self.project.id, cycle_id
+        )
+        return getattr(cycle, "name", None)
 
     def cycle_description(self, cycle_id: str) -> object:
         """A cycle's stored description, read live."""

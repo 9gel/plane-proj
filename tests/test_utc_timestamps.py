@@ -118,7 +118,7 @@ class FakeUtcBoard:
     def cycle_sprint_id(self, cycle_id: str) -> tuple[int, SimpleNamespace]:
         return int(cycle_id), SimpleNamespace(name=f"Sprint {cycle_id}")
 
-    def require_no_orphans(self, current: object, planned: object) -> None:
+    def require_no_orphans(self, current: object, planned: object, known: object = None) -> None:
         pass
 
     def sprint_cycles(self, sprint_ids: set[int]) -> dict[int, str]:
@@ -128,10 +128,12 @@ class FakeUtcBoard:
         return ""
 
     def write_sprint_cycle(
-        self, sprint_id: int, cycle_id: str | None, description: str
+        self, sprint_id: int, cycle_id: str | None, description: str,
+        title: str | None = None,
     ) -> str:
+        title_part = f" - {title.strip()}" if title and title.strip() else ""
         self.cycles[sprint_id] = SimpleNamespace(
-            id=str(sprint_id), name=f"Sprint {sprint_id}", description=description
+            id=str(sprint_id), name=f"Sprint {sprint_id}{title_part}", description=description
         )
         return str(sprint_id)
 

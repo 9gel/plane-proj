@@ -205,6 +205,12 @@ holds no open card. The rule is enforced where a card could leave that set:
 - `card new` requires a cycle, and `--backlog` no longer exists.
 - `card rm-cycle` and `cycle rm` refuse an open card; `set-cycle` moves it to
   another sprint.
+- `sprints start` checks register synchronization before checking orphan
+  membership: if Plane holds an active `Sprint N` cycle completely absent from
+  the local register, it raises `SprintCycleMissing` before any write, pointing
+  out that another branch or worktree planned or ran it, or the local register
+  is out of sync. `sprints check` reports such cycles as
+  `sprint absent from register`.
 - `sprints start` reads membership before its first write and raises
   `OrphanedCard` while any open card is in no sprint. The start's move of
   active out-of-cycle cards to Backlog therefore applies only with
@@ -299,10 +305,12 @@ write when:
 With no match it creates the cycle and reads it back by name. The cycle
 description is the plan in Markdown: the title as a heading, the goal, any
 execution guidance, and the acceptance criteria as a list. The cycle name
-stays `Sprint N`. The description is written only when it differs and is
-verified by readback. The register row is written last. A failure between the
-Plane write and the register write therefore converges on retry: the cycle is
-found by name and reused, and an unchanged description is not rewritten.
+is `Sprint N - <Title>` (or `Sprint N` if no distinct title is supplied),
+updating an existing cycle's name when the title changes. The description
+is written only when it differs and is verified by readback. The register row
+is written last. A failure between the Plane write and the register write
+therefore converges on retry: the cycle is found by name and reused, and an
+unchanged description is not rewritten.
 
 The register's write lock (`BEGIN IMMEDIATE`) is taken only for that final
 write, never across the Plane exchange. A plan makes several requests, each

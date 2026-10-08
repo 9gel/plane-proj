@@ -386,7 +386,11 @@ class PlannedCycles(Recorder):
         super().__getattr__("update")(*args, **kwargs)
         record = self.retrieve_record(str(args[2]))
         if self.store:
-            record.description = kwargs["data"].description
+            sent = kwargs["data"]
+            if getattr(sent, "description", None) is not None:
+                record.description = sent.description
+            if getattr(sent, "name", None) is not None:
+                record.name = sent.name
         return record
 
     def retrieve(self, *args: Any, **kwargs: Any) -> Any:

@@ -11,6 +11,7 @@ import pytest
 from click.testing import CliRunner
 
 from plane_proj import execution, sprints
+from plane_proj.board import sprint_cycle_name
 from plane_proj.cli import Context, cli
 from plane_proj.guards import (
     ConfigError,
@@ -66,7 +67,7 @@ class SprintBoard:
     def cycle_sprint_id(self, cycle_id: str):
         return int(cycle_id), SimpleNamespace(name=f"Sprint {cycle_id}")
 
-    def require_no_orphans(self, current, planned):
+    def require_no_orphans(self, current, planned, known=None):
         self.orphan_checks.append((dict(current), set(planned)))
 
     def start_sprint_cycle(self, cycle_id: str, started: str):
@@ -96,16 +97,19 @@ class SprintBoard:
             if cycle.id == cycle_id
         )
 
-    def write_sprint_cycle(self, sprint_id, cycle_id, description):
+    def write_sprint_cycle(self, sprint_id, cycle_id, description, title=None):
+        expected_name = sprint_cycle_name(sprint_id, title)
         if cycle_id is None:
             self.cycle_writes.append(("create", sprint_id, description))
             self.cycles[sprint_id] = SimpleNamespace(
-                id=str(sprint_id), name=f"Sprint {sprint_id}",
+                id=str(sprint_id), name=expected_name,
                 description=description,
             )
-        elif self.cycles[sprint_id].description != description:
-            self.cycle_writes.append(("update", sprint_id, description))
-            self.cycles[sprint_id].description = description
+        else:
+            if self.cycles[sprint_id].description != description:
+                self.cycle_writes.append(("update", sprint_id, description))
+                self.cycles[sprint_id].description = description
+            self.cycles[sprint_id].name = expected_name
         return self.cycles[sprint_id].id
 
     def planned_sprint_totals(self, sprint_ids: set[int]):
@@ -1957,7 +1961,7 @@ def test_plan_does_not_hold_the_register_lock_during_plane_calls(
     seen: list[bool] = []
     original = sprint_board.write_sprint_cycle
 
-    def write_while_another_writer_locks(sprint_id, cycle_id, description):
+    def write_while_another_writer_locks(sprint_id, cycle_id, description, *args, **kwargs):
         other = sqlite3.connect(database, timeout=0)
         try:
             other.execute("BEGIN IMMEDIATE")
@@ -1968,7 +1972,7 @@ def test_plan_does_not_hold_the_register_lock_during_plane_calls(
             seen.append(True)
         finally:
             other.close()
-        return original(sprint_id, cycle_id, description)
+        return original(sprint_id, cycle_id, description, *args, **kwargs)
 
     monkeypatch.setattr(
         sprint_board, "write_sprint_cycle", write_while_another_writer_locks,
@@ -1985,8 +1989,8 @@ def test_plan_refuses_when_another_planner_recorded_the_sprint_meanwhile(
     create_register(database)
     original = sprint_board.write_sprint_cycle
 
-    def racing_write(sprint_id, cycle_id, description):
-        cycle = original(sprint_id, cycle_id, description)
+    def racing_write(sprint_id, cycle_id, description, *args, **kwargs):
+        cycle = original(sprint_id, cycle_id, description, *args, **kwargs)
         with sprints.connect_database(database, writable=True) as other:
             sprints.plan_sprint(
                 other, sprint_id, "Theirs", 1, "Their goal", "", ("Theirs",),

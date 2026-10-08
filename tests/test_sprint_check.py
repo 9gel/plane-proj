@@ -15,7 +15,7 @@ import pytest
 
 from plane_proj import execution
 from plane_proj.board import Board
-from plane_proj.guards import OrphanedCard
+from plane_proj.guards import OrphanedCard, SprintCycleMissing
 from tests.conftest import Card, FakeClient, Recorder, _page
 
 CURRENT = {5: "cycle-5"}
@@ -124,3 +124,49 @@ def test_without_cycles_no_card_is_orphaned(board: Board, client: FakeClient, ca
     assert "in no sprint" not in {
         item["finding"] for item in board.sprint_findings(CURRENT, PLANNED)
     }
+
+
+def test_check_reports_sprint_cycle_absent_from_register(board: Board, cards):
+    board.client.cycles.names["cycle-8"] = "Sprint 8"
+    findings = [
+        item for item in board.sprint_findings(CURRENT, PLANNED, known={4, 5, 6, 7})
+        if item["finding"] == "sprint absent from register"
+    ]
+    assert len(findings) == 1
+    assert findings[0]["card"] == "—"
+    assert "Sprint 8" in findings[0]["detail"]
+    assert "cycle-8" in findings[0]["detail"]
+
+
+def test_require_no_orphans_refuses_when_plane_sprint_cycle_is_missing_from_register(
+    board: Board, client: FakeClient, cards,
+):
+    board.client.cycles.names["cycle-8"] = "Sprint 8"
+    with pytest.raises(
+        SprintCycleMissing,
+        match="Sprint cycle rule: Plane has sprint cycle.*Sprint 8",
+    ):
+        board.require_no_orphans(CURRENT, PLANNED, known={4, 5, 6, 7})
+
+    assert client.write_calls == []
+
+
+def test_cancelled_or_archived_sprint_cycle_is_ignored_by_sync_check(
+    board: Board, client: FakeClient, cards,
+):
+    board.client.cycles.names["cycle-cancelled"] = "Sprint 37 — Cancelled Sprint (Cancelled)"
+    board.client.cycles.names["cycle-archived"] = "Sprint 38 — Old"
+    real_list = board.client.cycles.list
+
+    def list_with_archived(*args, **kwargs):
+        page = real_list(*args, **kwargs)
+        for item in page.results:
+            if item.id == "cycle-archived":
+                item.archived_at = "2026-01-01T00:00:00Z"
+        return page
+
+    board.client.cycles.list = list_with_archived
+
+    missing = board.missing_sprint_cycles(known_sprint_ids={4, 5, 6, 7})
+    assert [m[0] for m in missing] == []
+

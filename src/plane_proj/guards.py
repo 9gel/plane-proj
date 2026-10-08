@@ -93,6 +93,17 @@ class SprintCycleByHand(GuardViolation):
     """
 
 
+class SprintCycleMissing(GuardViolation):
+    """A Plane sprint cycle exists that is absent from the local register.
+
+    Sprint cycle rule: every active `Sprint N` cycle on Plane belongs
+    to a sprint recorded in this project's register. When Plane has a
+    `Sprint N` cycle that this register has no record of, another branch
+    or git worktree planned or ran it, or the local register is out of sync
+    or corrupt.
+    """
+
+
 class UnknownModule(GuardViolation):
     """A card named a module the project does not have.
 
