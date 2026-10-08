@@ -69,6 +69,7 @@ def test_plane_links_point_cycles_and_cards_at_the_real_board(tmp_path):
     plane = demo.plane_links("https://plane.test/", ids)
     payload = demo.demo_responses(now, plane)["/api/sprints"]
 
+    assert payload["browse_url"] == "https://plane.test/ws/browse/"
     assert payload["cycle_urls"] == {
         "1": "https://plane.test/ws/projects/proj/cycles/cycle-one"
     }

@@ -1177,6 +1177,7 @@ def sprints_web_routes(
             listing["payload"],
             project={"key": project.key, "name": project.name},
             board=web_module.board_url(plane_url, board.slug, project.id),
+            browse=web_module.browse_url(plane_url, board.slug),
             cards=cards,
             estimates=listing["estimates_enabled"],
             cycle_urls={

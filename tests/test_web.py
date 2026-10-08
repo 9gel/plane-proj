@@ -22,6 +22,12 @@ def test_default_board_link_is_plane_cloud() -> None:
     )
 
 
+def test_browse_link_is_the_browse_page() -> None:
+    assert web.browse_url(DEFAULT_WEB_URL, "ws") == (
+        "https://app.plane.so/ws/browse/"
+    )
+
+
 def test_cycle_link_is_the_cycle_page() -> None:
     assert web.cycle_url("https://plane.example/", "ws", "pid", "cid") == (
         "https://plane.example/ws/projects/pid/cycles/cid"

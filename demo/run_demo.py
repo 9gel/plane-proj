@@ -852,6 +852,7 @@ def demo_responses(now, plane=None):
         "generated_at": now.isoformat(),
         "project": {"key": "WAY", "name": "Wayfinder"},
         "board_url": plane["board"] if plane else None,
+        "browse_url": plane["browse"] if plane else None,
         "estimates": True,
         "listing": {
             "current": current,
@@ -921,6 +922,7 @@ def plane_links(plane_url: str, ids_file: Path) -> dict:
     return {
         "board": web.board_url(plane_url, workspace, project),
         "cycles": web.cycle_url(plane_url, workspace, project, ""),
+        "browse": web.browse_url(plane_url, workspace),
         "ids": ids,
     }
 
@@ -962,6 +964,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--plane-url",
+        default="https://app.plane.so",
         help="Plane web app holding the demo board, e.g. https://app.plane.so; "
         "links then open its board, cycles and cards",
     )
@@ -973,7 +976,9 @@ def main() -> None:
     )
     args = parser.parse_args()
     plane = (
-        plane_links(args.plane_url, args.plane_ids) if args.plane_url else None
+        plane_links(args.plane_url, args.plane_ids)
+        if args.plane_url and args.plane_ids.exists()
+        else None
     )
     build(args.out, datetime.now(UTC).replace(microsecond=0), plane)
     serve(args.out.resolve(), args.host, args.port)

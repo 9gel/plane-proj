@@ -27,6 +27,12 @@ def board_url(plane_url: str, workspace: str, project_id: str) -> str:
     return f"{plane_url.rstrip('/')}/{workspace}/projects/{project_id}/issues/"
 
 
+def browse_url(plane_url: str, workspace: str) -> str:
+    """The browse URL prefix for work items in the Plane web app."""
+    base = plane_url.rstrip("/")
+    return f"{base}/{workspace}/browse/"
+
+
 def cycle_url(
     plane_url: str, workspace: str, project_id: str, cycle_id: str,
 ) -> str:
@@ -39,19 +45,23 @@ def build_payload(
     listing: dict[str, Any], *, project: dict[str, str], board: str | None,
     cards: dict[int, list[dict[str, Any]]], estimates: bool,
     cycle_urls: dict[int, str] | None = None,
+    browse: str | None = None,
 ) -> dict[str, Any]:
     """Everything the page renders, in one JSON document."""
     return {
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "project": project,
         "board_url": board,
+        "browse_url": browse,
         "cycle_urls": {
             str(sprint_id): url for sprint_id, url in (cycle_urls or {}).items()
         },
         "estimates": estimates,
         "listing": listing,
         "cards": {
-            str(sprint_id): [card | {"url": board + card["id"]} for card in members]
+            str(sprint_id): [
+                card | {"url": board + card["id"]} for card in members
+            ]
             for sprint_id, members in cards.items()
         },
     }

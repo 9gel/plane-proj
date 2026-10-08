@@ -780,7 +780,7 @@ V.currentOne = s => {
     ${STATES.map((st, i) => `<div class="colb">${i < 4 ? `<div class="wi" style="border-left-color:${stC[st]}">${sk('40%', 14)}<div style="margin-top:8px">${sk('85%', 14)}</div></div>` : ''}</div>`).join('')}</div>` : `<div class="row" style="margin:22px 0 10px"><h2 style="margin:0">Board</h2></div>
   <div class="board">${STATES.map(st => `<div class="colh"><i ${swatch(st)}></i>${st} <span class="muted">${cards.filter(c => c.state === st).length}</span></div>`).join('')}
     ${STATES.map(st => `<div class="colb">${cards.filter(c => c.state === st).map(c => `<div class="wi${st === 'Cancelled' ? ' r' : ''}" style="border-left-color:${stC[st]}">
-      <div class="row"><a class="mono" href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.ref)}</a><span class="sp"></span>${POINTS ? `<span class="pill">${c.points} pt</span>` : ''}</div>
+      <div class="row"><a class="mono" href="${esc(DATA.browse_url && c.ref ? DATA.browse_url + c.ref + '/' : c.url)}" target="_blank" rel="noopener">${esc(c.ref)}</a><span class="sp"></span>${POINTS ? `<span class="pill">${c.points} pt</span>` : ''}</div>
       <div>${esc(c.title)}</div>${waitsOn(c)}</div>`).join('')}</div>`).join('')}</div>`}
 
   <h2>Acceptance</h2><div class="card prose">${esc(s.acceptance)}</div>
@@ -914,7 +914,7 @@ function sizeHtml(s, q) {
     const parts = [];
     if (ready > 0) parts.push(`<span style="color:var(--parallel);font-weight:600">${ready} clear to start</span>`);
     if (blocked > 0) parts.push(`<span style="color:var(--warn);font-weight:600">${blocked} blocked</span>`);
-    if (noScope > 0) parts.push(`<span style="color:var(--muted);font-weight:600">${noScope} no scope</span>`);
+    if (noScope > 0) parts.push(`<span style="color:var(--muted);font-style:italic;font-weight:400">${noScope} no scope</span>`);
     if (unkDeps > 0) parts.push(`<span style="color:var(--warn);font-weight:600">${unkDeps} unknown dependencies</span>`);
     if (parts.length) {
       breakdown = `<div class="small" style="margin-top:6px">${parts.join(' · ')}</div>`;
@@ -1053,18 +1053,27 @@ function readinessPanels(q) {
 
 function cardListHtml(q) {
   if (!q.cards.length) return '<div class="card muted">No open cards.</div>';
-  const link = c => DATA.board_url ? `<a href="${esc(DATA.board_url + c.id)}" target="_blank" rel="noopener">${esc(c.ref)}</a>` : esc(c.ref);
+  const cardLink = (ref, id) => {
+    if (DATA.browse_url && ref) {
+      return `<a href="${esc(DATA.browse_url + ref)}/" target="_blank" rel="noopener">${esc(ref)}</a>`;
+    }
+    if (DATA.board_url && id) {
+      return `<a href="${esc(DATA.board_url + id)}" target="_blank" rel="noopener">${esc(ref || id)}</a>`;
+    }
+    return esc(ref || id);
+  };
+  const link = c => cardLink(c.ref, c.id);
   const sprintLink = sid => `<a href="${sprintHref(sid)}">${sprintName(sid)}</a>`;
   const rows = q.cards.map(c => {
     // Per path, the other cards grouped by sprint: "EVT-10 #49: WAY-235, WAY-236".
     const byPath = new Map();
     c.shares.forEach(x => x.paths.forEach(p => {
       const sprints = byPath.get(p) || byPath.set(p, new Map()).get(p);
-      (sprints.get(x.sprint_id) || sprints.set(x.sprint_id, []).get(x.sprint_id)).push(esc(x.ref));
+      (sprints.get(x.sprint_id) || sprints.set(x.sprint_id, []).get(x.sprint_id)).push(cardLink(x.ref));
     }));
     const flags = [c.broad?.length ? `declares ${c.broad.map(esc).join(', ')}, not files` : !c.declared && 'no scope', !c.assessed && 'unknown dependencies'].filter(Boolean);
-    const waits = c.waits_on.map(w => `<li>${w.sprint_id == null ? '' : `${sprintLink(w.sprint_id)}: `}${esc(w.ref)}${w.state ? ` <span class="muted">(${esc(w.state)})</span>` : ''}</li>`).join('');
-    const shares = [...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span><br><span class="muted">with</span> ${[...with_].map(([sid, refs]) => `${sprintLink(sid)}: ${refs.join(', ')}`).join('; ')}</li>`).join('');
+    const waits = c.waits_on.map(w => `<li>${w.sprint_id == null ? '' : `${sprintLink(w.sprint_id)}: `}${cardLink(w.ref)}${w.state ? ` <span class="muted">(${esc(w.state)})</span>` : ''}</li>`).join('');
+    const shares = [...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span><br><span class="muted">with</span> ${[...with_].map(([sid, links]) => `${sprintLink(sid)}: ${links.join(', ')}`).join('; ')}</li>`).join('');
     const badge = c.can_proceed
       ? '<span class="pill" style="color:var(--parallel);border-color:var(--parallel);background:var(--parallel-bg);font-size:11px;margin-left:6px">clear to start</span>'
       : c.is_blocked
