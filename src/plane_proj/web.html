@@ -1139,7 +1139,7 @@ function renderDagSvg() {
     const ax = same ? x1 : x1 + W / 2, ay = same ? y1 + H / 2 : y1 + H;
     const bx = same ? x2 : x2 + W / 2, by = same ? y2 + H / 2 : y2 + H;
     const cx = same ? x1 - 40 : (ax + bx) / 2, cy = same ? (ay + by) / 2 : Math.max(ay, by) + 30;
-    g += `<g class="link" data-a="${a}" data-b="${b}"><path d="M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}" fill="none" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"><title>Shares ${esc(path)}</title></path></g>`;
+    g += `<g class="link" data-a="${a}" data-b="${b}"><path d="M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}" fill="none" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="6 3 2 3" opacity=".8"><title>File scope overlap: ${esc(path)}</title></path></g>`;
   });
 
   // Dependencies. Arrows leaving or entering one sprint fan out along its
@@ -1275,7 +1275,7 @@ V.planned = () => {
     <div class="legend" style="margin:0 0 8px">
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--text-2)" stroke-width="1.5"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--text-2)"/></svg> must finish first (a card waits on it)</span>
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--chain)" stroke-width="2"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--chain)"/></svg> longest chain</span>
-      <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="4 3"/></svg> file scope overlap</span>
+      <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="6 3 2 3"/></svg> file scope overlap</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--st-prog);border-radius:3px;vertical-align:-1px"></span> running</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px dotted var(--muted);border-radius:3px;vertical-align:-1px"></span> dependencies unknown: arrows may be missing</span>
       <span><span style="display:inline-block;padding:0 4px;border:1.2px solid var(--parallel);background:var(--parallel-bg);border-radius:4px;vertical-align:-1px;font-size:10px;font-weight:700;color:var(--parallel);line-height:14px">X/Y</span> unblocked cards</span>
