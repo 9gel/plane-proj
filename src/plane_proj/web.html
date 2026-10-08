@@ -899,7 +899,7 @@ function sprintNodeBadge(x, y, W, H, { run, sprint, mark }) {
     const txt = `${ready}/${total}`;
     const bw = txt.length >= 5 ? 40 : 34;
     const bh = 18;
-    const bx = x + W - 28 - bw;
+    const bx = x + W - 38 - bw;
     const by = y + (H - bh) / 2;
     const tip = `${ready} of ${total} cards clear to start in parallel`;
     return `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="4" fill="var(--parallel-bg)" stroke="var(--parallel)" stroke-width="1.2"><title>${tip}</title></rect>
@@ -936,7 +936,7 @@ function chainSvg(s) {
   ids.forEach(depth);
   const q = Object.fromEntries((READINESS.queue || []).map(r => [r.sprint_id, r]));
   const mark = id => byId[id]?.status === 'current' ? 'running' : ({ 'Can start': '🚀', Overlap: '⚠️', Unverified: '❓', 'Not ready': '⏳' }[q[id]?.state] || '');
-  const W = 170, H = 40, GX = 70, GY = 14, TOP = 26;
+  const W = 180, H = 40, GX = 60, GY = 14, TOP = 26;
   const cols = [];
   [...ids].sort((a, b) => a - b).forEach(id => (cols[col[id]] ||= []).push(id));
   const tall = Math.max(...cols.map(c => c.length));
@@ -1063,7 +1063,7 @@ function renderDagSvg() {
     col[id] = rawCols[id] ?? (rawCols[+id] ?? 0);
   });
 
-  const W = 170, H = 40, GX = 90, GY = 26, X = c => 50 + c * (W + GX);
+  const W = 180, H = 40, GX = 80, GY = 26, X = c => 50 + c * (W + GX);
   const rows = {}, pos = {};
   Object.keys(S).sort((a, b) => a - b).forEach(id => {
     const c = col[id];
