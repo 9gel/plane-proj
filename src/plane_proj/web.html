@@ -914,8 +914,8 @@ function sizeHtml(s, q) {
     const parts = [];
     if (ready > 0) parts.push(`<span style="color:var(--parallel);font-weight:600">${ready} clear to start</span>`);
     if (blocked > 0) parts.push(`<span style="color:var(--warn);font-weight:600">${blocked} blocked</span>`);
-    if (noScope > 0) parts.push(`<span style="color:var(--muted);font-style:italic;font-weight:400">${noScope} no scope</span>`);
-    if (unkDeps > 0) parts.push(`<span style="color:var(--warn);font-weight:600">${unkDeps} unknown dependencies</span>`);
+    if (noScope > 0) parts.push(`<span style="color:var(--muted);font-style:italic;font-weight:300">${noScope} no scope</span>`);
+    if (unkDeps > 0) parts.push(`<span style="color:var(--warn);font-style:italic;font-weight:300">${unkDeps} unknown dependencies</span>`);
     if (parts.length) {
       breakdown = `<div class="small" style="margin-top:6px">${parts.join(' · ')}</div>`;
     }
@@ -1284,8 +1284,8 @@ V.planned = () => {
   <div class="legend" style="margin:0 0 10px">
     <span><span class="ci plain go" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> clear to start</span>
     <span><span class="ci plain b" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> blocked</span>
-    <span><span class="ci plain u" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> no scope</span>
-    <span><span class="ci plain unk" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> unknown dependencies</span>
+    <span><span class="ci plain u" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300">no scope</span></span>
+    <span><span class="ci plain unk" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300">unknown dependencies</span></span>
   </div>
   <div class="card" style="padding:4px 6px"><table class="plan-table">
   <thead><tr>
