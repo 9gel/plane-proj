@@ -401,7 +401,7 @@ def evaluate_readiness(
                     f"{card.ref} declares directories or patterns, not files: "
                     + ", ".join(broad)
                     if broad
-                    else f"{card.ref} no scope"
+                    else f"{card.ref} no file scope"
                 )
                 if msg not in unverified_reasons:
                     unverified_reasons.append(msg)

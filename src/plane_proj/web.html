@@ -26,7 +26,7 @@
   /* Velocity heat, slow to fast: peach, orange, red, deep red. No yellow:
      yellow means Verifying. */
   --heat-0: #f2c4a4; --heat-1: #ee8636; --heat-2: #e2593a; --heat-3: #b81f2f;
-  --warn: #d13b3b; --unclear: #b8621b; --grid: #e9e8e4; --track: #ecebe7; --sk-hi: #fcfcfb; --range: #6f6d67; --median: #4a3aa7;
+  --warn: #d13b3b; --unclear: #b8621b; --overlap: #7b42bc; --grid: #e9e8e4; --track: #ecebe7; --sk-hi: #fcfcfb; --range: #6f6d67; --median: #4a3aa7;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -41,7 +41,7 @@
     --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
     --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
     --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
-    --warn: #ef6b6b; --unclear: #e58d3c; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
+    --warn: #ef6b6b; --unclear: #e58d3c; --overlap: #c084fc; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
   }
 }
 :root[data-theme="dark"] {
@@ -56,7 +56,7 @@
   --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
   --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
   --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
-  --warn: #ef6b6b; --unclear: #e58d3c; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
+  --warn: #ef6b6b; --unclear: #e58d3c; --overlap: #c084fc; --grid: #2a2a27; --track: #2a2a27; --sk-hi: #34342f; --range: #a3a196; --median: #9085e9;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
@@ -107,7 +107,7 @@ h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 10
 .state { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 700; white-space: nowrap; }
 .state::before { font-size: 26px; line-height: 1; }
 .state.start { color: var(--text); } .state.start::before { content: "🚀"; }
-.state.overlap { color: var(--warn); } .state.overlap::before { content: "⚠️"; }
+.state.overlap { color: var(--overlap); } .state.overlap::before { content: "⚠️"; }
 .state.unknown { color: var(--unclear); } .state.unknown::before { content: "❓"; }
 .state.notready { color: var(--muted); } .state.notready::before { content: "⏳"; }
 .unknown { color: var(--text); font-weight: 600; } .unknown::before { content: "? "; color: var(--unclear); font-weight: 700; }
@@ -302,7 +302,7 @@ details summary { cursor: pointer; color: var(--text-2); }
 .rpanel h3 { margin: 0 0 8px; font-size: 13px; color: var(--text-2); font-weight: 600; }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 a.pill { text-decoration: none; color: var(--text); }
-a.pill.clash { border-color: var(--warn); color: var(--warn); font-weight: 600; }
+a.pill.clash { border-color: var(--overlap); color: var(--overlap); font-weight: 600; }
 a.pill.run { background: var(--st-prog); border-color: var(--st-prog); color: #fff; font-weight: 600; }
 .mark { font-size: 30px; font-weight: 700; line-height: 1; margin-right: 8px; }
 .mark.yes { color: var(--st-done); } .mark.no { color: var(--warn); } .mark.maybe { color: var(--unclear); }
@@ -672,7 +672,7 @@ V.overview = () => {
           } else if (q.blocked_cards === s.cards) {
             pill = `<span class="pill muted">All ${s.cards} blocked</span>`;
           } else if (q.state === 'Overlap') {
-            pill = `<span class="pill" style="color:var(--warn)">Overlap</span>`;
+            pill = `<span class="pill" style="color:var(--overlap)">Overlap</span>`;
           } else if (q.state === 'Unverified') {
             pill = `<span class="pill" style="color:var(--unclear)">Unverified</span>`;
           }
@@ -870,7 +870,7 @@ function cardIconsHtml(cardsOrTotal, undeclared = 0, big = false) {
       }
       if (isNoScope) {
         cls = cls ? `${cls} u` : 'u';
-        notes.push('no scope');
+        notes.push('no file scope');
       }
       if (isUnkDeps) {
         cls = cls ? `${cls} unk` : 'unk';
@@ -916,7 +916,7 @@ function sizeHtml(s, q) {
     const parts = [];
     if (ready > 0) parts.push(`<span style="color:var(--parallel);font-weight:600">${ready} clear to start</span>`);
     if (blocked > 0) parts.push(`<span style="color:var(--warn);font-weight:600">${blocked} blocked</span>`);
-    if (noScope > 0) parts.push(`<span style="color:var(--muted);font-style:italic;font-weight:300">${noScope} no scope</span>`);
+    if (noScope > 0) parts.push(`<span style="color:var(--muted);font-style:italic;font-weight:300">${noScope} no file scope</span>`);
     if (unkDeps > 0) parts.push(`<span style="color:var(--unclear);font-style:italic;font-weight:300">${unkDeps} unknown dependencies</span>`);
     if (parts.length) {
       breakdown = `<div class="small" style="margin-top:6px">${parts.join(' · ')}</div>`;
@@ -1030,7 +1030,7 @@ function readinessPanels(q) {
   const verdict = {
     'Can start': 'Clear to start now.',
     Overlap: 'Shares code with a sprint that could run at the same time.',
-    Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} with no scope`, unassessed && `${unassessed} with unknown dependencies`].filter(Boolean).join(', ')}.`,
+    Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} with no file scope`, unassessed && `${unassessed} with unknown dependencies`].filter(Boolean).join(', ')}.`,
     'Not ready': q.ready_cards > 0
       ? `${q.ready_cards} of ${q.cards_count} cards are clear to start now in parallel. ${q.blocked_cards} card${q.blocked_cards === 1 ? ' waits' : 's wait'} on unfinished work in another sprint.`
       : 'Waits on unfinished cards in another sprint.',
@@ -1046,7 +1046,7 @@ function readinessPanels(q) {
       ? `<div class="pills">${sharing.map(id => sprintPill(id, clash.has(id))).join('')}</div>${(() => {
         const running = sharing.some(id => byId[id]?.status === 'current');
         const later = sharing.some(id => clash.has(id) && byId[id]?.status !== 'current');
-        return running || later ? `<p>${[running && 'Blue: running.', later && 'Red: could run at the same time.'].filter(Boolean).join(' ')}</p>` : '';
+        return running || later ? `<p>${[running && 'Blue: running.', later && 'Purple: could run at the same time.'].filter(Boolean).join(' ')}</p>` : '';
       })()}`
       : '<p class="muted" style="margin:0">No other sprint.</p>'}</div>
     <div class="card rpanel"><h3>Dependencies</h3><div style="display:flex;align-items:center">${depMark}</div>${others.size ? `<div class="pills" style="margin-top:8px">${[...others].map(id => sprintPill(id)).join('')}</div>` : ''}</div>
@@ -1073,7 +1073,7 @@ function cardListHtml(q) {
       const sprints = byPath.get(p) || byPath.set(p, new Map()).get(p);
       (sprints.get(x.sprint_id) || sprints.set(x.sprint_id, []).get(x.sprint_id)).push(cardLink(x.ref));
     }));
-    const flags = [c.broad?.length ? `<span class="flag">declares ${c.broad.map(esc).join(', ')}, not files</span>` : '', !c.declared ? '<span class="flag u">no scope</span>' : '', !c.assessed ? '<span class="flag unk">unknown dependencies</span>' : ''].filter(Boolean);
+    const flags = [c.broad?.length ? `<span class="flag">declares ${c.broad.map(esc).join(', ')}, not files</span>` : '', !c.declared ? '<span class="flag u">no file scope</span>' : '', !c.assessed ? '<span class="flag unk">unknown dependencies</span>' : ''].filter(Boolean);
     const waits = c.waits_on.map(w => `<li>${w.sprint_id == null ? '' : `${sprintLink(w.sprint_id)}: `}${cardLink(w.ref)}${w.state ? ` <span class="muted">(${esc(w.state)})</span>` : ''}</li>`).join('');
     const shares = [...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span><br><span class="muted">with</span> ${[...with_].map(([sid, links]) => `${sprintLink(sid)}: ${links.join(', ')}`).join('; ')}</li>`).join('');
     const badge = c.can_proceed
@@ -1138,7 +1138,7 @@ function renderDagSvg() {
     const ax = same ? x1 : x1 + W / 2, ay = same ? y1 + H / 2 : y1 + H;
     const bx = same ? x2 : x2 + W / 2, by = same ? y2 + H / 2 : y2 + H;
     const cx = same ? x1 - 40 : (ax + bx) / 2, cy = same ? (ay + by) / 2 : Math.max(ay, by) + 30;
-    g += `<g class="link" data-a="${a}" data-b="${b}"><path d="M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}" fill="none" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"><title>Shares ${esc(path)}</title></path></g>`;
+    g += `<g class="link" data-a="${a}" data-b="${b}"><path d="M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}" fill="none" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"><title>Shares ${esc(path)}</title></path></g>`;
   });
 
   // Dependencies. Arrows leaving or entering one sprint fan out along its
@@ -1274,7 +1274,7 @@ V.planned = () => {
     <div class="legend" style="margin:0 0 8px">
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--text-2)" stroke-width="1.5"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--text-2)"/></svg> must finish first (a card waits on it)</span>
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--chain)" stroke-width="2"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--chain)"/></svg> longest chain</span>
-      <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 3"/></svg> shares code</span>
+      <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="4 3"/></svg> shares code</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--st-prog);border-radius:3px;vertical-align:-1px"></span> running</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--unclear);border-radius:3px;vertical-align:-1px"></span> dependencies unclear: arrows may be missing</span>
       <span><span style="display:inline-block;padding:0 4px;border:1.2px solid var(--parallel);background:var(--parallel-bg);border-radius:4px;vertical-align:-1px;font-size:10px;font-weight:700;color:var(--parallel);line-height:14px">X/Y</span> unblocked cards</span>
@@ -1286,7 +1286,7 @@ V.planned = () => {
   <div class="legend" style="margin:0 0 10px">
     <span><span class="ci plain go" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> clear to start</span>
     <span><span class="ci plain b" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> blocked</span>
-    <span><span class="ci plain u" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300">no scope</span></span>
+    <span><span class="ci plain u" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300">no file scope</span></span>
     <span><span class="ci plain unk" style="display:inline-block;vertical-align:-3px;margin-right:4px"></span> <span style="font-style:italic;font-weight:300;color:var(--unclear)">unknown dependencies</span></span>
   </div>
   <div class="card" style="padding:4px 6px"><table class="plan-table">
@@ -1296,7 +1296,7 @@ V.planned = () => {
     <th>State <span class="info" tabindex="0">ⓘ<span class="pop"><span class="state start">Can start</span><span>every card declares its scope and has its dependencies assessed, nothing outside the sprint blocks it, and no code is shared</span>
   <span class="state notready">X/Y blocked</span><span>some cards wait on unfinished work in another sprint (unblocked cards can start in parallel)</span>
   <span class="state overlap">Overlap</span><span>could start, but shares code with a running sprint or with an earlier sprint in the queue that can also start</span>
-  <span class="state unknown">Unverified</span><span>some cards have no scope or unknown dependencies, so readiness cannot be checked</span>
+  <span class="state unknown">Unverified</span><span>some cards have no file scope or unknown dependencies, so readiness cannot be checked</span>
   <span class="state notready">Not ready</span><span>waits on unfinished cards in another sprint</span></span></span></th>
     <th>Cards</th>
     ${POINTS ? '<th>Points</th>' : ''}
