@@ -163,8 +163,8 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.r::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); } .ci.big.r::after { box-shadow: 0 6px 0 var(--muted); }
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
-.ci.u { border-color: var(--no-scope); border-style: dashed; }
-.ci.unk { border-color: var(--muted); border-style: dotted; }
+.ci.u { border-color: var(--no-scope); border-style: solid; }
+.ci.unk { border-color: var(--muted); border-style: dashed; }
 .ci.unk::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 .ci.big.unk::after { box-shadow: 0 6px 0 var(--muted); }
 .ci.u.unk { border-color: var(--no-scope); border-style: dashed; }
@@ -1181,7 +1181,7 @@ function renderDagSvg() {
   // Sprints
   Object.entries(pos).forEach(([id, [x, y]]) => {
     const [alias, mark, kind, unclear, s] = S[id] || ['', '', '', false, null];
-    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--muted)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"${unclear ? ' stroke-dasharray="3 3"' : ''}><title>${unclear ? 'Dependencies unknown: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
+    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--muted)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"${unclear ? ' stroke-dasharray="4 3"' : ''}><title>${unclear ? 'Dependencies unknown: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
       ${unclear ? `<text x="${x + W / 2}" y="${y + H + 12}" font-size="10.5" text-anchor="middle" fill="var(--muted)" font-weight="600">dependencies unknown</text>` : ''}
       <text x="${x + 10}" y="${y + H / 2 + 5}" font-size="13" fill="var(--text)"><tspan font-weight="600">${esc(alias)}</tspan>${alias ? ' ' : ''}<tspan fill="${alias ? 'var(--muted)' : 'var(--text)'}">#${id}</tspan></text>
       ${sprintNodeBadge(x, y, W, H, { run: kind === 'run', sprint: s, mark })}</a>`;
@@ -1285,7 +1285,7 @@ V.planned = () => {
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--chain)" stroke-width="2"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--chain)"/></svg> longest chain</span>
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="6 3 2 3"/></svg> file scope overlap</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--st-prog);border-radius:3px;vertical-align:-1px"></span> running</span>
-      <span><span style="display:inline-block;width:14px;height:10px;border:2px dotted var(--muted);border-radius:3px;vertical-align:-1px"></span> dependencies unknown: arrows may be missing</span>
+      <span><span style="display:inline-block;width:14px;height:10px;border:2px dashed var(--muted);border-radius:3px;vertical-align:-1px"></span> dependencies unknown: arrows may be missing</span>
       <span><span style="display:inline-block;padding:0 4px;border:1.2px solid var(--parallel);background:var(--parallel-bg);border-radius:4px;vertical-align:-1px;font-size:10px;font-weight:700;color:var(--parallel);line-height:14px">X/Y</span> unblocked cards</span>
     </div>
     <div style="overflow-x:auto">${renderDagSvg()}</div>
