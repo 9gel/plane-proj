@@ -40,6 +40,11 @@ not slippage.
 
 Capture the opening revision and baseline gate state before dispatch.
 
+Start with `plane-proj sprints start SPRINT_ID`. The CLI records the current
+time automatically. Agents MUST omit `--started` during ordinary delivery;
+never invent, estimate, or copy a start timestamp. Retrying the command keeps
+the sprint's original start time.
+
 ## 2. Discovered Work
 
 | Finding | Treatment |

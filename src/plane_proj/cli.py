@@ -318,10 +318,15 @@ def sprints_reorder(obj: dict[str, Any], sprint_ids: tuple[str, ...]) -> None:
 
 @sprints.command("start")
 @click.argument("cycle_id")
-@click.option("--started", required=True, help="RFC 3339 timestamp with numeric offset.")
+@click.option(
+    "--started",
+    help="Override the automatic start time with an RFC 3339 timestamp.",
+)
 @click.pass_obj
-def sprints_start(obj: dict[str, Any], cycle_id: str, started: str) -> None:
-    """Start a sprint by numeric ID, alias, or explicit Plane cycle UUID."""
+def sprints_start(
+    obj: dict[str, Any], cycle_id: str, started: str | None,
+) -> None:
+    """Start a sprint now by numeric ID, alias, or Plane cycle UUID."""
     requested_id = None
     with sprints_module.connect_database(
         obj["database"], writable=True
@@ -351,6 +356,15 @@ def sprints_start(obj: dict[str, Any], cycle_id: str, started: str) -> None:
                 "Sprint reference rule: Plane cycle no longer matches "
                 f"sprint {requested_id}"
             )
+        if started is None:
+            sprint = sprints_module.fetch_sprint(connection, sprint_id)
+            if (
+                sprint is not None
+                and sprint.status == sprints_module.STATUS_CURRENT
+            ):
+                started = sprint.started
+            else:
+                started = datetime.now(UTC).isoformat(timespec="seconds")
         started_utc = sprints_module.to_utc_timestamp(started)
         sprints_module.validate_sprint_start(connection, sprint_id, started_utc, cycle_id)
         current, planned, known = _open_sprints(connection)

@@ -514,6 +514,12 @@ When multiple sprints are current:
 
 ### Sprint timing and rework reporting
 
+`sprints start ID` records the current UTC time automatically. A retry of a
+current sprint reuses its recorded start time, so retries never reset its timer.
+The optional `--started` override accepts an explicit RFC 3339 timestamp for
+historical starts; ordinary delivery must omit it. Explicit retries still have
+to match the stored instant.
+
 `show`, `list`, and `stats` aggregate local card snapshots, adding no network
 requests. The latest capture instant per card wins even across timezone
 spellings. Sprint reports merge closed and ongoing state residence up to capture

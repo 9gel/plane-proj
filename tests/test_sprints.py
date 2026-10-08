@@ -365,7 +365,7 @@ def test_start_refuses_orphans_before_any_board_write(
         raise OrphanedCard("DEMO-9 belongs to no planned or current sprint")
 
     monkeypatch.setattr(sprint_board, "require_no_orphans", refuse)
-    started = invoke(database, "start", "3", "--started", "2026-01-02T03:04:05+08:00")
+    started = invoke(database, "start", "3")
 
     assert isinstance(started.exception, OrphanedCard)
     assert sprint_board.started == []
@@ -376,6 +376,45 @@ def test_start_refuses_orphans_before_any_board_write(
 def test_default_database_is_under_plane(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
     assert sprints.default_database_path() == tmp_path / "plane/SPRINTS.sqlite"
+
+
+@pytest.mark.parametrize("reference", [
+    "3", "DBT2-14", "974c2bbb-b269-4f9e-a09d-a2661a8ea599",
+])
+def test_start_defaults_to_now_and_retry_preserves_start(
+    tmp_path, sprint_board, monkeypatch, reference,
+):
+    database = tmp_path / "SPRINTS.sqlite"
+    create_register(database)
+    assert plan(database, 3).exit_code == 0
+    assert invoke(database, "alias", "3", "DBT2-14").exit_code == 0
+    cycle_id = "974c2bbb-b269-4f9e-a09d-a2661a8ea599"
+    sprint_board.cycles[3].id = cycle_id
+    monkeypatch.setattr(
+        sprint_board, "cycle_sprint_id",
+        lambda value: (3, sprint_board.cycles[3]),
+    )
+    clock = [datetime(2026, 10, 8, 13, 44, 38, tzinfo=UTC)]
+    monkeypatch.setattr(
+        "plane_proj.cli.datetime",
+        SimpleNamespace(now=lambda tz: clock[0].astimezone(tz)),
+    )
+
+    result = invoke(database, "start", reference)
+    assert result.exit_code == 0, result.output
+    expected = "2026-10-08T13:44:38+00:00"
+    assert sprint_board.started == [(cycle_id, expected)]
+    with sprints.connect_database(database, writable=False) as connection:
+        current = sprints.fetch_sprint(connection, 3)
+        assert current.status == sprints.STATUS_CURRENT
+        assert current.started == expected
+
+    clock[0] += timedelta(hours=13)
+    retry = invoke(database, "start", reference)
+    assert retry.exit_code == 0, retry.output
+    assert all(started == expected for _, started in sprint_board.started)
+    with sprints.connect_database(database, writable=False) as connection:
+        assert sprints.fetch_sprint(connection, 3).started == expected
 
 
 def test_full_lifecycle_marks_exactly_one_current_sprint(tmp_path: Path) -> None:
