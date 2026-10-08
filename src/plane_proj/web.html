@@ -108,9 +108,9 @@ h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 10
 .state::before { font-size: 26px; line-height: 1; }
 .state.start { color: var(--text); } .state.start::before { content: "🚀"; }
 .state.overlap { color: var(--overlap); } .state.overlap::before { content: "⚠️"; }
-.state.unknown { color: var(--unclear); } .state.unknown::before { content: "❓"; }
+.state.unknown { color: var(--muted); } .state.unknown::before { content: "❓"; }
 .state.notready { color: var(--muted); } .state.notready::before { content: "⏳"; }
-.unknown { color: var(--text); font-weight: 600; } .unknown::before { content: "? "; color: var(--unclear); font-weight: 700; }
+.unknown { color: var(--text); font-weight: 600; } .unknown::before { content: "? "; color: var(--muted); font-weight: 700; }
 .plan-table th, .plan-table td { vertical-align: top; padding: 10px; }
 .plan-table td.pos { font-family: ui-monospace, monospace; color: var(--muted); font-size: 16px; text-align: center; width: 36px; }
 .plan-table tbody tr:last-child td { border-bottom: 0; }
@@ -674,7 +674,7 @@ V.overview = () => {
           } else if (q.state === 'Overlap') {
             pill = `<span class="pill" style="color:var(--overlap)">Overlap</span>`;
           } else if (q.state === 'Unverified') {
-            pill = `<span class="pill" style="color:var(--unclear)">Unverified</span>`;
+            pill = `<span class="pill muted">Unverified</span>`;
           }
         }
         const icons = s.cards == null ? skIcons(4)
@@ -1172,7 +1172,7 @@ function renderDagSvg() {
   // Sprints
   Object.entries(pos).forEach(([id, [x, y]]) => {
     const [alias, mark, kind, unclear, s] = S[id] || ['', '', '', false, null];
-    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--unclear)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
+    g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--unclear)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"${unclear ? ' stroke-dasharray="3 3"' : ''}><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
       ${unclear ? `<text x="${x + W / 2}" y="${y + H + 12}" font-size="10.5" text-anchor="middle" fill="var(--unclear)" font-weight="600">dependencies unclear</text>` : ''}
       <text x="${x + 10}" y="${y + H / 2 + 5}" font-size="13" fill="var(--text)"><tspan font-weight="600">${esc(alias)}</tspan>${alias ? ' ' : ''}<tspan fill="${alias ? 'var(--muted)' : 'var(--text)'}">#${id}</tspan></text>
       ${sprintNodeBadge(x, y, W, H, { run: kind === 'run', sprint: s, mark })}</a>`;
@@ -1276,7 +1276,7 @@ V.planned = () => {
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--chain)" stroke-width="2"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--chain)"/></svg> longest chain</span>
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--overlap)" stroke-width="1.5" stroke-dasharray="4 3"/></svg> shares code</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--st-prog);border-radius:3px;vertical-align:-1px"></span> running</span>
-      <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--unclear);border-radius:3px;vertical-align:-1px"></span> dependencies unclear: arrows may be missing</span>
+      <span><span style="display:inline-block;width:14px;height:10px;border:2px dotted var(--unclear);border-radius:3px;vertical-align:-1px"></span> dependencies unclear: arrows may be missing</span>
       <span><span style="display:inline-block;padding:0 4px;border:1.2px solid var(--parallel);background:var(--parallel-bg);border-radius:4px;vertical-align:-1px;font-size:10px;font-weight:700;color:var(--parallel);line-height:14px">X/Y</span> unblocked cards</span>
     </div>
     <div style="overflow-x:auto">${renderDagSvg()}</div>
