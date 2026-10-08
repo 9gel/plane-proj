@@ -205,3 +205,14 @@ def test_current_page_refetches_timing_about_once_a_minute() -> None:
     content = web.page()
     assert "isCurrentOpen" in content
     assert "60000" in content
+
+
+def test_web_page_contains_parallel_readiness_elements() -> None:
+    content = web.page()
+    assert "--parallel" in content
+    assert "blocked" in content
+    assert "can start" in content
+    assert "clear to start" in content
+    assert "cardIconsHtml" in content
+    assert "formatWhyTooltip" in content
+

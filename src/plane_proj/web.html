@@ -18,6 +18,7 @@
   --t1: #b7698f; --t2: #7e903e; --t3: #a36faf; --t4: #b37736; --t5: #857ac4;
   --t6: #bf696a; --t-other: #aab2bd;
   --chain: #6f8a2e;
+  --parallel: #3f7e44; --parallel-bg: rgba(63, 126, 68, 0.12);
   /* Neutral slate for counts and plans; violet means duration; hot pink
      is the average in stats strips. */
   --scope-o: #6f7b8a; --slate-2: #aab2bd; --dial-track: #d9dde3;
@@ -36,6 +37,7 @@
     --t1: #c4759c; --t2: #8a9c4a; --t3: #b07bbc; --t4: #c08343; --t5: #9186d1;
     --t6: #cd7576; --t-other: #59616c;
     --chain: #9bb352;
+    --parallel: #68ad6e; --parallel-bg: rgba(104, 173, 110, 0.15);
     --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
     --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
     --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
@@ -50,6 +52,7 @@
   --t1: #c4759c; --t2: #8a9c4a; --t3: #b07bbc; --t4: #c08343; --t5: #9186d1;
   --t6: #cd7576; --t-other: #59616c;
   --chain: #9bb352;
+  --parallel: #68ad6e; --parallel-bg: rgba(104, 173, 110, 0.15);
   --scope-o: #8a94a1; --slate-2: #59616c; --dial-track: #3a3f47;
   --dur: #9085e9; --rework: #e5484d; --avg: #f0509a;
   --heat-0: #c79070; --heat-1: #e77a2c; --heat-2: #e5553c; --heat-3: #ff3b4a;
@@ -161,6 +164,12 @@ tbody tr.link { cursor: pointer; } tbody tr.link:hover { background: var(--surfa
 .ci.plain { background: var(--surface-2); border-color: var(--muted); }
 .ci.plain::after { background: var(--muted); box-shadow: 0 4px 0 var(--muted); }
 .ci.u { border-style: dashed; }
+.ci.go { border-color: var(--parallel); }
+.ci.go::after { background: var(--parallel); box-shadow: 0 4px 0 var(--parallel); }
+.ci.big.go::after { box-shadow: 0 6px 0 var(--parallel); }
+.ci.b { border-color: var(--warn); }
+.ci.b::after { background: var(--warn); box-shadow: 0 4px 0 var(--warn); }
+.ci.big.b::after { box-shadow: 0 6px 0 var(--warn); }
 /* one big board */
 .board { display: grid; grid-template-columns: repeat(5, minmax(170px, 1fr)); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: auto; height: 460px; grid-template-rows: auto 1fr; }
 /* The board has one fixed height, loading or loaded, so nothing below it
@@ -629,6 +638,7 @@ const tipHead = d => `<b>${esc(d.alias || '#' + d.sprint)}</b> ${esc(d.title)}<b
 const V = {};
 
 V.overview = () => {
+  if (readinessState === 'idle') loadReadiness();
   const last = past[past.length - 1], recent = past.slice(-24);
   const plannedPts = planned.reduce((a, s) => a + (s.points || 0), 0);
   return `<h1>Overview</h1><p class="muted">${esc(PROJECT)} · read ${fullDate(SNAP)}</p>
@@ -646,8 +656,30 @@ V.overview = () => {
       <span class="t2 small">${POINTS ? `${num(s.points_done / elapsedH(s), 2)} pts/h · ` : ''}rework ${s.timing?.rework_count ?? 0}</span></div>`}</div>`; }).join('') || '<p class="muted">No sprint in progress.</p>'}</div><button class="sc sc-right" aria-label="Scroll right" onclick="scrollRow(this, 1)">›</button></div></div>
   <div class="grid g2" style="margin-top:12px">
     <div class="card"><div class="row"><h3>Up next</h3><span class="sp"></span><a href="#/planned">All ${planned.length} →</a></div>
-      ${planned.length ? '' : '<p class="muted">No planned sprints.</p>'}${planned.slice(0, 4).map(s => `<div class="row link" style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" ${goto(s.sprint)}>
-        ${label(s)}<span class="t2 nowrap" style="flex:1;min-width:140px">${esc(s.title)}</span>${s.cards == null ? skIcons(4) : cardIcons(Array(s.cards).fill('plain'))}</div>`).join('')}</div>
+      ${planned.length ? '' : '<p class="muted">No planned sprints.</p>'}${planned.slice(0, 4).map(s => {
+        const q = READINESS?.queue?.find(r => r.sprint_id === s.sprint);
+        let pill = '';
+        if (q) {
+          if (q.state === 'Can start') {
+            pill = `<span class="pill" style="color:var(--parallel)">All ${s.cards} can start</span>`;
+          } else if (q.ready_cards > 0) {
+            pill = `<span class="pill" style="color:var(--parallel)">${q.ready_cards} of ${s.cards} can start</span>`;
+          } else if (q.blocked_cards === s.cards) {
+            pill = `<span class="pill muted">All ${s.cards} blocked</span>`;
+          } else if (q.state === 'Overlap') {
+            pill = `<span class="pill" style="color:var(--warn)">Overlap</span>`;
+          } else if (q.state === 'Unverified') {
+            pill = `<span class="pill" style="color:var(--warn)">Unverified</span>`;
+          }
+        }
+        const icons = s.cards == null ? skIcons(4)
+          : q?.cards ? `<div class="cicons">${cardIconsHtml(q.cards)}</div>`
+          : cardIcons(Array(s.cards).fill('plain'));
+        return `<div class="row link" style="padding:6px 0;border-top:1px solid var(--border);cursor:pointer" ${goto(s.sprint)}>
+          ${label(s)}<span class="t2 nowrap" style="flex:1;min-width:140px">${esc(s.title)}</span>
+          ${pill}
+          ${icons}</div>`;
+      }).join('')}</div>
     ${last ? `<div class="card link" ${goto(last.sprint)}><div class="row"><h3>Last completed</h3><span class="sp"></span><span class="muted small">ended ${ago(last.ended)}</span></div>
       <div class="row">${label(last)}<span class="t2">${esc(last.title)}</span></div>
       ${POINTS ? `<div style="margin:8px 0;max-width:${Math.max(last.points_start, last.points_end) * 14}px">${outcome(last.points_start, last.points_end, Math.max(last.points_start, last.points_end))}</div>` : ''}
@@ -769,7 +801,7 @@ function loadReadiness() {
     })
     .finally(() => {
       busyEnd();
-      if (route().view === 'planned' || route().view === 'sprint') {
+      if (route().view === '' || route().view === 'overview' || route().view === 'planned' || route().view === 'sprint') {
         render();
       }
     });
@@ -782,13 +814,54 @@ const stateClass = st => {
   if (st === 'Not ready') return 'notready';
   return '';
 };
-const stateBadge = st => `<span class="state ${stateClass(st)}">${esc(st)}</span>`;
+function formatWhyTooltip(whyList) {
+  if (!whyList || !whyList.length) return '';
+  const groups = new Map();
+  const others = [];
+  whyList.forEach(item => {
+    const s = String(item);
+    const idx = s.indexOf(': ');
+    if (idx !== -1 && s.startsWith('Waits on')) {
+      const head = s.slice(0, idx + 1);
+      const detail = s.slice(idx + 2);
+      if (!groups.has(head)) groups.set(head, []);
+      groups.get(head).push(detail);
+    } else {
+      others.push(s);
+    }
+  });
+  const parts = [];
+  groups.forEach((details, head) => {
+    parts.push(`<b>${esc(head)}</b><br/>${details.map(d => `&nbsp;&nbsp;${esc(d)}`).join('<br/>')}`);
+  });
+  others.forEach(o => parts.push(esc(o)));
+  return parts.join('<br/><br/>');
+}
 
-function cardIconsHtml(total, undeclared = 0) {
+const stateBadge = (st, s) => {
+  if (s && st === 'Not ready' && s.blocked_cards > 0) {
+    const tip = formatWhyTooltip(s.why);
+    return `<span class="state notready" data-tip="${tip}">${s.blocked_cards}/${s.cards_count} blocked</span>`;
+  }
+  return `<span class="state ${stateClass(st)}">${esc(st)}</span>`;
+};
+
+function cardIconsHtml(cardsOrTotal, undeclared = 0, big = false) {
+  if (Array.isArray(cardsOrTotal)) {
+    return cardsOrTotal.map(c => {
+      const isU = !c.declared || !c.assessed;
+      const isB = Boolean(c.is_blocked || c.waits_on?.length);
+      const isGo = Boolean(c.can_proceed ?? (!isB && !isU));
+      const cls = isB ? 'b' : isGo ? 'go' : isU ? 'u' : '';
+      const tip = `${esc(c.ref)}: ${esc(c.title)}${c.waits_on?.length ? ` · waits on ${c.waits_on.map(w => w.ref).join(', ')}` : isGo ? ' · clear to proceed' : isU ? ' · unverified' : ''}`;
+      return `<span class="ci plain ${big ? 'big ' : ''}${cls}" data-tip="${tip}"></span>`;
+    }).join('');
+  }
+  const total = cardsOrTotal ?? 0;
   let r = '';
   for (let i = 0; i < total; i++) {
     const isU = i >= total - undeclared;
-    r += `<span class="ci plain ${isU ? 'u' : ''}"></span>`;
+    r += `<span class="ci plain ${big ? 'big ' : ''}${isU ? 'u' : ''}"></span>`;
   }
   return r;
 }
@@ -808,10 +881,32 @@ function sizeHtml(s, q) {
   const velocity = READINESS?.summary?.velocity ?? MEDV;
   const est = POINTS && velocity ? `<div class="card est"><div class="v">≈ ${fmtH(s.points / velocity)}</div><div class="l">Estimated at ${num(velocity, 2)} pts/h</div></div>` : '';
   const undeclared = q ? q.cards.filter(c => !c.declared).length : 0;
+  const icons = q?.cards ? cardIconsHtml(q.cards, 0, true) : (s.cards == null ? skIcons(4, true) : cardIconsHtml(s.cards, undeclared, true));
+  const readyNote = q && q.ready_cards > 0 && q.blocked_cards > 0 ? ` (${q.ready_cards} clear to start)` : '';
   return `<div class="size"><div class="card">
-    <div class="sline">${s.cards == null ? skIcons(4, true) : cardIconsHtml(s.cards, undeclared)}<span>${s.cards ?? '…'} card${s.cards === 1 ? '' : 's'}</span></div>
+    <div class="sline">${icons}<span>${s.cards ?? '…'} card${s.cards === 1 ? '' : 's'}${readyNote}</span></div>
     ${POINTS ? `<div class="sline">${ringDots(s.points)}<span>${s.points} pts</span></div>` : ''}
   </div>${est}</div>`;
+}
+
+function sprintNodeBadge(x, y, W, H, { run, sprint, mark }) {
+  if (run) {
+    return `<text x="${x + W - 10}" y="${y + H / 2 + 5}" font-size="11" text-anchor="end" fill="var(--text-2)">running</text>`;
+  }
+  const ready = sprint?.ready_cards ?? (sprint?.state === 'Can start' ? sprint?.cards_count : 0);
+  const total = sprint?.cards_count;
+  const pill = (ready > 0 && total != null) ? (() => {
+    const txt = `${ready}/${total}`;
+    const bw = txt.length >= 5 ? 40 : 34;
+    const bh = 18;
+    const bx = x + W - 28 - bw;
+    const by = y + (H - bh) / 2;
+    const tip = `${ready} of ${total} cards clear to start in parallel`;
+    return `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="4" fill="var(--parallel-bg)" stroke="var(--parallel)" stroke-width="1.2"><title>${tip}</title></rect>
+      <text x="${bx + bw / 2}" y="${by + 13}" font-size="11" font-weight="700" fill="var(--parallel)" text-anchor="middle"><title>${tip}</title>${txt}</text>`;
+  })() : '';
+  const m = mark ? `<text x="${x + W - 10}" y="${y + H / 2 + 6}" font-size="18" text-anchor="end" fill="var(--text-2)">${mark}</text>` : '';
+  return `<g>${pill}${m}</g>`;
 }
 
 // Every sprint this one waits on, directly or not, to its left, and every
@@ -875,10 +970,10 @@ function chainSvg(s) {
       <path d="M${ex} ${ey - 5} L${ex + 8} ${ey} L${ex} ${ey + 5} Z" fill="${ink}"/></g>`;
   });
   Object.entries(pos).forEach(([id, [x, y]]) => {
-    const self = +id === s.sprint, o = byId[id], run = o?.status === 'current';
+    const self = +id === s.sprint, o = byId[id], run = o?.status === 'current', qRow = q[id];
     const node = `<rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${self ? 'var(--text)' : run ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${self || run ? 2 : 1}"/>
       <text x="${x + 10}" y="${y + H / 2 + 5}" font-size="13" fill="var(--text)"><tspan font-weight="600">${esc(o?.alias || '')}</tspan>${o?.alias ? ' ' : ''}<tspan fill="var(--muted)">#${id}</tspan></text>
-      <text x="${x + W - 10}" y="${y + H / 2 + 6}" font-size="${run ? 11 : 18}" text-anchor="end" fill="var(--text-2)">${mark(id)}</text>`;
+      ${sprintNodeBadge(x, y, W, H, { run, sprint: qRow, mark: mark(id) })}`;
     g += self ? node : `<a href="${sprintHref(id)}">${node}</a>`;
   });
   return `<svg style="display:block" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${g}</svg>`;
@@ -895,7 +990,9 @@ function readinessPanels(q) {
     'Can start': 'Clear to start now.',
     Overlap: 'Shares code with a sprint that could run at the same time.',
     Unverified: `${undeclared + unassessed === 0 ? 'Some cards' : [undeclared && `${undeclared} card${undeclared === 1 ? '' : 's'} without files declared`, unassessed && `${unassessed} without assessed dependencies`].filter(Boolean).join(', ')}.`,
-    'Not ready': 'Waits on unfinished cards in another sprint.',
+    'Not ready': q.ready_cards > 0
+      ? `${q.ready_cards} of ${q.cards_count} cards are clear to start now in parallel. ${q.blocked_cards} card${q.blocked_cards === 1 ? ' waits' : 's wait'} on unfinished work in another sprint.`
+      : 'Waits on unfinished cards in another sprint.',
   }[q.state];
   const depMark = others.size || outside
     ? `<span class="mark no">✗</span>Waits on ${others.size ? `${others.size} sprint${others.size === 1 ? '' : 's'}` : ''}${others.size && outside ? ' and ' : ''}${outside ? 'cards outside every sprint' : ''}`
@@ -903,7 +1000,7 @@ function readinessPanels(q) {
       ? `<span class="mark maybe">?</span>None recorded, but ${unassessed} card${unassessed === 1 ? ' is' : 's are'} not assessed`
       : '<span class="mark yes">✓</span>Nothing to wait for';
   return `<div class="grid g3">
-    <div class="card verdict">${stateBadge(q.state)}<p>${verdict}</p></div>
+    <div class="card verdict">${stateBadge(q.state, q)}<p>${verdict}</p></div>
     <div class="card rpanel"><h3>Shares code with</h3>${sharing.length
       ? `<div class="pills">${sharing.map(id => sprintPill(id, clash.has(id))).join('')}</div>${(() => {
         const running = sharing.some(id => byId[id]?.status === 'current');
@@ -929,8 +1026,13 @@ function cardListHtml(q) {
     const flags = [c.broad?.length ? `declares ${c.broad.map(esc).join(', ')}, not files` : !c.declared && 'scope not declared', !c.assessed && 'dependencies not assessed'].filter(Boolean);
     const waits = c.waits_on.map(w => `<li>${w.sprint_id == null ? '' : `${sprintLink(w.sprint_id)}: `}${esc(w.ref)}${w.state ? ` <span class="muted">(${esc(w.state)})</span>` : ''}</li>`).join('');
     const shares = [...byPath].map(([p, with_]) => `<li><span class="mono">${esc(p).replaceAll('/', '/<wbr>')}</span><br><span class="muted">with</span> ${[...with_].map(([sid, refs]) => `${sprintLink(sid)}: ${refs.join(', ')}`).join('; ')}</li>`).join('');
+    const badge = c.can_proceed
+      ? '<span class="pill" style="color:var(--parallel);border-color:var(--parallel);background:var(--parallel-bg);font-size:11px;margin-left:6px">clear to start</span>'
+      : c.is_blocked
+        ? '<span class="pill muted" style="margin-left:6px;font-size:11px">waits</span>'
+        : '';
     return `<tr>
-      <td class="ref mono small">${link(c)}</td>
+      <td class="ref mono small">${link(c)}${badge}</td>
       <td><b>${esc(c.title)}</b>${flags.length ? `<div>${flags.map(f => `<span class="flag">${f}</span>`).join('')}</div>` : ''}</td>
       ${POINTS ? `<td style="min-width:90px">${ringDots(c.points)}<div class="small muted" style="margin-top:3px">${c.points} pt${c.points === 1 ? '' : 's'}</div></td>` : ''}
       <td data-k="Waits on" class="${waits ? '' : 'empty'}">${waits ? `<ul>${waits}</ul>` : '<span class="muted">—</span>'}</td>
@@ -946,13 +1048,13 @@ function renderDagSvg() {
   }
   const S = {};
   (current || []).forEach(s => {
-    S[s.sprint] = [s.alias || '', 'running', 'run', false];
+    S[s.sprint] = [s.alias || '', 'running', 'run', false, s];
   });
   (READINESS.queue || []).forEach(s => {
     const mark = s.state === 'Can start' ? '🚀' : s.state === 'Overlap' ? '⚠️' : s.state === 'Unverified' ? '❓' : '⏳';
     const kind = s.state === 'Can start' ? 'start' : s.state === 'Overlap' ? 'overlap' : s.state === 'Unverified' ? 'unknown' : 'wait';
     const unclear = Boolean(s.unassessed > 0);
-    S[s.sprint_id] = [s.alias || '', mark, kind, unclear];
+    S[s.sprint_id] = [s.alias || '', mark, kind, unclear, s];
   });
 
   const rawCols = READINESS.graph.columns || {};
@@ -1019,11 +1121,11 @@ function renderDagSvg() {
 
   // Sprints
   Object.entries(pos).forEach(([id, [x, y]]) => {
-    const [alias, mark, kind, unclear] = S[id] || ['', '', '', false];
+    const [alias, mark, kind, unclear, s] = S[id] || ['', '', '', false, null];
     g += `<a class="node" data-sid="${id}" href="#/sprint/${id}?from=/planned"><rect x="${x}" y="${y}" width="${W}" height="${H}" rx="6" fill="var(--surface-2)" stroke="${unclear ? 'var(--warn)' : kind === 'run' ? 'var(--st-prog)' : 'var(--border)'}" stroke-width="${unclear || kind === 'run' ? 2 : 1}"><title>${unclear ? 'Dependencies unclear: some cards are not assessed, so arrows into this sprint may be missing' : ''}</title></rect>
       ${unclear ? `<text x="${x + W / 2}" y="${y + H + 12}" font-size="10.5" text-anchor="middle" fill="var(--warn)" font-weight="600">dependencies unclear</text>` : ''}
       <text x="${x + 10}" y="${y + H / 2 + 5}" font-size="13" fill="var(--text)"><tspan font-weight="600">${esc(alias)}</tspan>${alias ? ' ' : ''}<tspan fill="${alias ? 'var(--muted)' : 'var(--text)'}">#${id}</tspan></text>
-      <text x="${x + W - 10}" y="${y + H / 2 + 6}" font-size="${kind === 'run' ? 11 : 18}" text-anchor="end" fill="var(--text-2)">${mark}</text></a>`;
+      ${sprintNodeBadge(x, y, W, H, { run: kind === 'run', sprint: s, mark })}</a>`;
   });
 
   return `<svg class="dag" style="display:block" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${g}</svg>`;
@@ -1098,10 +1200,10 @@ V.planned = () => {
       <div>${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> <b>${esc(s.title)}</b></div>
       <div class="small t2 hide-sm">${esc(s.goal)}</div>
     </td>
-    <td>${stateBadge(s.state)}</td>
+    <td>${stateBadge(s.state, s)}</td>
     <td>
-      <div class="cicons hide-sm">${cardIconsHtml(s.cards_count, s.undeclared)}</div>
-      <div class="small muted" style="margin-top:3px;white-space:nowrap">${s.cards_count} card${s.cards_count === 1 ? '' : 's'}</div>
+      <div class="cicons hide-sm">${cardIconsHtml(s.cards || s.cards_count, s.undeclared)}</div>
+      <div class="small muted" style="margin-top:3px;white-space:nowrap">${s.cards_count} card${s.cards_count === 1 ? '' : 's'}${s.ready_cards > 0 && s.blocked_cards > 0 ? ` · ${s.ready_cards} can start` : ''}</div>
     </td>
     ${POINTS ? `<td><span class="hide-sm">${ringDots(s.points)}</span><div class="small muted" style="margin-top:3px;white-space:nowrap">${s.points} pts</div></td>` : ''}
     <td class="hide-sm" style="min-width:150px">
@@ -1125,6 +1227,7 @@ V.planned = () => {
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="25" y2="5" stroke="var(--warn)" stroke-width="1.5" stroke-dasharray="4 3"/></svg> shares code</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--st-prog);border-radius:3px;vertical-align:-1px"></span> running</span>
       <span><span style="display:inline-block;width:14px;height:10px;border:2px solid var(--warn);border-radius:3px;vertical-align:-1px"></span> dependencies unclear: arrows may be missing</span>
+      <span><span style="display:inline-block;padding:0 4px;border:1.2px solid var(--parallel);background:var(--parallel-bg);border-radius:4px;vertical-align:-1px;font-size:10px;font-weight:700;color:var(--parallel);line-height:14px">X/Y</span> unblocked cards</span>
     </div>
     <div style="overflow-x:auto">${renderDagSvg()}</div>
   </div>
@@ -1135,6 +1238,7 @@ V.planned = () => {
     <th class="hide-sm">#</th>
     <th>Sprint<span class="hide-sm"> and goal</span></th>
     <th>State <span class="info" tabindex="0">ⓘ<span class="pop"><span class="state start">Can start</span><span>every card declares its scope and has its dependencies assessed, nothing outside the sprint blocks it, and no code is shared</span>
+  <span class="state notready">X/Y blocked</span><span>some cards wait on unfinished work in another sprint (unblocked cards can start in parallel)</span>
   <span class="state overlap">Overlap</span><span>could start, but shares code with a running sprint or with an earlier sprint in the queue that can also start</span>
   <span class="state unknown">Unverified</span><span>some cards lack a scope declaration or a dependency assessment, so readiness cannot be checked</span>
   <span class="state notready">Not ready</span><span>waits on unfinished cards in another sprint</span></span></span></th>

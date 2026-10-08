@@ -293,9 +293,18 @@ def evaluate_readiness(
 
     startable_sprints: list[SprintFact] = []
 
+    sprint_ready_cards: dict[int, int] = {}
+    sprint_blocked_cards: dict[int, int] = {}
+    sprint_ready_points: dict[int, int] = {}
+    sprint_blocked_points: dict[int, int] = {}
+    sprint_blocked_card_ids: dict[int, set[str]] = {}
+    sprint_overlap_card_ids: dict[int, set[str]] = {}
+    sprint_unverified_card_ids: dict[int, set[str]] = {}
+
     for sprint in ordered_planned:
         reasons: list[str] = []
         overlaps_list: list[str] = []
+        blocked_card_ids: set[str] = set()
 
         # 1. Check Not ready: card waits on unfinished card in another sprint
         is_blocked = False
@@ -310,6 +319,7 @@ def evaluate_readiness(
                         and not blocker_card.is_settled
                     ):
                         is_blocked = True
+                        blocked_card_ids.add(card.id)
                         s_name = sprint_name(
                             blocker_sprint.sprint_id, blocker_sprint.alias
                         )
@@ -326,6 +336,7 @@ def evaluate_readiness(
                         b_ref, b_state = ref_state
                         if b_state.casefold() not in {"done", "cancelled", "archived"}:
                             is_blocked = True
+                            blocked_card_ids.add(card.id)
                             reason_msg = (
                                 f"Waits on external card: {card.ref} needs {b_ref} ({b_state})"
                             )
@@ -333,12 +344,14 @@ def evaluate_readiness(
                                 reasons.append(reason_msg)
                     else:
                         is_blocked = True
+                        blocked_card_ids.add(card.id)
                         reason_msg = f"Waits on external card: {card.ref} needs {blocker_id}"
                         if reason_msg not in reasons:
                             reasons.append(reason_msg)
 
         # 2. Check Overlap against running sprints and earlier startable planned sprints
         has_overlap = False
+        overlap_card_ids: set[str] = set()
         candidates_to_check = running_sprints + startable_sprints
 
         for other_sprint in candidates_to_check:
@@ -347,6 +360,7 @@ def evaluate_readiness(
                     shared = card_shared_paths(card, other_card, shared_paths=shared_paths)
                     if shared:
                         has_overlap = True
+                        overlap_card_ids.add(card.id)
                         other_desc = (
                             f"running {sprint_name(other_sprint.sprint_id, other_sprint.alias)}"
                             if other_sprint.is_current
@@ -370,6 +384,7 @@ def evaluate_readiness(
         # 3. Check Unverified: some card lacks Touches declaration or assessed marker
         undeclared_count = 0
         unassessed_count = 0
+        unverified_card_ids: set[str] = set()
         unverified_reasons: list[str] = []
         for card in sprint.open_cards:
             plan = card.parsed_plan
@@ -381,6 +396,7 @@ def evaluate_readiness(
 
             if card_undeclared:
                 undeclared_count += 1
+                unverified_card_ids.add(card.id)
                 msg = (
                     f"{card.ref} declares directories or patterns, not files: "
                     + ", ".join(broad)
@@ -391,6 +407,7 @@ def evaluate_readiness(
                     unverified_reasons.append(msg)
             if card_unassessed:
                 unassessed_count += 1
+                unverified_card_ids.add(card.id)
                 msg = f"{card.ref} dependencies not assessed"
                 if msg not in unverified_reasons:
                     unverified_reasons.append(msg)
@@ -412,6 +429,23 @@ def evaluate_readiness(
             why = []
             startable_sprints.append(sprint)
 
+        ready_cards_count = sum(
+            1 for c in sprint.open_cards
+            if c.id not in blocked_card_ids
+            and c.id not in overlap_card_ids
+            and c.id not in unverified_card_ids
+        )
+        ready_points_count = sum(
+            c.points for c in sprint.open_cards
+            if c.id not in blocked_card_ids
+            and c.id not in overlap_card_ids
+            and c.id not in unverified_card_ids
+        )
+        blocked_cards_count = len(blocked_card_ids)
+        blocked_points_count = sum(
+            c.points for c in sprint.open_cards if c.id in blocked_card_ids
+        )
+
         sprint_states[sprint.sprint_id] = state
         sprint_reasons[sprint.sprint_id] = why
         sprint_undeclared[sprint.sprint_id] = undeclared_count
@@ -419,6 +453,13 @@ def evaluate_readiness(
         sprint_overlaps[sprint.sprint_id] = overlaps_list
         sprint_blockers[sprint.sprint_id] = reasons
         sprint_unverified[sprint.sprint_id] = unverified_reasons
+        sprint_ready_cards[sprint.sprint_id] = ready_cards_count
+        sprint_blocked_cards[sprint.sprint_id] = blocked_cards_count
+        sprint_ready_points[sprint.sprint_id] = ready_points_count
+        sprint_blocked_points[sprint.sprint_id] = blocked_points_count
+        sprint_blocked_card_ids[sprint.sprint_id] = blocked_card_ids
+        sprint_overlap_card_ids[sprint.sprint_id] = overlap_card_ids
+        sprint_unverified_card_ids[sprint.sprint_id] = unverified_card_ids
 
     # Serial and parallel durations
     total_planned_points = sum(s.points for s in ordered_planned)
@@ -511,14 +552,25 @@ def evaluate_readiness(
             "cards_count": len(s.cards),
             "points": pts,
             "hours": hours,
+            "ready_cards": sprint_ready_cards[s.sprint_id],
+            "blocked_cards": sprint_blocked_cards[s.sprint_id],
+            "ready_points": sprint_ready_points[s.sprint_id],
+            "blocked_points": sprint_blocked_points[s.sprint_id],
             "undeclared": sprint_undeclared[s.sprint_id],
             "unassessed": sprint_unassessed[s.sprint_id],
             "overlaps": sprint_overlaps[s.sprint_id],
             "blockers": sprint_blockers[s.sprint_id],
             "unverified": sprint_unverified[s.sprint_id],
             "cards": _card_rows(
-                s, all_sprints, card_index, card_sprint_map, blocker_states,
+                s,
+                all_sprints,
+                card_index,
+                card_sprint_map,
+                blocker_states,
                 shared_paths,
+                blocked_card_ids=sprint_blocked_card_ids[s.sprint_id],
+                overlap_card_ids=sprint_overlap_card_ids[s.sprint_id],
+                unverified_card_ids=sprint_unverified_card_ids[s.sprint_id],
             ),
         })
 
@@ -562,6 +614,10 @@ def _card_rows(
     card_sprint_map: Mapping[str, SprintFact],
     blocker_states: Mapping[str, tuple[str, str]],
     shared_paths: Sequence[str],
+    *,
+    blocked_card_ids: set[str] | None = None,
+    overlap_card_ids: set[str] | None = None,
+    unverified_card_ids: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     """Each open card of a planned sprint, with what it waits on outside
     the sprint and the code it shares with any other open sprint.
@@ -600,6 +656,12 @@ def _card_rows(
         ]
         plan = card.parsed_plan
         broad = _broad_paths(plan)
+        is_blocked = card.id in (blocked_card_ids or set())
+        is_overlap = card.id in (overlap_card_ids or set())
+        is_unverified = card.id in (unverified_card_ids or set())
+        can_proceed = (
+            not is_blocked and not is_overlap and not is_unverified
+        )
         rows.append({
             "id": card.id,
             "ref": card.ref,
@@ -611,6 +673,8 @@ def _card_rows(
             ) and not broad,
             "broad": broad,
             "assessed": plan.dependencies_assessed,
+            "can_proceed": can_proceed,
+            "is_blocked": is_blocked,
             "waits_on": waits_on,
             "shares": shares,
         })

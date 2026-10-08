@@ -674,3 +674,77 @@ def test_directory_declarations_are_undeclared_scope_not_overlap() -> None:
     assert card["declared"] is False
     assert card["broad"] == ["src/events/"]
     assert card["shares"] == []
+
+
+def test_partial_sprint_readiness_counts_and_card_flags() -> None:
+    """A sprint with some blocked and some unblocked cards reports partial
+    readiness counts and per-card can_proceed / is_blocked flags."""
+    plan_a = (
+        "<div><h2>Delivery plan</h2>"
+        "<p>Touches: src/app.py<br>Dependencies: assessed</p></div>"
+    )
+    plan_b = (
+        "<div><h2>Delivery plan</h2>"
+        "<p>Touches: src/b.py<br>Dependencies: assessed</p></div>"
+    )
+    running = SprintFact(
+        sprint_id=1,
+        title="Running",
+        is_current=True,
+        cards=(
+            CardFact(
+                id="r-1",
+                ref="RUN-1",
+                title="Running card",
+                state="In Progress",
+                points=2,
+                sprint_id=1,
+                description_html=plan_a,
+            ),
+        ),
+    )
+    card_blocked = CardFact(
+        id="c-blocked",
+        ref="PLN-1",
+        title="Blocked card",
+        state="Backlog",
+        points=3,
+        sprint_id=2,
+        blocked_by=("r-1",),
+        description_html=plan_a,
+    )
+    card_clear = CardFact(
+        id="c-clear",
+        ref="PLN-2",
+        title="Clear card",
+        state="Backlog",
+        points=5,
+        sprint_id=2,
+        description_html=plan_b,
+    )
+    planned = SprintFact(
+        sprint_id=2,
+        title="Planned",
+        position=1,
+        cards=(card_blocked, card_clear),
+    )
+
+    report = evaluate_readiness(
+        [running],
+        [planned],
+        {"r-1": ("RUN-1", "In Progress")},
+    )
+    (row,) = report["queue"]
+    assert row["state"] == STATE_NOT_READY
+    assert row["cards_count"] == 2
+    assert row["ready_cards"] == 1
+    assert row["blocked_cards"] == 1
+    assert row["ready_points"] == 5
+    assert row["blocked_points"] == 3
+
+    cards = {c["ref"]: c for c in row["cards"]}
+    assert cards["PLN-1"]["can_proceed"] is False
+    assert cards["PLN-1"]["is_blocked"] is True
+    assert cards["PLN-2"]["can_proceed"] is True
+    assert cards["PLN-2"]["is_blocked"] is False
+
