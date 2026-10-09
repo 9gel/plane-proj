@@ -14,6 +14,83 @@ from plane_proj.delivery_plan import (
 from plane_proj.text import to_html
 
 
+@pytest.mark.parametrize("as_html", [False, True])
+@pytest.mark.parametrize("next_level", [1, 2])
+def test_nested_delivery_plan(as_html: bool, next_level: int) -> None:
+    """Nested upstream contracts must not hide scope or assessment."""
+    description = (
+        "## Delivery plan\nImplementation notes.\n\n"
+        "### Required upstream outputs\n"
+        "- HPP-846: asset registration\n"
+        "- HPP-847: source generation\n\n"
+        "Touches:\n"
+        "- `pipeline/domain/policy.py` (new)\n"
+        "- `pipeline/dbt/stg_policy.sql`\n\n"
+        "### Verification\nRun the selected dbt build.\n\n"
+        "Dependencies: assessed. Upstream outputs match native relations.\n"
+        f"{'#' * next_level} Other section\n"
+        "Touches: unrelated.py\nDependencies: not assessed\n"
+    )
+    stored = to_html(description) if as_html else description
+
+    parsed = parse_delivery_plan(stored)
+
+    assert parsed.touches == (
+        TouchedPath("pipeline/domain/policy.py", is_new=True),
+        TouchedPath("pipeline/dbt/stg_policy.sql"),
+    )
+    assert parsed.dependencies_assessed is True
+
+
+@pytest.mark.parametrize("as_html", [False, True])
+@pytest.mark.parametrize("assessment", [
+    "assessed.",
+    "assessed. Native blockers checked.",
+    "assessed; native blockers checked.",
+])
+def test_assessment_with_explanation(
+    as_html: bool, assessment: str,
+) -> None:
+    description = (
+        "## Delivery plan\nTouches: none\n"
+        f"Dependencies: {assessment}\n"
+    )
+    stored = to_html(description) if as_html else description
+    assert parse_delivery_plan(stored).dependencies_assessed is True
+
+
+@pytest.mark.parametrize("assessment", [
+    "not assessed", "unassessed", "assessed partially", "assessedness",
+])
+def test_nonaffirmative_assessment(assessment: str) -> None:
+    description = (
+        "## Delivery plan\nTouches: none\n"
+        f"Dependencies: {assessment}\n"
+    )
+    assert parse_delivery_plan(description).dependencies_assessed is None
+
+
+@pytest.mark.parametrize("as_html", [False, True])
+def test_replacement_includes_nested_sections(as_html: bool) -> None:
+    prefix = "## What to build\nKeep this.\n\n"
+    old = (
+        "## Delivery plan\n### Upstream outputs\nOld contract.\n\n"
+        "Touches:\n- `old.py`\nDependencies: assessed\n\n"
+    )
+    suffix = "## Acceptance criteria\nKeep these too.\n"
+    if as_html:
+        prefix, old, suffix = map(to_html, (prefix, old, suffix))
+    plan = DeliveryPlan((TouchedPath("new.py"),), True)
+
+    result = replace_section(prefix + old + suffix, plan)
+
+    assert result.startswith(prefix)
+    assert result.endswith(suffix)
+    assert "Old contract" not in result
+    assert "old.py" not in result
+    assert parse_delivery_plan(result) == plan
+
+
 def test_roundtrip_render_html_parse() -> None:
     """pytest renders a section, converts it to HTML with the project's Markdown
 

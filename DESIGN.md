@@ -683,6 +683,10 @@ Dependencies: assessed
   on. The dependencies themselves stay Plane `blocked_by` relations, the only
   copy; the marker never lists them. Assessed with no relations means the
   card is independent; no marker means unknown, whatever relations exist.
+  A period or semicolon may follow `assessed`, with an optional explanation.
+- Subheadings belong to the Delivery plan section. Only a heading of equal
+  or higher level ends it. A subheading after the file list ends that list,
+  so subsequent explanatory prose is not interpreted as file scope.
 - A card without the section, or without one of its two lines, is
   undeclared in that respect. Undeclared cards are reported, never refused,
   so an existing board can be backfilled at any pace.

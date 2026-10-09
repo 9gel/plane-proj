@@ -19,7 +19,7 @@ _HTML_HEADING = re.compile(
     r"(?i)<h([1-6])[^>]*>\s*delivery\s+plan\s*</h\1>"
 )
 _MD_HEADING = re.compile(
-    r"(?mi)^#{1,6}\s+delivery\s+plan\b.*$"
+    r"(?mi)^(#{1,6})\s+delivery\s+plan\b.*$"
 )
 
 
@@ -161,10 +161,28 @@ def render_section(
 
 def _strip_html(text: str) -> str:
     """Convert HTML snippet to plain lines with block tags as newlines."""
-    t = re.sub(r"(?i)<br\s*/?>", "\n", text)
+    # Retain subsection boundaries so their prose cannot become file paths.
+    t = re.sub(
+        r"(?i)<h([1-6])[^>]*>",
+        lambda match: "\n" + "#" * int(match[1]) + " ",
+        text,
+    )
+    t = re.sub(r"(?i)<br\s*/?>", "\n", t)
     t = re.sub(r"(?i)</(p|li|div|h[1-6])>", "\n", t)
     t = re.sub(r"<[^>]+>", "", t)
     return html.unescape(t)
+
+
+def _next_section(
+    text: str, heading: re.Match[str], *, is_html: bool,
+) -> re.Match[str] | None:
+    """A section ends at a peer or ancestor, never at its subheadings."""
+    level = int(heading[1]) if is_html else len(heading[1])
+    pattern = (
+        rf"(?i)<h[1-{level}]\b[^>]*>"
+        if is_html else rf"(?m)^#{{1,{level}}}\s+"
+    )
+    return re.search(pattern, text)
 
 
 def parse_delivery_plan(content: str | None) -> DeliveryPlan:
@@ -177,7 +195,7 @@ def parse_delivery_plan(content: str | None) -> DeliveryPlan:
 
     if html_match:
         rest = content[html_match.end():]
-        next_h = re.search(r"(?i)<h[1-6][^>]*>", rest)
+        next_h = _next_section(rest, html_match, is_html=True)
         end = next_h.start() if next_h else len(rest)
         div_idx = rest.rfind("</div>")
         if not next_h and div_idx >= 0:
@@ -185,7 +203,7 @@ def parse_delivery_plan(content: str | None) -> DeliveryPlan:
         raw_section = _strip_html(rest[:end])
     elif md_match:
         rest = content[md_match.end():]
-        next_h = re.search(r"(?mi)^#{1,6}\s+", rest)
+        next_h = _next_section(rest, md_match, is_html=False)
         end = next_h.start() if next_h else len(rest)
         raw_section = rest[:end]
     else:
@@ -197,6 +215,9 @@ def parse_delivery_plan(content: str | None) -> DeliveryPlan:
 
     in_touches = False
     for line in lines:
+        if re.match(r"^#{1,6}\s+", line):
+            in_touches = False
+            continue
         if re.match(r"(?i)^(?:touches|file\s+scope):\s*none\s*$", line):
             touches = []
             in_touches = False
@@ -216,8 +237,12 @@ def parse_delivery_plan(content: str | None) -> DeliveryPlan:
                 in_touches = True
             continue
 
-        if re.match(r"(?i)^dependencies:\s*assessed\s*$", line):
-            deps_assessed = True
+        if re.match(r"(?i)^dependencies:", line):
+            if re.fullmatch(
+                r"(?i)dependencies:\s*assessed(?:\s*[.;](?:\s+.*)?)?",
+                line,
+            ):
+                deps_assessed = True
             in_touches = False
             continue
 
@@ -259,7 +284,7 @@ def replace_section(
     if html_match:
         start = html_match.start()
         rest = description[html_match.end():]
-        next_h = re.search(r"(?i)<h[1-6][^>]*>", rest)
+        next_h = _next_section(rest, html_match, is_html=True)
         if next_h:
             end = html_match.end() + next_h.start()
         else:
@@ -271,8 +296,10 @@ def replace_section(
     if md_match:
         start = md_match.start()
         rest = description[md_match.end():]
-        next_h = re.search(r"(?mi)^#{1,6}\s+", rest)
+        next_h = _next_section(rest, md_match, is_html=False)
         end = md_match.end() + next_h.start() if next_h else len(description)
+        if end < len(description) and not rendered.endswith("\n"):
+            rendered += "\n"
         return description[:start] + rendered + description[end:]
 
     # Section not found; append to description
