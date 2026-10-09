@@ -173,6 +173,22 @@ def card_shared_paths(
     return shared
 
 
+def planned_with_work(
+    sprints: Sequence[SprintFact], reported: set[int],
+) -> list[SprintFact]:
+    """Omit a planned sprint whose cycle was read and has no work card.
+
+    Cancelled cards are not work. A sprint absent from `reported` has
+    no cycle on this read, so its emptiness is unknown and it stays.
+    """
+    return [
+        sprint for sprint in sprints
+        if sprint.sprint_id not in reported or any(
+            card.state.casefold() != "cancelled" for card in sprint.cards
+        )
+    ]
+
+
 def sprint_name(sprint_id: int, alias: str | None = None) -> str:
     if alias:
         return f"{alias} #{sprint_id}"

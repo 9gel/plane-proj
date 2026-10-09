@@ -11,7 +11,9 @@ from urllib.request import urlopen
 
 import pytest
 
+from plane_proj import sprints as sprints_module
 from plane_proj import web
+from plane_proj.cli import _sprint_listing, sprints_web_routes
 from plane_proj.config import DEFAULT_WEB_URL, Config
 from plane_proj.guards import GuardViolation
 
@@ -211,6 +213,83 @@ def test_current_page_refetches_timing_about_once_a_minute() -> None:
     content = web.page()
     assert "isCurrentOpen" in content
     assert "60000" in content
+
+
+def test_web_omits_empty_planned_sprints(
+    tmp_path: Path, config: Config,
+) -> None:
+    """A cycle with no work card is absent from the web, present in the list."""
+    from types import SimpleNamespace
+
+    database = tmp_path / "SPRINTS.sqlite"
+    sprints_module.create_database(
+        database, ("https://plane.example", "example-workspace", "DEMO"),
+    )
+    with sprints_module.connect_database(database, writable=True) as conn:
+        for sprint_id in (1, 2, 3, 4):
+            sprints_module.plan_sprint(
+                conn, sprint_id, f"Sprint {sprint_id}", sprint_id,
+                "Goal", "Exec", ("Accept",),
+            )
+
+    class Board:
+        slug = "example-workspace"
+        project = SimpleNamespace(
+            key="DEMO", name="Demo", id="project-uuid",
+            estimates_enabled=True,
+        )
+
+        def dependency_facts(self, cycles: dict[int, str]) -> dict:
+            return {"members": {}, "blocked_by": {}, "states": {}}
+
+        def sprint_cycles(self, sprint_ids: set[int]) -> dict[int, str]:
+            return {1: "c1", 2: "c2", 3: "c3"}
+
+        def planned_sprint_totals(
+            self, sprint_ids: set[int],
+        ) -> dict[int, tuple[int, int]]:
+            return {1: (1, 2), 2: (0, 0), 3: (0, 0)}
+
+        def readiness_facts(self, cycles: dict[int, str]) -> dict:
+            return {
+                "members": {
+                    1: [{
+                        "id": "a", "ref": "DEMO-1", "title": "Work",
+                        "state": "Todo", "points": 2, "description_html": "",
+                    }],
+                    2: [],
+                    3: [{
+                        "id": "c", "ref": "DEMO-3", "title": "Dropped",
+                        "state": "Cancelled", "points": 1,
+                        "description_html": "",
+                    }],
+                },
+                "blocked_by": {},
+                "states": {},
+            }
+
+    obj = {
+        "root": SimpleNamespace(
+            board=Board(), config=config, as_json=False, project_key="DEMO",
+        ),
+        "database": database,
+        "binding": ("https://plane.example", "example-workspace", "DEMO"),
+    }
+    listing = _sprint_listing(obj, include_all=True)
+    listed = [sprint["sprint"] for sprint in listing["payload"]["planned"]]
+    assert listed == [1, 2, 3, 4]
+
+    routes = sprints_web_routes(obj)
+    payload = routes["/api/sprints"]()
+    shown = [
+        sprint["sprint"] for sprint in payload["listing"]["planned"]
+    ]
+    assert shown == [1, 4]
+    local = routes["/api/sprints/local"]()["listing"]["planned"]
+    assert [sprint["sprint"] for sprint in local] == [1, 2, 3, 4]
+    report = routes["/api/readiness"]()
+    assert [row["sprint_id"] for row in report["queue"]] == [1, 4]
+    assert report["summary"]["sprints"] == 2
 
 
 def test_web_page_contains_parallel_readiness_elements() -> None:

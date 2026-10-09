@@ -1187,6 +1187,9 @@ def sprints_web_routes(
         }
         if planned:
             cycles |= board.sprint_cycles(planned)
+        listing["payload"] = web_module.without_empty_planned(
+            listing["payload"],
+        )
         return web_module.build_payload(
             listing["payload"],
             project={"key": project.key, "name": project.name},
@@ -1227,10 +1230,12 @@ def sprints_web_routes(
         ) as connection:
             sprints_list = sprints_module.fetch_sprints(connection)
 
+        facts = board.readiness_facts(cycles)
         current_sprints, planned_sprints, blocker_states = (
-            readiness_module.gather_sprint_facts(
-                sprints_list, board.readiness_facts(cycles)
-            )
+            readiness_module.gather_sprint_facts(sprints_list, facts)
+        )
+        planned_sprints = readiness_module.planned_with_work(
+            planned_sprints, set(facts["members"]),
         )
         completed = [
             s for s in sprints_list if s.status == sprints_module.STATUS_COMPLETED

@@ -1119,6 +1119,11 @@ and two JSON routes from `web.py`:
   graph, and the serial and parallel times. It reads every open card's
   relations and description, so the Planned page and a planned sprint's page
   request it on opening and show placeholders until it arrives.
+- A planned sprint whose cycle has no card other than Cancelled is left
+  out of `/api/sprints` and `/api/readiness`. The Planned page and the
+  overview then treat it as absent. `sprints list` and `sprints readiness`
+  still include it. The register-only payload has no card count, so an
+  empty sprint can show until the full payload arrives.
 - `/api/version` returns the register file's (and WAL's) modification time
   and size. The page polls it every 2 seconds and refetches `/api/sprints`
   only when it changes, so an idle page makes no Plane requests. A change made

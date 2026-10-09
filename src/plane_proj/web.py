@@ -41,6 +41,21 @@ def cycle_url(
     return f"{base}/{workspace}/projects/{project_id}/cycles/{cycle_id}"
 
 
+def without_empty_planned(listing: dict[str, Any]) -> dict[str, Any]:
+    """Drop planned sprints whose cycle has no card.
+
+    A count of zero already excludes Cancelled cards. A missing count
+    is still unknown, so the register-only payload keeps the sprint.
+    """
+    planned = listing.get("planned")
+    if not isinstance(planned, list):
+        return listing
+    kept = [row for row in planned if row.get("cards") != 0]
+    if len(kept) == len(planned):
+        return listing
+    return listing | {"planned": kept}
+
+
 def build_payload(
     listing: dict[str, Any], *, project: dict[str, str], board: str | None,
     cards: dict[int, list[dict[str, Any]]], estimates: bool,
