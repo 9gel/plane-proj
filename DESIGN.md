@@ -770,6 +770,13 @@ page shows its size and estimate, the whole dependency chain through it
 its verdict, the sprints it shares code with, whether it waits on
 anything, and each card's waits and shared paths.
 
+Start now separates sprints that can start together from verified alternatives
+that share files with an earlier startable sprint but have no unfinished
+blockers or overlap with a running sprint. The graph groups sprints by their
+upstream sprint dependencies, regardless of readiness state. Running sprints
+have their own column when present. A graph column does not assert readiness;
+the node badge and queue state do.
+
 Times use the median velocity of completed sprints, or an assumed 3.5
 points per hour, marked as such, when there is none. The serial time is all
 planned points divided by velocity. The parallel time is the longest chain

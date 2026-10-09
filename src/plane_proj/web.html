@@ -96,6 +96,8 @@ h1 { font-size: 22px; margin: 0 0 4px; } h2 { font-size: 16px; margin: 28px 0 10
 .g4 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; min-width: 0; }
 .card.link { cursor: pointer; } .card.link:hover { border-color: var(--accent); }
+.alternative-files { margin-top: 8px; color: var(--text-2); }
+.alternative-files ul { margin: 6px 0 0; padding-left: 18px; overflow-wrap: anywhere; }
 .kpis { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .kpis .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; min-width: 96px; }
 .kpis .kpi .v { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1126,8 +1128,10 @@ function renderDagSvg() {
 
   const rawCols = READINESS.graph.columns || {};
   const col = {};
+  const hasRunning = (current || []).length > 0;
   Object.keys(S).forEach(id => {
-    col[id] = rawCols[id] ?? (rawCols[+id] ?? 0);
+    const depth = rawCols[id] ?? (rawCols[+id] ?? 0);
+    col[id] = S[id][2] === 'run' ? 0 : depth + (hasRunning ? 1 : 0);
   });
 
   const W = 180, H = 40, GX = 80, GY = 26, X = c => 50 + c * (W + GX);
@@ -1143,8 +1147,14 @@ function renderDagSvg() {
   const width = X(maxCol) + W + 10;
   const height = 34 + maxRows * (H + GY);
 
-  let g = `<text x="${X(0)}" y="16" font-size="12" font-weight="600" fill="var(--text-2)">Running / Can start</text>`
-    + (maxCol >= 1 ? `<text x="${X(1)}" y="16" font-size="12" font-weight="600" fill="var(--text-2)">Other sprints</text><line x1="${X(1) - GX / 2}" y1="4" x2="${X(1) - GX / 2}" y2="${height - 4}" stroke="var(--border)"/>` : '');
+  let g = '';
+  for (let c = 0; c <= maxCol; c++) {
+    const title = hasRunning && c === 0 ? 'Running'
+      : c === (hasRunning ? 1 : 0) ? 'No sprint prerequisites'
+      : 'Depends on a sprint';
+    g += `<text x="${X(c)}" y="16" font-size="12" font-weight="600" fill="var(--text-2)">${title}</text>`;
+    if (c > 0) g += `<line x1="${X(c) - GX / 2}" y1="4" x2="${X(c) - GX / 2}" y2="${height - 4}" stroke="var(--border)"/>`;
+  }
 
   // Overlap dash-dot arcs (grouped by sprint pair so multiple overlapping cards don't stack lines)
   const overlapEdges = new Map();
@@ -1246,6 +1256,11 @@ V.planned = () => {
 </div>`;
 
   const startable = queue ? queue.filter(s => s.state === 'Can start') : null;
+  const runningOverlap = new Set((READINESS?.overlap_pairs || [])
+    .filter(p => p.is_running).map(p => p.sprint_a));
+  const alternatives = queue ? queue.filter(s => s.state === 'Overlap'
+    && !s.blockers?.length && !s.undeclared && !s.unassessed
+    && !runningOverlap.has(s.sprint_id)) : [];
   const startNowHtml = !queue ? `
 <div class="grid g3">
   <div class="card">${sk('100%', 80)}</div>
@@ -1259,6 +1274,25 @@ V.planned = () => {
     <div class="small" style="margin-top:8px">No overlap with running sprints.</div>
   </div>`).join('')}
 </div>` : '<p class="muted">No sprints are clear to start right now.</p>';
+
+  const alternativesHtml = alternatives.map(s => {
+    const conflicts = new Map();
+    (READINESS.overlap_pairs || []).filter(p => p.sprint_a === s.sprint_id)
+      .forEach(p => {
+        const name = queue.find(q => q.sprint_id === p.sprint_b)?.alias || `#${p.sprint_b}`;
+        if (!conflicts.has(name)) conflicts.set(name, new Set());
+        (p.paths || []).forEach(path => conflicts.get(name).add(path));
+      });
+    const names = [...conflicts.keys()];
+    return `<div class="card">
+      <div class="row"><span class="state overlap">Alternative</span><span class="sp"></span><span class="pill">position ${s.position}</span></div>
+      <h3 style="margin:6px 0 2px"><a href="#/sprint/${s.sprint_id}?from=/planned">${s.alias ? `<span class="alias">${esc(s.alias)}</span> ` : ''}<span class="muted">#${s.sprint_id}</span> ${esc(s.title)}</a></h3>
+      <div class="small t2">${s.points} pts · ≈ ${fmtH(s.hours)} · no unfinished blockers</div>
+      <div class="small" style="margin-top:8px">Shares files with ${names.map(esc).join(', ')}.</div>
+      <details class="small alternative-files"><summary>Shared files</summary><ul>${[...conflicts].map(([name, paths]) =>
+        `<li><b>${esc(name)}</b>: ${[...paths].map(esc).join(', ')}</li>`).join('')}</ul></details>
+    </div>`;
+  }).join('');
 
   const rowsHtml = !queue ? [1, 2, 3].map(i => `
   <tr>
@@ -1291,10 +1325,15 @@ V.planned = () => {
   ${kpisHtml}
 
   <h2>Start now</h2>
-  <p class="small muted" style="margin:-4px 0 10px">Only sprints that are clear to start: every card declared and assessed, nothing outside the sprint blocks them, and no file scope overlap.</p>
+  <p class="small muted" style="margin:-4px 0 10px">These choices have no unfinished blockers or overlap with running sprints. File conflicts mean some choices cannot run together.</p>
+  <h3>Can start together</h3>
   ${startNowHtml}
+  ${alternatives.length ? `<h3 style="margin-top:16px">Available alternatives</h3>
+  <p class="small muted">Each can start now instead of a conflicting sprint above. Check shared files before starting more than one.</p>
+  <div class="grid g3">${alternativesHtml}</div>` : ''}
 
   <h2>Sprint dependencies</h2>
+  <p class="small muted" style="margin:-4px 0 10px">Columns show sprint prerequisites. A sprint without prerequisites may still have file overlap or unverified cards.</p>
   <div class="card">
     <div class="legend" style="margin:0 0 8px">
       <span><svg width="26" height="10"><line x1="1" y1="5" x2="20" y2="5" stroke="var(--text-2)" stroke-width="1.5"/><path d="M19 1 L25 5 L19 9 Z" fill="var(--text-2)"/></svg> must finish first (a card waits on it)</span>

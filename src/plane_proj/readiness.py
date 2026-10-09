@@ -519,16 +519,11 @@ def evaluate_readiness(
         if s_id in col_visiting:
             return 0
         col_visiting.add(s_id)
-        is_clear = (
-            any(s.sprint_id == s_id for s in running_sprints)
-            or sprint_states.get(s_id) == STATE_CAN_START
-        )
-        base = 0 if is_clear else 1
         incoming = [u for u, v, _ in sprint_deps if v == s_id]
         if not incoming:
-            col[s_id] = base
+            col[s_id] = 0
         else:
-            col[s_id] = max(base, *(get_col(u) + 1 for u in incoming))
+            col[s_id] = max(get_col(u) + 1 for u in incoming)
         col_visiting.remove(s_id)
         return col[s_id]
 

@@ -251,6 +251,12 @@ def test_overlap_only_against_running_and_earlier_startable_sprints() -> None:
     assert len(can_start) == 1
     assert can_start[0]["sprint_id"] == 21
 
+    # Graph placement follows sprint dependencies, not the chosen
+    # non-overlapping set of sprints that can start together.
+    assert report["graph"]["columns"][20] == 0
+    assert report["graph"]["columns"][21] == 0
+    assert report["graph"]["columns"][22] == 0
+
 
 def test_serial_and_parallel_times_with_assumed_and_median_velocity() -> None:
     """pytest checks serial and parallel times, including the 3.5 pts/h
@@ -293,6 +299,7 @@ def test_serial_and_parallel_times_with_assumed_and_median_velocity() -> None:
     assert rep_assumed["summary"]["serial_hours"] == 8.0
     assert rep_assumed["summary"]["parallel_hours"] == 8.0
     assert rep_assumed["graph"]["critical_path"] == [1, 2, 3]
+    assert rep_assumed["graph"]["columns"] == {1: 0, 2: 1, 3: 2, 4: 0}
 
     # 2. Completed sprints with velocities [6.0, 7.0, 8.0] -> median 7.0 pts/h
     # Serial hours = 28 / 7.0 = 4.0h
