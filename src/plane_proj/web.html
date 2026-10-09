@@ -1147,13 +1147,16 @@ function renderDagSvg() {
   const width = X(maxCol) + W + 10;
   const height = 34 + maxRows * (H + GY);
 
-  let g = '';
-  for (let c = 0; c <= maxCol; c++) {
-    const title = hasRunning && c === 0 ? 'Running'
-      : c === (hasRunning ? 1 : 0) ? 'No sprint prerequisites'
-      : 'Depends on a sprint';
-    g += `<text x="${X(c)}" y="16" font-size="12" font-weight="600" fill="var(--text-2)">${title}</text>`;
-    if (c > 0) g += `<line x1="${X(c) - GX / 2}" y1="4" x2="${X(c) - GX / 2}" y2="${height - 4}" stroke="var(--border)"/>`;
+  const rootCol = hasRunning ? 1 : 0;
+  const heading = (c, title) => `<text x="${X(c)}" y="16" font-size="12"
+    font-weight="600" fill="var(--text-2)">${title}</text>`;
+  const divider = c => `<line x1="${X(c) - GX / 2}" y1="4"
+    x2="${X(c) - GX / 2}" y2="${height - 4}" stroke="var(--border)"/>`;
+  let g = hasRunning ? heading(0, 'Running') : '';
+  g += heading(rootCol, 'No sprint prerequisites');
+  if (maxCol > rootCol) g += heading(rootCol + 1, 'Depends on a sprint');
+  for (const c of [rootCol, rootCol + 1]) {
+    if (c > 0 && c <= maxCol) g += divider(c);
   }
 
   // Overlap dash-dot arcs (grouped by sprint pair so multiple overlapping cards don't stack lines)
