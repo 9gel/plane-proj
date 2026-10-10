@@ -800,22 +800,27 @@ V.currentOne = s => {
 };
 
 let READINESS = null, readinessState = 'idle', readinessError = null;
+let readinessRequest = 0;
 
 function loadReadiness() {
   if (readinessState === 'loading') return;
   readinessState = 'loading';
+  const request = ++readinessRequest;
   busyStart();
   getJSON('api/readiness')
     .then(d => {
+      if (request !== readinessRequest) return;
       READINESS = d;
       readinessState = 'done';
     })
     .catch(e => {
+      if (request !== readinessRequest) return;
       readinessError = e.message;
       readinessState = 'error';
     })
     .finally(() => {
       busyEnd();
+      if (request !== readinessRequest) return;
       if (route().view === '' || route().view === 'overview' || route().view === 'planned' || route().view === 'sprint') {
         render();
       }
@@ -1629,9 +1634,15 @@ function show(data) {
 }
 function refresh() {
   busyStart();
-  READINESS = null; readinessState = 'idle';
   const first = DATA ? Promise.resolve() : getJSON('api/sprints/local').then(show);
-  return first.then(() => getJSON('api/sprints')).then(show).finally(busyEnd);
+  return first.then(() => getJSON('api/sprints')).then(data => {
+    if (DATA && !PARTIAL) {
+      readinessRequest++;
+      readinessState = 'idle';
+      readinessError = null;
+    }
+    show(data);
+  }).finally(busyEnd);
 }
 function isCurrentOpen() {
   const { view, arg } = route();

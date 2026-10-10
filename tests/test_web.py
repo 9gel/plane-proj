@@ -301,3 +301,8 @@ def test_web_page_contains_parallel_readiness_elements() -> None:
     assert "cardIconsHtml" in content
     assert "formatWhyTooltip" in content
 
+
+def test_web_refresh_keeps_loaded_readiness_visible() -> None:
+    refresh = web.page().split("function refresh() {", 1)[1].split("\n}", 1)[0]
+    assert "READINESS = null" not in refresh
+

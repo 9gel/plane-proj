@@ -1118,7 +1118,8 @@ and two JSON routes from `web.py`:
   sprint's state and reasons, overlapping card pairs, the sprint dependency
   graph, and the serial and parallel times. It reads every open card's
   relations and description, so the Planned page and a planned sprint's page
-  request it on opening and show placeholders until it arrives.
+  request it on opening. They show placeholders on first load, then retain the
+  previous report with a spinner during later refreshes.
 - A planned sprint whose cycle has no card other than Cancelled is left
   out of `/api/sprints` and `/api/readiness`. The Planned page and the
   overview then treat it as absent. `sprints list` and `sprints readiness`
