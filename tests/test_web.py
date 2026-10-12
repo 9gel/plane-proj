@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
 import threading
 from collections.abc import Iterator
 from pathlib import Path
 from urllib.error import HTTPError
+from urllib.parse import unquote
 from urllib.request import urlopen
+from xml.etree import ElementTree
 
 import pytest
 
@@ -16,6 +19,14 @@ from plane_proj import web
 from plane_proj.cli import _sprint_listing, sprints_web_routes
 from plane_proj.config import DEFAULT_WEB_URL, Config
 from plane_proj.guards import GuardViolation
+
+
+def test_page_has_a_valid_svg_favicon() -> None:
+    match = re.search(r'<link rel="icon"[^>]*href="([^"]+)"', web.page())
+    assert match is not None
+    assert match[1].startswith("data:image/svg+xml,")
+    svg = ElementTree.fromstring(unquote(match[1].partition(",")[2]))
+    assert svg.tag == "{http://www.w3.org/2000/svg}svg"
 
 
 def test_default_board_link_is_plane_cloud() -> None:
