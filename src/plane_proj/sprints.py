@@ -6,8 +6,10 @@ import json
 import math
 import os
 import re
+import shutil
 import sqlite3
 import statistics
+import subprocess
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -179,7 +181,31 @@ class SprintError(click.ClickException):
 
 
 def default_database_path() -> Path:
-    return Path.cwd() / "plane" / "SPRINTS.sqlite"
+    return main_worktree_register(Path.cwd() / "plane" / "SPRINTS.sqlite")
+
+
+def main_worktree_register(path: Path) -> Path:
+    """The main worktree's copy of a register named inside a linked worktree.
+
+    Plane holds one board, so the project keeps one register: writes made
+    from a linked worktree land on the main worktree's branch instead of a
+    branch that may never be merged back.
+    """
+    directory = path.parent
+    if shutil.which("git") is None or not directory.is_dir():
+        return path
+    result = subprocess.run(
+        ["git", "rev-parse", "--path-format=absolute", "--show-toplevel",
+         "--git-common-dir"],
+        cwd=directory, capture_output=True, text=True, check=False,
+    )
+    if result.returncode != 0:
+        return path
+    top, common = (Path(line).resolve() for line in result.stdout.split())
+    absolute = path.resolve()
+    if common.name != ".git" or not absolute.is_relative_to(top):
+        return path
+    return common.parent / absolute.relative_to(top)
 
 
 def parse_timestamp(value: str) -> datetime:

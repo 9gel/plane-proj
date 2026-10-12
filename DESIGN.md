@@ -412,6 +412,22 @@ foreign-key constraints on every write, and `user_version` drives
 migrations. A text register would have to re-implement all three; the driver
 and textconv give git what it needs without moving the data out of SQLite.
 
+### One register across linked worktrees (0.24.21)
+
+A command run inside a linked git worktree reads and writes the main
+worktree's register, not the worktree's own committed copy. The default
+`plane/SPRINTS.sqlite` and a configured `state_file` both resolve to the same
+relative path under the main worktree (the parent of `git rev-parse
+--git-common-dir`), and the register commit lands on the branch checked out
+there. An explicit `--database` path is used as given.
+
+Plane holds one board, so per-branch registers drifted from it whenever a
+worktree branch was left unmerged: on 2026-10-11 `sprints close LK-PREP` ran
+in a mapstats worktree, closed the Plane cycle, and committed the register
+only to a branch that never reached `dev`. The merge driver still handles
+branches that changed the register before this rule, and any branch where the
+main worktree itself is switched.
+
 ### Register protection and schema v11
 
 Measured 2026-10-08 in the mapstats repository: sprint 153's close and

@@ -344,3 +344,44 @@ def test_refused_commit_raises_and_keeps_the_write(repo):
                        match="Register commit rule.*refused-by-hook"):
         register_module.commit_register(path, "plane-proj sprints plan")
     assert "Sprint 8" in titles(path).values()
+
+
+def test_worktree_writes_land_in_the_main_register(repo, tmp_path,
+                                                   monkeypatch):
+    main_register = committed_register(repo)
+    linked = tmp_path / "linked"
+    result = git(repo, "worktree", "add", "-q", "-b", "side", str(linked))
+    assert result.returncode == 0, result.stderr
+    monkeypatch.chdir(linked)
+
+    path = sprints.default_database_path()
+    plan(path, 9)
+    from plane_proj.cli import _commit_registers
+    _commit_registers("plane-proj sprints plan")
+
+    assert path == main_register
+    assert "Sprint 9" in titles(main_register).values()
+    linked_register = linked / "plane" / "SPRINTS.sqlite"
+    assert "Sprint 9" not in titles(linked_register).values()
+    log = git(repo, "log", "-1", "--format=%s", "main").stdout
+    assert log.startswith("chore(plane): record `plane-proj sprints plan`")
+    assert git(repo, "log", "-1", "--format=%s", "side").stdout == "register\n"
+
+
+def test_configured_state_file_in_a_worktree_names_the_main_register(
+        repo, tmp_path):
+    committed_register(repo)
+    (repo / "plane" / "plane-proj.json").write_text(json.dumps({
+        "defaults": {"workspace": "test", "project": "DEMO"},
+        "state_file": "SPRINTS.sqlite",
+    }), encoding="utf-8")
+    assert git(repo, "add", "--", "plane").returncode == 0
+    assert git(repo, "commit", "-q", "-m", "config").returncode == 0
+    linked = tmp_path / "linked"
+    assert git(repo, "worktree", "add", "-q", "-b", "side",
+               str(linked)).returncode == 0
+
+    from plane_proj.config import load_config
+    config = load_config(linked / "plane" / "plane-proj.json")
+
+    assert config.state_file == repo / "plane" / "SPRINTS.sqlite"

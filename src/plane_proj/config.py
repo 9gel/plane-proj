@@ -15,6 +15,7 @@ from plane_proj.guards import (
     UnknownEstimateValue,
     UnknownModule,
 )
+from plane_proj.sprints import main_worktree_register
 
 CONFIG_ENV_VAR = "PLANE_PROJ_CONFIG"
 PROJECT_ENV_VAR = "PLANE_PROJ_PROJECT"
@@ -386,7 +387,7 @@ def load_config(explicit: str | Path | None = None) -> Config:
         projects=projects,
         # Relative state paths belong to the config, not the invocation cwd.
         state_file=(
-            path.parent / Path(state_file).expanduser()
+            main_worktree_register(path.parent / Path(state_file).expanduser())
             if state_file is not None else None
         ),
         web_url=web_url,
