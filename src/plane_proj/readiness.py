@@ -488,7 +488,6 @@ def evaluate_readiness(
         sprint_hours[s.sprint_id] = s.points / velocity if velocity > 0 else 0.0
 
     earliest_finish: dict[int, float] = {}
-    predecessor: dict[int, int | None] = {}
     finish_visiting: set[int] = set()
 
     def get_longest_finish(s_id: int) -> float:
@@ -500,11 +499,11 @@ def evaluate_readiness(
         incoming = [u for u, v, _ in sprint_deps if v == s_id]
         if not incoming:
             earliest_finish[s_id] = sprint_hours.get(s_id, 0.0)
-            predecessor[s_id] = None
         else:
-            best_p = max(incoming, key=get_longest_finish)
-            earliest_finish[s_id] = earliest_finish[best_p] + sprint_hours.get(s_id, 0.0)
-            predecessor[s_id] = best_p
+            earliest_finish[s_id] = (
+                max(get_longest_finish(u) for u in incoming)
+                + sprint_hours.get(s_id, 0.0)
+            )
         finish_visiting.remove(s_id)
         return earliest_finish[s_id]
 
@@ -514,19 +513,8 @@ def evaluate_readiness(
 
     parallel_hours = max((earliest_finish.get(s_id, 0.0) for s_id in planned_ids), default=0.0)
 
-    critical_chain: list[int] = []
-    critical_edges: list[str] = []
-    if planned_ids:
-        end_sprint = max(planned_ids, key=lambda s_id: earliest_finish.get(s_id, 0.0))
-        curr: int | None = end_sprint
-        while curr is not None:
-            critical_chain.append(curr)
-            curr = predecessor.get(curr)
-        critical_chain.reverse()
-        for i in range(len(critical_chain) - 1):
-            critical_edges.append(f"{critical_chain[i]}-{critical_chain[i+1]}")
-
     col: dict[int, int] = {}
+    col_predecessor: dict[int, int | None] = {}
     col_visiting: set[int] = set()
 
     def get_col(s_id: int) -> int:
@@ -538,13 +526,29 @@ def evaluate_readiness(
         incoming = [u for u, v, _ in sprint_deps if v == s_id]
         if not incoming:
             col[s_id] = 0
+            col_predecessor[s_id] = None
         else:
-            col[s_id] = max(get_col(u) + 1 for u in incoming)
+            best_p = max(incoming, key=get_col)
+            col[s_id] = col[best_p] + 1
+            col_predecessor[s_id] = best_p
         col_visiting.remove(s_id)
         return col[s_id]
 
     for s_id in [s.sprint_id for s in all_sprints]:
         get_col(s_id)
+
+    critical_chain: list[int] = []
+    if planned_ids:
+        curr: int | None = max(planned_ids, key=get_col)
+        while curr is not None:
+            critical_chain.append(curr)
+            curr = col_predecessor[curr]
+        critical_chain.reverse()
+    critical_edges = [
+        f"{u}-{v}" for u, v in zip(
+            critical_chain, critical_chain[1:], strict=False
+        )
+    ]
 
     queue_rows = []
     for s in ordered_planned:

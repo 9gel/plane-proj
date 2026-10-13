@@ -313,6 +313,42 @@ def test_serial_and_parallel_times_with_assumed_and_median_velocity() -> None:
     assert rep_median["summary"]["parallel_hours"] == 4.0
 
 
+def test_longest_sprint_chain_counts_sprints_not_estimated_hours() -> None:
+    """The graph marks the most sprints even when another route takes longer."""
+    chains = (
+        ("LK-OPS", "LK-1", "LK-2", "LK-3", "LK-4", "LK-5", "LK-6"),
+        ("R2-1", "R2-2", "R2-3", "R2-4"),
+    )
+    sprints = []
+    for chain in chains:
+        previous_id = None
+        for alias in chain:
+            sprint_id = len(sprints) + 1
+            card = CardFact(
+                id=f"card-{sprint_id}", ref=f"DEMO-{sprint_id}",
+                title=alias, state="Todo",
+                points=1 if alias.startswith("LK") else 5,
+                sprint_id=sprint_id,
+                blocked_by=(f"card-{previous_id}",) if previous_id else (),
+            )
+            sprints.append(SprintFact(
+                sprint_id=sprint_id, title=alias, alias=alias,
+                position=sprint_id, is_current=sprint_id == 1,
+                cards=(card,),
+            ))
+            previous_id = sprint_id
+
+    report = evaluate_readiness(
+        sprints[:1], sprints[1:], {}, completed_velocities=[1.0]
+    )
+
+    assert report["graph"]["critical_path"] == list(range(1, 8))
+    assert report["graph"]["critical_edges"] == [
+        f"{i}-{i + 1}" for i in range(1, 7)
+    ]
+    assert report["summary"]["parallel_hours"] == 20.0
+
+
 def test_board_sprint_readiness_cards_and_facts(board, client, monkeypatch) -> None:
     plan_alpha = (
         "<div><h2>Delivery plan</h2><p>Touches:<br>- src/alpha.py<br>"

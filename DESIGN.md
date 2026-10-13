@@ -799,6 +799,9 @@ planned points divided by velocity. The parallel time is the longest chain
 of sprint durations along cross-sprint dependencies, with a running sprint
 counting its remaining points; it is a lower bound that ignores overlap and
 assumes enough agents.
+The graph highlights the chain with the most sprints, including a running
+sprint when it is a prerequisite. This can differ from the chain that sets
+the parallel time because sprint durations vary.
 
 ## 7. Two server limits and one SDK defect
 
